@@ -1,0 +1,25 @@
+{
+  "name": "Cria Aí — Estúdio de Conteúdo",
+  "short_name": "Cria Aí",
+  "description": "Estúdio multimarcas para briefings e prompts profissionais de conteúdo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1f",
+  "theme_color": "#ff8a3d",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
