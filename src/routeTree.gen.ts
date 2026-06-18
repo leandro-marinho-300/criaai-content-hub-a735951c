@@ -9,38 +9,242 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
+import { Route as AuthenticatedAppTemplatesRouteImport } from './routes/_authenticated/app.templates'
+import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
+import { Route as AuthenticatedAppLibraryRouteImport } from './routes/_authenticated/app.library'
+import { Route as AuthenticatedAppBrandsIndexRouteImport } from './routes/_authenticated/app.brands.index'
+import { Route as AuthenticatedAppContentNewRouteImport } from './routes/_authenticated/app.content.new'
+import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
+import { Route as AuthenticatedAppContentProjectIdResultRouteImport } from './routes/_authenticated/app.content.$projectId.result'
+import { Route as AuthenticatedAppBrandsBrandIdEditRouteImport } from './routes/_authenticated/app.brands.$brandId.edit'
 
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppTemplatesRoute =
+  AuthenticatedAppTemplatesRouteImport.update({
+    id: '/templates',
+    path: '/templates',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppSettingsRoute =
+  AuthenticatedAppSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppLibraryRoute = AuthenticatedAppLibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppBrandsIndexRoute =
+  AuthenticatedAppBrandsIndexRouteImport.update({
+    id: '/brands/',
+    path: '/brands/',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppContentNewRoute =
+  AuthenticatedAppContentNewRouteImport.update({
+    id: '/content/new',
+    path: '/content/new',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppBrandsNewRoute =
+  AuthenticatedAppBrandsNewRouteImport.update({
+    id: '/brands/new',
+    path: '/brands/new',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppContentProjectIdResultRoute =
+  AuthenticatedAppContentProjectIdResultRouteImport.update({
+    id: '/content/$projectId/result',
+    path: '/content/$projectId/result',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppBrandsBrandIdEditRoute =
+  AuthenticatedAppBrandsBrandIdEditRouteImport.update({
+    id: '/brands/$brandId/edit',
+    path: '/brands/$brandId/edit',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/app': typeof AuthenticatedAppRouteWithChildren
+  '/app/library': typeof AuthenticatedAppLibraryRoute
+  '/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/app/templates': typeof AuthenticatedAppTemplatesRoute
+  '/app/': typeof AuthenticatedAppIndexRoute
+  '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
+  '/app/content/new': typeof AuthenticatedAppContentNewRoute
+  '/app/brands/': typeof AuthenticatedAppBrandsIndexRoute
+  '/app/brands/$brandId/edit': typeof AuthenticatedAppBrandsBrandIdEditRoute
+  '/app/content/$projectId/result': typeof AuthenticatedAppContentProjectIdResultRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/app/library': typeof AuthenticatedAppLibraryRoute
+  '/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/app/templates': typeof AuthenticatedAppTemplatesRoute
+  '/app': typeof AuthenticatedAppIndexRoute
+  '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
+  '/app/content/new': typeof AuthenticatedAppContentNewRoute
+  '/app/brands': typeof AuthenticatedAppBrandsIndexRoute
+  '/app/brands/$brandId/edit': typeof AuthenticatedAppBrandsBrandIdEditRoute
+  '/app/content/$projectId/result': typeof AuthenticatedAppContentProjectIdResultRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/_authenticated/app/library': typeof AuthenticatedAppLibraryRoute
+  '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/_authenticated/app/templates': typeof AuthenticatedAppTemplatesRoute
+  '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
+  '/_authenticated/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
+  '/_authenticated/app/content/new': typeof AuthenticatedAppContentNewRoute
+  '/_authenticated/app/brands/': typeof AuthenticatedAppBrandsIndexRoute
+  '/_authenticated/app/brands/$brandId/edit': typeof AuthenticatedAppBrandsBrandIdEditRoute
+  '/_authenticated/app/content/$projectId/result': typeof AuthenticatedAppContentProjectIdResultRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/sitemap.xml'
+    | '/app'
+    | '/app/library'
+    | '/app/settings'
+    | '/app/templates'
+    | '/app/'
+    | '/app/brands/new'
+    | '/app/content/new'
+    | '/app/brands/'
+    | '/app/brands/$brandId/edit'
+    | '/app/content/$projectId/result'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/sitemap.xml'
+    | '/app/library'
+    | '/app/settings'
+    | '/app/templates'
+    | '/app'
+    | '/app/brands/new'
+    | '/app/content/new'
+    | '/app/brands'
+    | '/app/brands/$brandId/edit'
+    | '/app/content/$projectId/result'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/reset-password'
+    | '/sitemap.xml'
+    | '/_authenticated/app'
+    | '/_authenticated/app/library'
+    | '/_authenticated/app/settings'
+    | '/_authenticated/app/templates'
+    | '/_authenticated/app/'
+    | '/_authenticated/app/brands/new'
+    | '/_authenticated/app/content/new'
+    | '/_authenticated/app/brands/'
+    | '/_authenticated/app/brands/$brandId/edit'
+    | '/_authenticated/app/content/$projectId/result'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +252,125 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/app': {
+      id: '/_authenticated/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AuthenticatedAppRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/app/': {
+      id: '/_authenticated/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/templates': {
+      id: '/_authenticated/app/templates'
+      path: '/templates'
+      fullPath: '/app/templates'
+      preLoaderRoute: typeof AuthenticatedAppTemplatesRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/settings': {
+      id: '/_authenticated/app/settings'
+      path: '/settings'
+      fullPath: '/app/settings'
+      preLoaderRoute: typeof AuthenticatedAppSettingsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/library': {
+      id: '/_authenticated/app/library'
+      path: '/library'
+      fullPath: '/app/library'
+      preLoaderRoute: typeof AuthenticatedAppLibraryRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/brands/': {
+      id: '/_authenticated/app/brands/'
+      path: '/brands'
+      fullPath: '/app/brands/'
+      preLoaderRoute: typeof AuthenticatedAppBrandsIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/content/new': {
+      id: '/_authenticated/app/content/new'
+      path: '/content/new'
+      fullPath: '/app/content/new'
+      preLoaderRoute: typeof AuthenticatedAppContentNewRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/brands/new': {
+      id: '/_authenticated/app/brands/new'
+      path: '/brands/new'
+      fullPath: '/app/brands/new'
+      preLoaderRoute: typeof AuthenticatedAppBrandsNewRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/content/$projectId/result': {
+      id: '/_authenticated/app/content/$projectId/result'
+      path: '/content/$projectId/result'
+      fullPath: '/app/content/$projectId/result'
+      preLoaderRoute: typeof AuthenticatedAppContentProjectIdResultRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/brands/$brandId/edit': {
+      id: '/_authenticated/app/brands/$brandId/edit'
+      path: '/brands/$brandId/edit'
+      fullPath: '/app/brands/$brandId/edit'
+      preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdEditRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
   }
 }
 
+interface AuthenticatedAppRouteChildren {
+  AuthenticatedAppLibraryRoute: typeof AuthenticatedAppLibraryRoute
+  AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
+  AuthenticatedAppTemplatesRoute: typeof AuthenticatedAppTemplatesRoute
+  AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
+  AuthenticatedAppBrandsNewRoute: typeof AuthenticatedAppBrandsNewRoute
+  AuthenticatedAppContentNewRoute: typeof AuthenticatedAppContentNewRoute
+  AuthenticatedAppBrandsIndexRoute: typeof AuthenticatedAppBrandsIndexRoute
+  AuthenticatedAppBrandsBrandIdEditRoute: typeof AuthenticatedAppBrandsBrandIdEditRoute
+  AuthenticatedAppContentProjectIdResultRoute: typeof AuthenticatedAppContentProjectIdResultRoute
+}
+
+const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
+  AuthenticatedAppLibraryRoute: AuthenticatedAppLibraryRoute,
+  AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
+  AuthenticatedAppTemplatesRoute: AuthenticatedAppTemplatesRoute,
+  AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
+  AuthenticatedAppBrandsNewRoute: AuthenticatedAppBrandsNewRoute,
+  AuthenticatedAppContentNewRoute: AuthenticatedAppContentNewRoute,
+  AuthenticatedAppBrandsIndexRoute: AuthenticatedAppBrandsIndexRoute,
+  AuthenticatedAppBrandsBrandIdEditRoute:
+    AuthenticatedAppBrandsBrandIdEditRoute,
+  AuthenticatedAppContentProjectIdResultRoute:
+    AuthenticatedAppContentProjectIdResultRoute,
+}
+
+const AuthenticatedAppRouteWithChildren =
+  AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
