@@ -1,0 +1,550 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
+  public: {
+    Tables: {
+      brand_assets: {
+        Row: {
+          asset_type: string
+          brand_id: string
+          created_at: string
+          description: string | null
+          file_name: string
+          file_url: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          asset_type: string
+          brand_id: string
+          created_at?: string
+          description?: string | null
+          file_name: string
+          file_url: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          asset_type?: string
+          brand_id?: string
+          created_at?: string
+          description?: string | null
+          file_name?: string
+          file_url?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_assets_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brands: {
+        Row: {
+          additional_colors: string[]
+          age_range: string | null
+          allowed_topics: string[]
+          audience: string | null
+          audience_difficulties: string | null
+          audience_language: string | null
+          audience_needs: string | null
+          audience_values: string | null
+          avoided_topics: string[]
+          calls_to_action: string[]
+          created_at: string
+          description: string | null
+          differentiators: string | null
+          fonts: string | null
+          forbidden_inventions: string | null
+          frequently_asked_questions: string | null
+          graphic_elements: string | null
+          id: string
+          important_dates: string | null
+          instagram: string | null
+          is_active: boolean
+          legal_information: string | null
+          logo_url: string | null
+          name: string
+          personality: string | null
+          primary_color: string | null
+          priority_services: string[]
+          products_services: string | null
+          prohibited_words: string[]
+          recommended_words: string[]
+          secondary_color: string | null
+          segment: string | null
+          service_region: string | null
+          social_goal: string | null
+          tone_of_voice: string | null
+          updated_at: string
+          user_id: string
+          visual_references: string | null
+          visual_style: string | null
+          website: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          additional_colors?: string[]
+          age_range?: string | null
+          allowed_topics?: string[]
+          audience?: string | null
+          audience_difficulties?: string | null
+          audience_language?: string | null
+          audience_needs?: string | null
+          audience_values?: string | null
+          avoided_topics?: string[]
+          calls_to_action?: string[]
+          created_at?: string
+          description?: string | null
+          differentiators?: string | null
+          fonts?: string | null
+          forbidden_inventions?: string | null
+          frequently_asked_questions?: string | null
+          graphic_elements?: string | null
+          id?: string
+          important_dates?: string | null
+          instagram?: string | null
+          is_active?: boolean
+          legal_information?: string | null
+          logo_url?: string | null
+          name: string
+          personality?: string | null
+          primary_color?: string | null
+          priority_services?: string[]
+          products_services?: string | null
+          prohibited_words?: string[]
+          recommended_words?: string[]
+          secondary_color?: string | null
+          segment?: string | null
+          service_region?: string | null
+          social_goal?: string | null
+          tone_of_voice?: string | null
+          updated_at?: string
+          user_id: string
+          visual_references?: string | null
+          visual_style?: string | null
+          website?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          additional_colors?: string[]
+          age_range?: string | null
+          allowed_topics?: string[]
+          audience?: string | null
+          audience_difficulties?: string | null
+          audience_language?: string | null
+          audience_needs?: string | null
+          audience_values?: string | null
+          avoided_topics?: string[]
+          calls_to_action?: string[]
+          created_at?: string
+          description?: string | null
+          differentiators?: string | null
+          fonts?: string | null
+          forbidden_inventions?: string | null
+          frequently_asked_questions?: string | null
+          graphic_elements?: string | null
+          id?: string
+          important_dates?: string | null
+          instagram?: string | null
+          is_active?: boolean
+          legal_information?: string | null
+          logo_url?: string | null
+          name?: string
+          personality?: string | null
+          primary_color?: string | null
+          priority_services?: string[]
+          products_services?: string | null
+          prohibited_words?: string[]
+          recommended_words?: string[]
+          secondary_color?: string | null
+          segment?: string | null
+          service_region?: string | null
+          social_goal?: string | null
+          tone_of_voice?: string | null
+          updated_at?: string
+          user_id?: string
+          visual_references?: string | null
+          visual_style?: string | null
+          website?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
+      content_outputs: {
+        Row: {
+          created_at: string
+          display_order: number
+          edited_content: string | null
+          id: string
+          is_favorite: boolean
+          original_content: string
+          output_type: string
+          project_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          edited_content?: string | null
+          id?: string
+          is_favorite?: boolean
+          original_content: string
+          output_type: string
+          project_id: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          edited_content?: string | null
+          id?: string
+          is_favorite?: boolean
+          original_content?: string
+          output_type?: string
+          project_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_outputs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "content_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_projects: {
+        Row: {
+          audience_problem: string | null
+          brand_id: string | null
+          call_to_action: string | null
+          contact_information: string | null
+          created_at: string
+          desired_style: string | null
+          event_date: string | null
+          event_time: string | null
+          formality_level: string | null
+          generation_mode: string
+          id: string
+          internal_title: string | null
+          is_favorite: boolean
+          location: string | null
+          main_message: string | null
+          mandatory_information: string | null
+          notes: string | null
+          objective: string | null
+          price_information: string | null
+          publication_date: string | null
+          restrictions: string | null
+          selected_formats: string[]
+          selected_outputs: string[]
+          specific_audience: string | null
+          status: string
+          theme: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          audience_problem?: string | null
+          brand_id?: string | null
+          call_to_action?: string | null
+          contact_information?: string | null
+          created_at?: string
+          desired_style?: string | null
+          event_date?: string | null
+          event_time?: string | null
+          formality_level?: string | null
+          generation_mode?: string
+          id?: string
+          internal_title?: string | null
+          is_favorite?: boolean
+          location?: string | null
+          main_message?: string | null
+          mandatory_information?: string | null
+          notes?: string | null
+          objective?: string | null
+          price_information?: string | null
+          publication_date?: string | null
+          restrictions?: string | null
+          selected_formats?: string[]
+          selected_outputs?: string[]
+          specific_audience?: string | null
+          status?: string
+          theme?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          audience_problem?: string | null
+          brand_id?: string | null
+          call_to_action?: string | null
+          contact_information?: string | null
+          created_at?: string
+          desired_style?: string | null
+          event_date?: string | null
+          event_time?: string | null
+          formality_level?: string | null
+          generation_mode?: string
+          id?: string
+          internal_title?: string | null
+          is_favorite?: boolean
+          location?: string | null
+          main_message?: string | null
+          mandatory_information?: string | null
+          notes?: string | null
+          objective?: string | null
+          price_information?: string | null
+          publication_date?: string | null
+          restrictions?: string | null
+          selected_formats?: string[]
+          selected_outputs?: string[]
+          specific_audience?: string | null
+          status?: string
+          theme?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_projects_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      prompt_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_system_template: boolean
+          name: string
+          objective: string | null
+          recommended_formats: string[]
+          suggested_fields: string[]
+          template_content: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system_template?: boolean
+          name: string
+          objective?: string | null
+          recommended_formats?: string[]
+          suggested_fields?: string[]
+          template_content: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system_template?: boolean
+          name?: string
+          objective?: string | null
+          recommended_formats?: string[]
+          suggested_fields?: string[]
+          template_content?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
