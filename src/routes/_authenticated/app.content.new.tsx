@@ -1,8 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Check, Loader2, ShieldCheck, Zap, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2, ShieldCheck, Zap, Sparkles, AlertCircle, PenSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,13 +21,36 @@ import {
 } from "@/components/ui/select";
 import { buildPrompts, FORMAT_LABELS, OBJECTIVE_LABELS, OUTPUT_LABELS, type GenerationMode } from "@/lib/promptBuilder";
 import type { Tables } from "@/integrations/supabase/types";
+import { HelpDialog } from "@/components/help-dialog";
 
 export const Route = createFileRoute("/_authenticated/app/content/new")({
   head: () => ({ meta: [{ title: "Novo conteúdo — Cria Aí" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    format: typeof s.format === "string" ? s.format : undefined,
+  }),
   component: ContentWizard,
 });
 
 const STEPS = ["Marca", "Objetivo", "Formatos", "Briefing", "Pacote", "Modo", "Revisão"] as const;
+
+const REQUEST_LABELS: Record<string, string> = {
+  estrategia: "Solicitar estratégia",
+  conceito: "Solicitar conceito criativo",
+  textos_artes: "Solicitar textos das artes",
+  layouts: "Solicitar layouts",
+  carrossel: "Solicitar carrossel",
+  stories: "Solicitar Stories",
+  roteiro_reel: "Solicitar roteiro de Reel",
+  legenda_curta: "Solicitar legenda curta",
+  legenda_media: "Solicitar legenda intermediária",
+  legenda_completa: "Solicitar legenda completa",
+  whatsapp: "Solicitar versão para WhatsApp",
+  hashtags: "Solicitar hashtags",
+  engajamento: "Solicitar recursos de engajamento",
+  prompt_visual: "Solicitar prompt visual",
+  texto_alternativo: "Solicitar texto alternativo",
+  checklist: "Solicitar revisão de qualidade",
+};
 
 type State = {
   brand_id: string | null;
@@ -48,6 +71,7 @@ type State = {
   location: string;
   price_information: string;
   contact_information: string;
+  product_description: string;
   desired_style: string;
   formality_level: string;
   restrictions: string;
@@ -73,6 +97,7 @@ const DEFAULT_STATE: State = {
   location: "",
   price_information: "",
   contact_information: "",
+  product_description: "",
   desired_style: "",
   formality_level: "",
   restrictions: "",
@@ -81,9 +106,27 @@ const DEFAULT_STATE: State = {
 
 const DRAFT_KEY = "cria-wizard-draft";
 
+const formatNoun = (key: string) => {
+  const labels: Record<string, string> = {
+    post: "um Post",
+    carrossel: "um Carrossel",
+    story: "um Story",
+    sequencia_stories: "uma sequência de Stories",
+    status_whatsapp: "um Status do WhatsApp",
+    reel: "um Reel",
+    capa_reel: "uma capa de Reel",
+    comunicado: "um Comunicado",
+    banner: "um Banner",
+    texto_grupo: "um texto para grupo",
+    impresso: "um material impresso",
+  };
+  return labels[key] ?? (FORMAT_LABELS[key] ? `um ${FORMAT_LABELS[key]}` : "um conteúdo");
+};
+
 function ContentWizard() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const search = Route.useSearch();
   const [step, setStep] = useState(0);
   const [state, setState] = useState<State>(() => {
     if (typeof window === "undefined") return DEFAULT_STATE;
@@ -93,6 +136,15 @@ function ContentWizard() {
     } catch {}
     return DEFAULT_STATE;
   });
+  const [showErrors, setShowErrors] = useState(false);
+
+  // Pre-select format from query (?format=post)
+  useEffect(() => {
+    if (search.format && FORMAT_LABELS[search.format]) {
+      setState((s) => (s.selected_formats.includes(search.format!) ? s : { ...s, selected_formats: [...s.selected_formats, search.format!] }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     try {
@@ -115,19 +167,74 @@ function ContentWizard() {
   const toggleArr = (k: "selected_formats" | "selected_outputs", value: string) =>
     setState((s) => ({ ...s, [k]: s[k].includes(value) ? s[k].filter((x) => x !== value) : [...s[k], value] }));
 
+  // Briefing required-field validation
+  const briefingErrors = useMemo(() => {
+    const e: Partial<Record<keyof State, string>> = {};
+    if (!state.internal_title.trim()) e.internal_title = "Informe um título interno para o projeto.";
+    if (!state.theme.trim()) e.theme = "Informe o tema principal do conteúdo.";
+    if (!state.main_message.trim()) e.main_message = "Escreva a mensagem principal que quer transmitir.";
+    if (!state.call_to_action.trim()) e.call_to_action = "Defina a chamada para ação esperada.";
+    const hasContext =
+      state.mandatory_information.trim() ||
+      state.audience_problem.trim() ||
+      state.product_description.trim();
+    if (!hasContext) e.mandatory_information = "Preencha ao menos um destes: informações obrigatórias, problema/necessidade ou descrição do produto/serviço.";
+    return e;
+  }, [state]);
+
+  const briefingValid = Object.keys(briefingErrors).length === 0;
+
+  // Quality indicator
+  const quality = useMemo(() => {
+    const checks = [
+      !!state.brand_id,
+      !!state.objective,
+      state.selected_formats.length > 0,
+      !!state.theme.trim(),
+      !!state.specific_audience.trim(),
+      !!state.main_message.trim(),
+      !!(state.mandatory_information.trim() || state.audience_problem.trim() || state.product_description.trim()),
+      !!state.call_to_action.trim(),
+      !!state.desired_style.trim(),
+    ];
+    const score = checks.filter(Boolean).length;
+    const total = checks.length;
+    let label: "Incompleto" | "Básico" | "Bom" | "Completo" = "Incompleto";
+    if (score >= total) label = "Completo";
+    else if (score >= 7) label = "Bom";
+    else if (score >= 4) label = "Básico";
+    return { score, total, label, pct: Math.round((score / total) * 100) };
+  }, [state]);
+
   const canNext = () => {
     if (step === 0) return !!state.brand_id;
     if (step === 1) return !!state.objective;
     if (step === 2) return state.selected_formats.length > 0;
+    if (step === 3) return briefingValid;
     if (step === 4) return state.selected_outputs.length > 0;
     return true;
   };
 
+  const handleNext = () => {
+    if (step === 3 && !briefingValid) {
+      setShowErrors(true);
+      toast.error("Complete os campos obrigatórios do briefing.");
+      return;
+    }
+    setStep((s) => Math.min(STEPS.length - 1, s + 1));
+  };
+
+  const canGenerate = briefingValid;
+
   const create = useMutation({
     mutationFn: async () => {
       if (!selectedBrand) throw new Error("Selecione uma marca.");
+      if (!canGenerate) throw new Error("Complete o briefing antes de montar o pacote.");
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Não autenticado");
+      const mandatory = [state.mandatory_information, state.product_description ? `Produto/serviço: ${state.product_description}` : ""]
+        .filter(Boolean)
+        .join("\n");
       const payload = {
         user_id: u.user.id,
         brand_id: state.brand_id,
@@ -137,7 +244,7 @@ function ContentWizard() {
         specific_audience: state.specific_audience || null,
         audience_problem: state.audience_problem || null,
         main_message: state.main_message || null,
-        mandatory_information: state.mandatory_information || null,
+        mandatory_information: mandatory || null,
         call_to_action: state.call_to_action || null,
         publication_date: state.publication_date || null,
         event_date: state.event_date || null,
@@ -157,7 +264,6 @@ function ContentWizard() {
       const { data: project, error } = await supabase.from("content_projects").insert(payload).select("*").single();
       if (error) throw error;
 
-      // Build prompts and persist outputs
       const result = buildPrompts({ brand: selectedBrand, project: project as Tables<"content_projects"> });
       const rows = result.blocks.map((b, i) => ({
         project_id: project.id,
@@ -183,6 +289,8 @@ function ContentWizard() {
     onError: (e: Error) => toast.error("Falha ao gerar", { description: e.message }),
   });
 
+  const goToBriefing = () => setStep(3);
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="space-y-3">
@@ -193,9 +301,22 @@ function ContentWizard() {
               Etapa {step + 1} de {STEPS.length}: <span className="font-medium text-foreground">{STEPS[step]}</span>
             </p>
           </div>
-          <Badge variant="outline">{Math.round(((step + 1) / STEPS.length) * 100)}%</Badge>
+          <div className="flex items-center gap-2">
+            <HelpDialog />
+            <Badge variant="outline">{Math.round(((step + 1) / STEPS.length) * 100)}%</Badge>
+          </div>
         </div>
         <Progress value={((step + 1) / STEPS.length) * 100} />
+
+        {state.selected_formats.length > 0 && (
+          <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+            Você está preparando um prompt para criar {state.selected_formats.length === 1
+              ? formatNoun(state.selected_formats[0])
+              : `${state.selected_formats.length} formatos`}.
+          </p>
+        )}
+
+        <QualityIndicator quality={quality} />
       </header>
 
       <Card>
@@ -203,10 +324,10 @@ function ContentWizard() {
           {step === 0 && <StepBrand brands={brands ?? []} selected={state.brand_id} onSelect={(id) => set("brand_id", id)} brand={selectedBrand} />}
           {step === 1 && <StepObjective value={state.objective} onChange={(v) => set("objective", v)} />}
           {step === 2 && <StepFormats values={state.selected_formats} onToggle={(v) => toggleArr("selected_formats", v)} />}
-          {step === 3 && <StepBriefing state={state} set={set} />}
+          {step === 3 && <StepBriefing state={state} set={set} errors={showErrors ? briefingErrors : {}} />}
           {step === 4 && <StepOutputs values={state.selected_outputs} onToggle={(v) => toggleArr("selected_outputs", v)} />}
           {step === 5 && <StepMode value={state.generation_mode} onChange={(v) => set("generation_mode", v)} />}
-          {step === 6 && <StepReview state={state} brand={selectedBrand} />}
+          {step === 6 && <StepReview state={state} brand={selectedBrand} errors={briefingErrors} onEditBriefing={goToBriefing} />}
         </CardContent>
       </Card>
 
@@ -215,15 +336,50 @@ function ContentWizard() {
           <ArrowLeft className="mr-2 h-4 w-4" />Voltar
         </Button>
         {step < STEPS.length - 1 ? (
-          <Button onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))} disabled={!canNext()}>
+          <Button onClick={handleNext} disabled={!canNext()}>
             Continuar<ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         ) : (
-          <Button onClick={() => create.mutate()} disabled={create.isPending} size="lg">
+          <Button onClick={() => create.mutate()} disabled={create.isPending || !canGenerate} size="lg">
             {create.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            Montar pacote de prompts
+            Montar prompt
           </Button>
         )}
+      </div>
+
+      {step === 6 && !canGenerate && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex items-start gap-3 p-4 text-sm">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+            <div className="space-y-2">
+              <p>Tema, mensagem principal e chamada para ação são obrigatórios antes de montar o prompt.</p>
+              <Button size="sm" variant="outline" onClick={goToBriefing}><PenSquare className="mr-2 h-3 w-3" />Editar briefing</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <p className="text-center text-xs text-muted-foreground">
+        O Cria Aí monta o prompt. <Link to="/app/library" className="underline">A criação do conteúdo final é feita por você na IA escolhida.</Link>
+      </p>
+    </div>
+  );
+}
+
+function QualityIndicator({ quality }: { quality: { score: number; total: number; label: string; pct: number } }) {
+  const color =
+    quality.label === "Completo" ? "bg-emerald-500"
+    : quality.label === "Bom" ? "bg-primary"
+    : quality.label === "Básico" ? "bg-amber-500"
+    : "bg-destructive";
+  return (
+    <div className="rounded-md border border-border/60 bg-card/60 p-3">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium">Qualidade do briefing</span>
+        <span className="text-muted-foreground">{quality.score}/{quality.total} · <span className="font-semibold text-foreground">{quality.label}</span></span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className={`h-full transition-all ${color}`} style={{ width: `${quality.pct}%` }} />
       </div>
     </div>
   );
@@ -248,6 +404,7 @@ function StepBrand({ brands, selected, onSelect, brand }: { brands: Tables<"bran
             {brands.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <p className="text-xs text-muted-foreground">A identidade, o público e o tom de voz serão carregados automaticamente.</p>
       </div>
       {brand && (
         <Card className="border-border/60 bg-muted/30">
@@ -311,23 +468,38 @@ function StepFormats({ values, onToggle }: { values: string[]; onToggle: (v: str
   );
 }
 
-function StepBriefing({ state, set }: { state: State; set: <K extends keyof State>(k: K, v: State[K]) => void }) {
+function StepBriefing({ state, set, errors }: { state: State; set: <K extends keyof State>(k: K, v: State[K]) => void; errors: Partial<Record<keyof State, string>> }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <Field label="Título interno do projeto" className="sm:col-span-2"><Input value={state.internal_title} onChange={(e) => set("internal_title", e.target.value)} /></Field>
-      <Field label="Tema principal" className="sm:col-span-2"><Input value={state.theme} onChange={(e) => set("theme", e.target.value)} /></Field>
-      <Field label="Público específico"><Input value={state.specific_audience} onChange={(e) => set("specific_audience", e.target.value)} /></Field>
-      <Field label="Problema ou necessidade"><Input value={state.audience_problem} onChange={(e) => set("audience_problem", e.target.value)} /></Field>
-      <Field label="Mensagem principal" className="sm:col-span-2"><Textarea rows={2} value={state.main_message} onChange={(e) => set("main_message", e.target.value)} /></Field>
-      <Field label="Informações obrigatórias" className="sm:col-span-2"><Textarea rows={2} value={state.mandatory_information} onChange={(e) => set("mandatory_information", e.target.value)} /></Field>
-      <Field label="Chamada para ação"><Input value={state.call_to_action} onChange={(e) => set("call_to_action", e.target.value)} /></Field>
+      <Field label="Título interno do projeto *" className="sm:col-span-2" error={errors.internal_title}>
+        <Input value={state.internal_title} onChange={(e) => set("internal_title", e.target.value)} placeholder="Ex.: Divulgação Bolsa Eleganza — Junho" />
+      </Field>
+      <Field label="Tema principal *" className="sm:col-span-2" error={errors.theme}>
+        <Input value={state.theme} onChange={(e) => set("theme", e.target.value)} placeholder="Divulgação da Bolsa Eleganza Caramelo à pronta entrega" />
+      </Field>
+      <Field label="Público específico"><Input value={state.specific_audience} onChange={(e) => set("specific_audience", e.target.value)} placeholder="Ex.: Mulheres 30-50, executivas" /></Field>
+      <Field label="Problema ou necessidade" error={!state.audience_problem && !state.mandatory_information && !state.product_description ? "Preencha ao menos um campo de contexto." : undefined}>
+        <Input value={state.audience_problem} onChange={(e) => set("audience_problem", e.target.value)} placeholder="Ex.: bolsa elegante que cabe notebook" />
+      </Field>
+      <Field label="Mensagem principal *" className="sm:col-span-2" error={errors.main_message}>
+        <Textarea rows={2} value={state.main_message} onChange={(e) => set("main_message", e.target.value)} placeholder="Elegância, espaço e praticidade para diferentes momentos da rotina" />
+      </Field>
+      <Field label="Descrição do produto ou serviço" className="sm:col-span-2">
+        <Textarea rows={2} value={state.product_description} onChange={(e) => set("product_description", e.target.value)} placeholder="Descreva o produto, materiais, diferenciais, etc." />
+      </Field>
+      <Field label="Informações obrigatórias" className="sm:col-span-2" error={errors.mandatory_information}>
+        <Textarea rows={2} value={state.mandatory_information} onChange={(e) => set("mandatory_information", e.target.value)} placeholder="Datas, valores, endereços, telefones — tudo que a IA deve incluir literalmente." />
+      </Field>
+      <Field label="Chamada para ação *" error={errors.call_to_action}>
+        <Input value={state.call_to_action} onChange={(e) => set("call_to_action", e.target.value)} placeholder="Chame no WhatsApp e garanta a sua" />
+      </Field>
       <Field label="Data da publicação"><Input type="date" value={state.publication_date} onChange={(e) => set("publication_date", e.target.value)} /></Field>
       <Field label="Data do evento"><Input type="date" value={state.event_date} onChange={(e) => set("event_date", e.target.value)} /></Field>
       <Field label="Horário"><Input value={state.event_time} onChange={(e) => set("event_time", e.target.value)} placeholder="Ex.: 19h30" /></Field>
       <Field label="Local"><Input value={state.location} onChange={(e) => set("location", e.target.value)} /></Field>
       <Field label="Valor"><Input value={state.price_information} onChange={(e) => set("price_information", e.target.value)} placeholder="Ex.: R$ 199,00" /></Field>
       <Field label="Contato" className="sm:col-span-2"><Input value={state.contact_information} onChange={(e) => set("contact_information", e.target.value)} /></Field>
-      <Field label="Estilo desejado"><Input value={state.desired_style} onChange={(e) => set("desired_style", e.target.value)} /></Field>
+      <Field label="Estilo desejado"><Input value={state.desired_style} onChange={(e) => set("desired_style", e.target.value)} placeholder="Ex.: minimalista, sofisticado" /></Field>
       <Field label="Nível de formalidade">
         <Select value={state.formality_level} onValueChange={(v) => set("formality_level", v)}>
           <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -342,7 +514,7 @@ function StepBriefing({ state, set }: { state: State; set: <K extends keyof Stat
       </Field>
       <Field label="Restrições" className="sm:col-span-2"><Textarea rows={2} value={state.restrictions} onChange={(e) => set("restrictions", e.target.value)} /></Field>
       <Field label="Observações" className="sm:col-span-2"><Textarea rows={2} value={state.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
-      <p className="sm:col-span-2 text-xs text-muted-foreground">Datas, valores, telefones e locais devem ser fornecidos — nada será inventado.</p>
+      <p className="sm:col-span-2 text-xs text-muted-foreground">* campos obrigatórios. Datas, valores, telefones e locais devem ser fornecidos — nada será inventado.</p>
     </div>
   );
 }
@@ -350,12 +522,15 @@ function StepBriefing({ state, set }: { state: State; set: <K extends keyof Stat
 function StepOutputs({ values, onToggle }: { values: string[]; onToggle: (v: string) => void }) {
   return (
     <div className="space-y-3">
-      <Label>O que entregar?</Label>
+      <div>
+        <Label className="text-base">O que o prompt deve solicitar à IA?</Label>
+        <p className="mt-1 text-sm text-muted-foreground">Selecione quais conteúdos a IA deverá produzir quando você executar o prompt.</p>
+      </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        {Object.entries(OUTPUT_LABELS).map(([k, label]) => (
+        {Object.keys(OUTPUT_LABELS).map((k) => (
           <label key={k} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm ${values.includes(k) ? "border-primary bg-primary/5" : "border-border/60"}`}>
             <Checkbox checked={values.includes(k)} onCheckedChange={() => onToggle(k)} />
-            {label}
+            {REQUEST_LABELS[k] ?? OUTPUT_LABELS[k]}
           </label>
         ))}
       </div>
@@ -386,40 +561,78 @@ function StepMode({ value, onChange }: { value: GenerationMode; onChange: (v: Ge
   );
 }
 
-function StepReview({ state, brand }: { state: State; brand: Tables<"brands"> | null }) {
+function StepReview({ state, brand, errors, onEditBriefing }: { state: State; brand: Tables<"brands"> | null; errors: Partial<Record<keyof State, string>>; onEditBriefing: () => void }) {
+  const essentialMissing = errors.theme || errors.main_message || errors.call_to_action;
   return (
     <div className="space-y-4 text-sm">
-      <Row label="Marca" value={brand?.name ?? "—"} />
-      <Row label="Objetivo" value={OBJECTIVE_LABELS[state.objective] ?? "—"} />
-      <Row label="Formatos" value={state.selected_formats.map((f) => FORMAT_LABELS[f] ?? f).join(", ") || "—"} />
-      <Row label="Entregas" value={state.selected_outputs.map((o) => OUTPUT_LABELS[o] ?? o).join(", ") || "—"} />
+      <Row label="Marca" value={brand?.name} />
+      <Row label="Objetivo" value={OBJECTIVE_LABELS[state.objective]} />
+      <Row label="Formatos" value={state.selected_formats.map((f) => FORMAT_LABELS[f] ?? f).join(", ")} />
+      <Row label="Solicitações ao prompt" value={state.selected_outputs.map((o) => REQUEST_LABELS[o] ?? OUTPUT_LABELS[o] ?? o).join(", ")} />
       <Row label="Modo" value={state.generation_mode === "safe" ? "Seguro" : "Rápido"} />
-      <Row label="Título" value={state.internal_title || "—"} />
-      <Row label="Tema" value={state.theme || "—"} />
-      <Row label="Mensagem" value={state.main_message || "—"} />
-      <Row label="CTA" value={state.call_to_action || "—"} />
-      <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-        <Check className="mr-1.5 inline h-3 w-3" />
-        Ao confirmar, geraremos um pacote completo de prompts a partir dos seus dados. Nada é inventado.
-      </p>
+      <Row label="Título" value={state.internal_title} />
+      <Row label="Tema" value={state.theme} essential onEdit={onEditBriefing} />
+      <Row label="Público" value={state.specific_audience} suggest onEdit={onEditBriefing} />
+      <Row label="Mensagem" value={state.main_message} essential onEdit={onEditBriefing} />
+      <Row label="Informações obrigatórias" value={state.mandatory_information} suggest onEdit={onEditBriefing} />
+      <Row label="CTA" value={state.call_to_action} essential onEdit={onEditBriefing} />
+      <Row label="Estilo desejado" value={state.desired_style} suggest onEdit={onEditBriefing} />
+
+      {essentialMissing ? (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex items-start gap-3 p-3 text-xs">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+            <p>Há campos essenciais não preenchidos. Volte e complete antes de montar o prompt.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+          <Check className="mr-1.5 inline h-3 w-3" />
+          Ao confirmar, geraremos um pacote completo de prompts a partir dos seus dados. Nada é inventado.
+        </p>
+      )}
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, essential, suggest, onEdit }: { label: string; value?: string | null; essential?: boolean; suggest?: boolean; onEdit?: () => void }) {
+  const empty = !value || !String(value).trim();
   return (
     <div className="grid grid-cols-[140px_minmax(0,1fr)] items-start gap-3 border-b border-border/40 pb-2">
       <span className="text-muted-foreground">{label}</span>
-      <span className="break-words">{value}</span>
+      <div className="min-w-0 break-words">
+        {empty ? (
+          <div className="space-y-1">
+            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs ${essential ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-700 dark:text-amber-400"}`}>
+              <AlertCircle className="h-3 w-3" />
+              Informação não preenchida
+            </span>
+            {essential && (
+              <p className="text-xs text-muted-foreground">Volte e preencha este campo para obter um conteúdo mais personalizado.</p>
+            )}
+            {suggest && !essential && (
+              <p className="text-xs text-muted-foreground">Opcional, mas melhora bastante o resultado.</p>
+            )}
+            {onEdit && (
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={onEdit}>
+                <PenSquare className="mr-1 h-3 w-3" />Editar briefing
+              </Button>
+            )}
+          </div>
+        ) : (
+          <span>{value}</span>
+        )}
+      </div>
     </div>
   );
 }
 
-function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+function Field({ label, children, className, error }: { label: string; children: React.ReactNode; className?: string; error?: string }) {
   return (
     <div className={className}>
       <Label className="mb-2 block">{label}</Label>
       {children}
+      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
     </div>
   );
 }

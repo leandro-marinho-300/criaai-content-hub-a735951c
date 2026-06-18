@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Copy,
   Download,
+  ExternalLink,
   Heart,
   Pencil,
   Printer,
@@ -15,6 +16,7 @@ import {
   Send,
   Sparkles,
   Star,
+  PenSquare,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +30,29 @@ export const Route = createFileRoute("/_authenticated/app/content/$projectId/res
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
   component: ResultPage,
 });
+
+// Map output keys → "Instrução para …" display titles
+const BLOCK_TITLE_OVERRIDES: Record<string, string> = {
+  estrategia: "Instrução para criar a estratégia",
+  conceito: "Instrução para criar o conceito",
+  textos_artes: "Instrução para gerar os textos das artes",
+  layouts: "Instrução para desenvolver os layouts",
+  carrossel: "Instrução para desenvolver o carrossel",
+  stories: "Instrução para desenvolver os Stories",
+  roteiro_reel: "Instrução para o roteiro do Reel",
+  legenda_curta: "Instrução para gerar as legendas",
+  legenda_media: "Instrução para gerar as legendas",
+  legenda_completa: "Instrução para gerar as legendas",
+  whatsapp: "Instrução para gerar a versão de WhatsApp",
+  hashtags: "Instrução para selecionar hashtags",
+  engajamento: "Instrução para criar recursos de engajamento",
+  prompt_visual: "Instrução para produzir o prompt visual",
+  texto_alternativo: "Instrução para gerar texto alternativo",
+  checklist: "Instrução de revisão final",
+};
+
+const displayBlockTitle = (key: string, fallback: string) =>
+  BLOCK_TITLE_OVERRIDES[key] ?? fallback;
 
 function ResultPage() {
   const { projectId } = Route.useParams();
@@ -96,7 +121,7 @@ function ResultPage() {
   if (!data) return <p>Projeto não encontrado.</p>;
 
   const masterPrompt = data.outputs
-    .map((o) => `## ${o.title}\n${o.edited_content ?? o.original_content}`)
+    .map((o) => `## ${displayBlockTitle(o.output_type, o.title)}\n${o.edited_content ?? o.original_content}`)
     .join("\n\n---\n\n");
 
   const exportTxt = () => {
@@ -109,6 +134,23 @@ function ResultPage() {
     URL.revokeObjectURL(url);
   };
 
+  const copyAndOpenChatGPT = async () => {
+    try {
+      await navigator.clipboard.writeText(masterPrompt);
+      toast.success("Prompt copiado. Agora cole no ChatGPT e envie.");
+    } catch {
+      toast.error("Não foi possível copiar automaticamente. Use o botão Copiar.");
+    }
+    window.open("https://chat.openai.com/", "_blank", "noopener,noreferrer");
+  };
+
+  const flowSteps = [
+    { n: 1, label: "Copiar prompt" },
+    { n: 2, label: "Abrir ferramenta de IA" },
+    { n: 3, label: "Colar e enviar" },
+    { n: 4, label: "Receber o conteúdo final" },
+  ];
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="space-y-4">
@@ -119,26 +161,48 @@ function ResultPage() {
           <div className="min-w-0">
             <Badge variant="outline" className="mb-2">{data.project.brands?.name ?? "Sem marca"}</Badge>
             <h1 className="truncate text-2xl font-bold">{data.project.internal_title || "Pacote de prompts"}</h1>
-            <p className="text-sm text-muted-foreground">Pronto para copiar e usar no ChatGPT ou outra ferramenta.</p>
+            <p className="text-sm text-muted-foreground">Pronto para copiar e usar no ChatGPT ou outra ferramenta de IA.</p>
           </div>
           <Button variant="ghost" size="icon" onClick={() => toggleFavorite.mutate()} aria-label="Favoritar">
             <Heart className={`h-5 w-5 ${data.project.is_favorite ? "fill-primary text-primary" : ""}`} />
           </Button>
         </div>
 
+        {/* "Seu prompt está pronto" — destaque pedagógico */}
         <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="grid items-center gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="flex items-center gap-3">
+          <CardContent className="space-y-4 p-5">
+            <div className="flex items-start gap-3">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg gradient-brand">
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="font-semibold">Prompt mestre completo</p>
-                <p className="truncate text-xs text-muted-foreground">{data.outputs.length} blocos · cole no seu gerador</p>
+                <p className="font-semibold">Seu prompt está pronto</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  O conteúdo final ainda não foi criado. Copie o prompt abaixo e cole no ChatGPT ou em outra
+                  ferramenta de IA. A ferramenta escolhida produzirá os textos, layouts, legendas, hashtags e
+                  demais materiais solicitados.
+                </p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+
+            <ol className="grid gap-2 sm:grid-cols-4">
+              {flowSteps.map((s) => (
+                <li key={s.n} className="flex items-center gap-2 rounded-md border border-border/60 bg-background/60 p-2 text-xs">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary/15 text-xs font-semibold text-primary">{s.n}</span>
+                  <span>{s.label}</span>
+                </li>
+              ))}
+            </ol>
+
+            <div className="flex flex-wrap gap-2 pt-1">
               <CopyButton text={masterPrompt} label="Copiar prompt completo" variant="default" />
+              <Button onClick={copyAndOpenChatGPT} variant="secondary" size="sm" className="gap-1.5">
+                <ExternalLink className="h-4 w-4" />
+                Copiar e abrir ChatGPT
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/app/content/new"><PenSquare className="mr-2 h-4 w-4" />Voltar e melhorar briefing</Link>
+              </Button>
               <Button variant="outline" size="sm" onClick={exportTxt}><Download className="mr-2 h-4 w-4" />TXT</Button>
               <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
             </div>
@@ -169,6 +233,7 @@ function BlockCard({ block }: { block: Tables<"content_outputs"> }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(block.edited_content ?? block.original_content);
   const display = block.edited_content ?? block.original_content;
+  const title = displayBlockTitle(block.output_type, block.title);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -207,7 +272,10 @@ function BlockCard({ block }: { block: Tables<"content_outputs"> }) {
     <Card className="border-border/60">
       <CardContent className="p-5">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-          <h3 className="truncate font-display text-lg font-semibold">{block.title}</h3>
+          <div className="min-w-0 space-y-1">
+            <Badge variant="outline" className="text-[10px]">Parte do prompt</Badge>
+            <h3 className="truncate font-display text-lg font-semibold">{title}</h3>
+          </div>
           <div className="flex flex-wrap gap-1">
             <Button variant="ghost" size="icon" onClick={() => fav.mutate()} aria-label="Favoritar bloco">
               <Star className={`h-4 w-4 ${block.is_favorite ? "fill-primary text-primary" : ""}`} />
