@@ -1,16 +1,36 @@
 // Funções de acesso ao calendário editorial.
 import { supabase } from "@/integrations/supabase/client";
 import type { ScheduleItem, ScheduleStatus, ApprovalStatus, ChannelKind } from "./calendar";
+import { getProjectDisplayTitle } from "./displayTitle";
 
 export interface ScheduleItemWithRels extends ScheduleItem {
   brands?: { id: string; name: string; logo_url: string | null } | null;
-  content_projects?: { id: string; internal_title: string | null; status: string } | null;
+  content_projects?: {
+    id: string;
+    internal_title: string | null;
+    display_title?: string | null;
+    theme?: string | null;
+    main_message?: string | null;
+    status: string;
+  } | null;
   publication_schedule_outputs?: Array<{
     id: string;
     output_id: string;
     display_order: number;
     content_outputs?: { id: string; title: string; output_type: string } | null;
   }>;
+}
+
+/** Resolve o melhor título visível para um item do calendário. */
+export function getScheduleItemTitle(item: ScheduleItemWithRels | null | undefined): string {
+  if (!item) return "Conteúdo sem título";
+  if (item.title_override && item.title && item.title.trim()) return item.title.trim();
+  if (item.content_projects) {
+    const fromProject = getProjectDisplayTitle(item.content_projects);
+    if (fromProject && fromProject !== "Conteúdo sem título") return fromProject;
+  }
+  if (item.title && item.title.trim()) return item.title.trim();
+  return "Publicação sem título";
 }
 
 export interface ScheduleFilters {
