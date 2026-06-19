@@ -184,7 +184,12 @@ function ResultPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
-              <CopyButton text={fullExport} label="Copiar pacote completo" variant="default" />
+              <Button asChild variant="default" size="sm">
+                <Link to="/app/content/$projectId/client-pdf" params={{ projectId }}>
+                  <FileImage className="mr-2 h-4 w-4" />Gerar PDF para o cliente
+                </Link>
+              </Button>
+              <CopyButton text={fullExport} label="Copiar pacote completo" variant="outline" />
               <Button variant="outline" size="sm" onClick={exportTxt}>
                 <Download className="mr-2 h-4 w-4" />Exportar TXT
               </Button>
@@ -192,7 +197,7 @@ function ResultPage() {
                 <Link to="/app/content/new"><PenSquare className="mr-2 h-4 w-4" />Voltar e melhorar briefing</Link>
               </Button>
               <Button variant="outline" size="sm" onClick={() => window.print()}>
-                <Printer className="mr-2 h-4 w-4" />Imprimir
+                <Printer className="mr-2 h-4 w-4" />Exportar relatório interno
               </Button>
             </div>
           </CardContent>
