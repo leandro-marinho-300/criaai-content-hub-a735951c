@@ -53,6 +53,19 @@ export interface Piece {
   qualityStatus: CopyStatus;
   headlineOptions: string[];
   supportTextOptions: string[];
+  /** Origem da copy atual. */
+  copySource?: "deterministic" | "manual" | "external_chatgpt";
+  /** Histórico curto (últimas 3) de versões anteriores para restauração. */
+  revisionHistory?: Array<{
+    date: string;
+    source: "manual" | "external_chatgpt" | "deterministic";
+    mainText: string;
+    supportText: string;
+    bullets: string[];
+    cta: string;
+    angle?: string;
+    guidance?: Record<string, unknown>;
+  }>;
 }
 
 export interface CampaignSummary {
