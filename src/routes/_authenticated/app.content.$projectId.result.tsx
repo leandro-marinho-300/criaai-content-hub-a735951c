@@ -309,13 +309,16 @@ function statusLabel(s: string) {
 // ============ PIECE CARD ============
 
 function PieceCard({
-  row, piece, brand, project, allPieces, onCopyAndOpen,
+  row, piece, brand, project, allPieces, onCopyAndOpen, userId, assets, onAssetsChanged,
 }: {
   row: Output; piece: Piece;
   brand: Tables<"brands"> | null;
   project: Tables<"content_projects">;
   allPieces: Piece[];
   onCopyAndOpen: (text: string) => void;
+  userId: string;
+  assets: PieceAsset[];
+  onAssetsChanged: () => void;
 }) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(true);
