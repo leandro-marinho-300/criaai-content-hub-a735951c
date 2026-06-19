@@ -121,9 +121,12 @@ function ClientPdfPage() {
 
   // Defaults
   const initialTitle = useMemo(() => {
-    const internal = (data?.project.internal_title || "").trim();
+    const project = data?.project as { display_title?: string | null; internal_title?: string | null; theme?: string | null; main_message?: string | null } | undefined;
+    const display = (project?.display_title || "").trim();
+    if (display && display.length <= 100) return display;
+    const internal = (project?.internal_title || "").trim();
     if (internal && internal.length <= 80) return internal;
-    return suggestShortTitle(internal || data?.project.theme || "", "Apresentação");
+    return suggestShortTitle(internal || project?.theme || "", "Apresentação");
   }, [data]);
   const initialCaption = useMemo(() => {
     const withCaption = pieces.find((p) => p.piece.caption && p.piece.caption.trim());
