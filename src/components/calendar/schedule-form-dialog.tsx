@@ -129,10 +129,10 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
           </TabsList>
           <TabsContent value="projeto" className="space-y-3 pt-3">
             <Field label="Marca (filtro opcional)">
-              <Select value={brandId} onValueChange={setBrandId}>
+              <Select value={brandId || "all"} onValueChange={(v) => setBrandId(v === "all" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Todas marcas" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas</SelectItem>
+                  <SelectItem value="all">Todas</SelectItem>
                   {(brands ?? []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
                 </SelectContent>
               </Select>
