@@ -375,6 +375,14 @@ function PieceCard({
             <p className="text-xs text-muted-foreground">Objetivo: {piece.objective}</p>
           </div>
           <div className="flex flex-wrap items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setAdjustFocus(undefined); setAdjustOpen(true); }}
+              className="gap-1.5"
+            >
+              <Pencil className="h-3.5 w-3.5" />Ajustar esta peça
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => fav.mutate()} aria-label="Favoritar">
               <Star className={`h-4 w-4 ${row.is_favorite ? "fill-primary text-primary" : ""}`} />
             </Button>
@@ -385,10 +393,14 @@ function PieceCard({
         </div>
 
         {piece.warning && (
-          <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-900 dark:text-amber-200">
+          <button
+            type="button"
+            onClick={() => { setAdjustFocus(undefined); setAdjustOpen(true); }}
+            className="mt-3 flex w-full items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-left text-xs text-amber-900 transition hover:bg-amber-500/20 dark:text-amber-200"
+          >
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>{piece.warning}</span>
-          </div>
+            <span>{piece.warning} <span className="underline">Clique para ajustar.</span></span>
+          </button>
         )}
         {draft.qualityStatus === "blocked" && (
           <div className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
