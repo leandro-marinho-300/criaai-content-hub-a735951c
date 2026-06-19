@@ -748,7 +748,8 @@ export function buildPieces(args: BuildArgs): Piece[] {
     objective: project.objective,
     formats: project.selected_formats,
   });
-  const restrictionsBrief = summarizeRestrictions(brand);
+  const avoidTerms = projectAvoidTerms(project);
+  const restrictionsBrief = summarizeRestrictions(brand, avoidTerms);
 
   const formats = unique(arr(project.selected_formats));
   const pieces: Piece[] = [];
