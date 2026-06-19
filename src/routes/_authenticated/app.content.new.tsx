@@ -336,7 +336,7 @@ function ContentWizard() {
           {step === 1 && <StepObjective value={state.objective} onChange={(v) => set("objective", v)} />}
           {step === 2 && <StepFormats values={state.selected_formats} onToggle={(v) => toggleArr("selected_formats", v)} />}
           {step === 3 && <StepBriefing state={state} set={set} errors={showErrors ? briefingErrors : {}} />}
-          {step === 4 && <StepOutputs values={state.selected_outputs} onToggle={(v) => toggleArr("selected_outputs", v)} />}
+          {step === 4 && <StepOutputs formats={state.selected_formats} values={state.selected_outputs} captionMode={state.caption_mode} onToggle={(v) => toggleArr("selected_outputs", v)} onCaptionChange={(m) => set("caption_mode", m)} />}
           {step === 5 && <StepMode value={state.generation_mode} onChange={(v) => set("generation_mode", v)} />}
           {step === 6 && <StepReview state={state} brand={selectedBrand} errors={briefingErrors} onEditBriefing={goToBriefing} />}
         </CardContent>
