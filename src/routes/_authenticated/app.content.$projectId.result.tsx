@@ -49,6 +49,8 @@ type Output = Tables<"content_outputs">;
 function ResultPage() {
   const { projectId } = Route.useParams();
   const qc = useQueryClient();
+  const [addToCalOpen, setAddToCalOpen] = useState(false);
+
 
   const { user } = useAuth();
   const { data, isLoading } = useQuery({
