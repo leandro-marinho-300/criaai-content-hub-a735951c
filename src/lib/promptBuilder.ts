@@ -492,8 +492,16 @@ function buildReadyPrompt(args: {
 
   const block: string[] = [head, ""];
   block.push(`Objetivo da peça: ${piece.objective}.`);
-  if (piece.mainText) block.push(`Texto principal da arte: "${piece.mainText}"`);
-  if (piece.supportText) block.push(`Texto de apoio: "${piece.supportText}"`);
+  block.push(`Ângulo da comunicação: ${piece.communicationAngle}.`);
+  if (piece.mainPromise && piece.mainPromise !== "[PREENCHER]") block.push(`Promessa principal: ${piece.mainPromise}`);
+  if (piece.mainProblem && piece.mainProblem !== "[PREENCHER]") block.push(`Dor principal: ${piece.mainProblem}`);
+  if (piece.mainBenefit && piece.mainBenefit !== "[PREENCHER]") block.push(`Benefício principal: ${piece.mainBenefit}`);
+  if (piece.mainText) block.push(`Texto principal da arte (USAR EXATAMENTE): "${piece.mainText}"`);
+  if (piece.supportText) block.push(`Texto de apoio (USAR EXATAMENTE): "${piece.supportText}"`);
+  if (piece.bullets && piece.bullets.length) {
+    block.push("Destaques de apoio (usar como bullets curtos):");
+    piece.bullets.forEach((b) => block.push(`  • ${b}`));
+  }
   if (piece.cta) block.push(`CTA: "${piece.cta}"`);
   block.push(`Direção visual: ${visualDirection}.`);
   if (identityBits) block.push(`Identidade da marca: ${identityBits}.`);
