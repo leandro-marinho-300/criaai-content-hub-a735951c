@@ -32,6 +32,10 @@ import { CopyButton } from "@/components/copy-button";
 import { parsePiece, pieceToPlainText, type Piece } from "@/lib/promptBuilder";
 import type { Tables } from "@/integrations/supabase/types";
 import { AdjustPieceDialog } from "@/components/adjust-piece-dialog";
+import { PieceAssetUploader } from "@/components/piece-asset-uploader";
+import { fetchAssetsForProject, type PieceAsset } from "@/lib/pieceAssets";
+import { useAuth } from "@/hooks/use-auth";
+import { FileImage } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
@@ -44,6 +48,7 @@ function ResultPage() {
   const { projectId } = Route.useParams();
   const qc = useQueryClient();
 
+  const { user } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ["project-result", projectId],
     queryFn: async () => {
@@ -53,9 +58,11 @@ function ResultPage() {
       const { data: outputs, error: e2 } = await supabase
         .from("content_outputs").select("*").eq("project_id", projectId).order("display_order");
       if (e2) throw e2;
+      const assets = await fetchAssetsForProject(projectId);
       return {
         project: project as Tables<"content_projects"> & { brands: Tables<"brands"> | null },
         outputs: outputs as Output[],
+        assets,
       };
     },
   });
@@ -177,7 +184,12 @@ function ResultPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
-              <CopyButton text={fullExport} label="Copiar pacote completo" variant="default" />
+              <Button asChild variant="default" size="sm">
+                <Link to="/app/content/$projectId/client-pdf" params={{ projectId }}>
+                  <FileImage className="mr-2 h-4 w-4" />Gerar PDF para o cliente
+                </Link>
+              </Button>
+              <CopyButton text={fullExport} label="Copiar pacote completo" variant="outline" />
               <Button variant="outline" size="sm" onClick={exportTxt}>
                 <Download className="mr-2 h-4 w-4" />Exportar TXT
               </Button>
@@ -185,7 +197,7 @@ function ResultPage() {
                 <Link to="/app/content/new"><PenSquare className="mr-2 h-4 w-4" />Voltar e melhorar briefing</Link>
               </Button>
               <Button variant="outline" size="sm" onClick={() => window.print()}>
-                <Printer className="mr-2 h-4 w-4" />Imprimir
+                <Printer className="mr-2 h-4 w-4" />Exportar relatório interno
               </Button>
             </div>
           </CardContent>
@@ -218,11 +230,23 @@ function ResultPage() {
 
       {/* SEÇÃO 2 — PEÇAS GERADAS */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-lg font-semibold">Peças geradas ({pieces.length})</h2>
-          {pieces.length > 0 && (
-            <CopyButton text={allPiecesText} label="Copiar todas as peças" variant="outline" size="sm" />
-          )}
+          <div className="flex items-center gap-2">
+            {(() => {
+              const assetsByOutput: Record<string, PieceAsset[]> = {};
+              (data.assets ?? []).forEach((a) => { (assetsByOutput[a.output_id] ||= []).push(a); });
+              const withArt = pieces.filter((p) => (assetsByOutput[p.row.id] ?? []).length > 0).length;
+              return (
+                <Badge variant="outline" className="text-xs">
+                  Artes finais: {withArt} de {pieces.length} peça(s)
+                </Badge>
+              );
+            })()}
+            {pieces.length > 0 && (
+              <CopyButton text={allPiecesText} label="Copiar todas as peças" variant="outline" size="sm" />
+            )}
+          </div>
         </div>
         {pieces.length === 0 && (
           <p className="text-sm text-muted-foreground">Nenhuma peça foi gerada para este projeto.</p>
@@ -237,6 +261,9 @@ function ResultPage() {
               project={project}
               allPieces={pieces.map((p) => p.piece).filter(Boolean) as Piece[]}
               onCopyAndOpen={copyAndOpenChatGPT}
+              userId={user?.id ?? ""}
+              assets={(data.assets ?? []).filter((a) => a.output_id === row.id)}
+              onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
             />
           ) : (
             <LegacyBlockCard key={row.id} block={row} />
@@ -282,13 +309,16 @@ function statusLabel(s: string) {
 // ============ PIECE CARD ============
 
 function PieceCard({
-  row, piece, brand, project, allPieces, onCopyAndOpen,
+  row, piece, brand, project, allPieces, onCopyAndOpen, userId, assets, onAssetsChanged,
 }: {
   row: Output; piece: Piece;
   brand: Tables<"brands"> | null;
   project: Tables<"content_projects">;
   allPieces: Piece[];
   onCopyAndOpen: (text: string) => void;
+  userId: string;
+  assets: PieceAsset[];
+  onAssetsChanged: () => void;
 }) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(true);
@@ -595,6 +625,18 @@ function PieceCard({
                 </Button>
               )}
             </div>
+
+            {/* Arte final anexada (usada no PDF para o cliente) */}
+            {userId && (
+              <PieceAssetUploader
+                userId={userId}
+                projectId={row.project_id}
+                outputId={row.id}
+                assets={assets}
+                multiple={piece.formatKey === "carrossel"}
+                onChange={onAssetsChanged}
+              />
+            )}
           </div>
         )}
       </CardContent>
