@@ -1,7 +1,7 @@
 // Cria Aí — Painel "Ajustar esta peça": editor manual + revisão via ChatGPT externo.
 // Sem IA, sem chamadas externas. Só copia/cola.
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Copy, ExternalLink, RotateCcw, Save, Wand2, X, ArrowLeft, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
