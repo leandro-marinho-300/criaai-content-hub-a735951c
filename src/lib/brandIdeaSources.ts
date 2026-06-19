@@ -9,16 +9,45 @@ import type { IdeaApproach, IdeaFocus } from "./ideaTaxonomy";
 
 type Brand = Tables<"brands">;
 
-function splitList(value: string | null | undefined): string[] {
-  if (!value) return [];
-  return value
-    .split(/[;\n\r]+/g)
-    .map((s) => s.trim())
-    .filter(Boolean);
+/**
+ * Normaliza qualquer valor para um array de strings limpas.
+ * Aceita: string[] (Postgres ARRAY), string com `;`/quebras de linha, null, undefined,
+ * jsonb ou tipos inesperados. Nunca lança.
+ */
+function toStringArray(value: unknown): string[] {
+  if (value == null) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => (v == null ? "" : String(v)).trim())
+      .filter((s) => s.length > 0);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/[;\n\r]+/g)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  try {
+    const s = String(value).trim();
+    return s ? [s] : [];
+  } catch {
+    return [];
+  }
 }
 
-function asArray(value: string[] | null | undefined): string[] {
-  return (value ?? []).filter((v) => typeof v === "string" && v.trim().length > 0);
+function splitList(value: unknown): string[] {
+  return toStringArray(value);
+}
+
+function asArray(value: unknown): string[] {
+  return toStringArray(value);
+}
+
+function asText(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.filter(Boolean).join("\n");
+  try { return String(value); } catch { return ""; }
 }
 
 export interface BrandIdeaSources {
