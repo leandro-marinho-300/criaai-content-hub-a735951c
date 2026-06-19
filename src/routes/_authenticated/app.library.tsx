@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { LayoutGrid, List, Archive, Trash2, Copy, Pencil, Heart } from "lucide-react";
+import { LayoutGrid, List, Archive, Trash2, Pencil, Heart, Edit3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,10 +15,12 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical } from "lucide-react";
 import { FORMAT_LABELS, OBJECTIVE_LABELS } from "@/lib/promptBuilder";
+import { getProjectDisplayTitle } from "@/lib/displayTitle";
+import { RenameTitleDialog } from "@/components/rename-title-dialog";
 
 export const Route = createFileRoute("/_authenticated/app/library")({
   head: () => ({ meta: [{ title: "Biblioteca — Cria Aí" }] }),
