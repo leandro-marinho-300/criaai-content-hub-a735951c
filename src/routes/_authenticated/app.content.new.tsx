@@ -378,9 +378,34 @@ function ContentWizard() {
           {step === 1 && <StepObjective value={state.objective} onChange={(v) => set("objective", v)} />}
           {step === 2 && <StepFormats values={state.selected_formats} onToggle={(v) => toggleArr("selected_formats", v)} />}
           {step === 3 && <StepBriefing state={state} set={set} errors={showErrors ? briefingErrors : {}} />}
-          {step === 4 && <StepOutputs formats={state.selected_formats} values={state.selected_outputs} captionMode={state.caption_mode} onToggle={(v) => toggleArr("selected_outputs", v)} onCaptionChange={(m) => set("caption_mode", m)} />}
-          {step === 5 && <StepMode value={state.generation_mode} onChange={(v) => set("generation_mode", v)} />}
-          {step === 6 && <StepReview state={state} brand={selectedBrand} errors={briefingErrors} onEditBriefing={goToBriefing} />}
+          {step === 4 && (
+            <DevelopContentStep
+              brand={selectedBrand}
+              projectLike={{
+                internal_title: state.internal_title,
+                theme: state.theme,
+                objective: state.objective,
+                selected_formats: state.selected_formats,
+                specific_audience: state.specific_audience,
+                audience_problem: state.audience_problem,
+                main_message: state.main_message,
+                mandatory_information: state.mandatory_information,
+                call_to_action: state.call_to_action,
+                event_date: state.event_date,
+                event_time: state.event_time,
+                location: state.location,
+                price_information: state.price_information,
+                contact_information: state.contact_information,
+                restrictions: state.restrictions,
+                notes: state.notes,
+              }}
+              state={state.develop}
+              onChange={(d) => set("develop", d)}
+            />
+          )}
+          {step === 5 && <StepOutputs formats={state.selected_formats} values={state.selected_outputs} captionMode={state.caption_mode} onToggle={(v) => toggleArr("selected_outputs", v)} onCaptionChange={(m) => set("caption_mode", m)} />}
+          {step === 6 && <StepMode value={state.generation_mode} onChange={(v) => set("generation_mode", v)} />}
+          {step === 7 && <StepReview state={state} brand={selectedBrand} errors={briefingErrors} onEditBriefing={goToBriefing} />}
         </CardContent>
       </Card>
 
