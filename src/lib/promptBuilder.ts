@@ -428,7 +428,7 @@ function buildProductionNotes(role: string, brand: Brand, project: Project): str
 
 // -------- prompt operacional ENXUTO --------
 
-interface PromptBuildCtx {
+export interface PromptBuildCtx {
   piece: Omit<Piece, "readyPrompt" | "caption" | "hashtags" | "warning">;
   brand: Brand;
   project: Project;
