@@ -291,43 +291,55 @@ export type Database = {
       }
       content_outputs: {
         Row: {
+          copy_status: string
           created_at: string
           display_order: number
           edited_content: string | null
           id: string
+          imported_content: Json | null
           is_favorite: boolean
           original_content: string
           output_type: string
           project_id: string
+          source: string
           title: string
           updated_at: string
           user_id: string
+          version: number
         }
         Insert: {
+          copy_status?: string
           created_at?: string
           display_order?: number
           edited_content?: string | null
           id?: string
+          imported_content?: Json | null
           is_favorite?: boolean
           original_content: string
           output_type: string
           project_id: string
+          source?: string
           title: string
           updated_at?: string
           user_id: string
+          version?: number
         }
         Update: {
+          copy_status?: string
           created_at?: string
           display_order?: number
           edited_content?: string | null
           id?: string
+          imported_content?: Json | null
           is_favorite?: boolean
           original_content?: string
           output_type?: string
           project_id?: string
+          source?: string
           title?: string
           updated_at?: string
           user_id?: string
+          version?: number
         }
         Relationships: [
           {
@@ -342,9 +354,13 @@ export type Database = {
       content_projects: {
         Row: {
           audience_problem: string | null
+          avoid_terms: string[]
           brand_id: string | null
           call_to_action: string | null
+          campaign_content_json: Json | null
           contact_information: string | null
+          content_development_status: string
+          content_source: string
           created_at: string
           desired_style: string | null
           event_date: string | null
@@ -352,6 +368,7 @@ export type Database = {
           formality_level: string | null
           generation_mode: string
           id: string
+          imported_at: string | null
           internal_title: string | null
           is_favorite: boolean
           location: string | null
@@ -362,6 +379,7 @@ export type Database = {
           price_information: string | null
           publication_date: string | null
           restrictions: string | null
+          selected_differentiators: string[]
           selected_formats: string[]
           selected_outputs: string[]
           specific_audience: string | null
@@ -372,9 +390,13 @@ export type Database = {
         }
         Insert: {
           audience_problem?: string | null
+          avoid_terms?: string[]
           brand_id?: string | null
           call_to_action?: string | null
+          campaign_content_json?: Json | null
           contact_information?: string | null
+          content_development_status?: string
+          content_source?: string
           created_at?: string
           desired_style?: string | null
           event_date?: string | null
@@ -382,6 +404,7 @@ export type Database = {
           formality_level?: string | null
           generation_mode?: string
           id?: string
+          imported_at?: string | null
           internal_title?: string | null
           is_favorite?: boolean
           location?: string | null
@@ -392,6 +415,7 @@ export type Database = {
           price_information?: string | null
           publication_date?: string | null
           restrictions?: string | null
+          selected_differentiators?: string[]
           selected_formats?: string[]
           selected_outputs?: string[]
           specific_audience?: string | null
@@ -402,9 +426,13 @@ export type Database = {
         }
         Update: {
           audience_problem?: string | null
+          avoid_terms?: string[]
           brand_id?: string | null
           call_to_action?: string | null
+          campaign_content_json?: Json | null
           contact_information?: string | null
+          content_development_status?: string
+          content_source?: string
           created_at?: string
           desired_style?: string | null
           event_date?: string | null
@@ -412,6 +440,7 @@ export type Database = {
           formality_level?: string | null
           generation_mode?: string
           id?: string
+          imported_at?: string | null
           internal_title?: string | null
           is_favorite?: boolean
           location?: string | null
@@ -422,6 +451,7 @@ export type Database = {
           price_information?: string | null
           publication_date?: string | null
           restrictions?: string | null
+          selected_differentiators?: string[]
           selected_formats?: string[]
           selected_outputs?: string[]
           specific_audience?: string | null
