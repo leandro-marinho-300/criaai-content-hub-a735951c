@@ -694,7 +694,8 @@ function StepReview({ state, brand, errors, onEditBriefing }: { state: State; br
       <Row label="Marca" value={brand?.name} />
       <Row label="Objetivo" value={OBJECTIVE_LABELS[state.objective]} />
       <Row label="Formatos" value={state.selected_formats.map((f) => FORMAT_LABELS[f] ?? f).join(", ")} />
-      <Row label="Solicitações ao prompt" value={state.selected_outputs.map((o) => REQUEST_LABELS[o] ?? OUTPUT_LABELS[o] ?? o).join(", ")} />
+      <Row label="Entregas" value={state.selected_outputs.map((o) => OUTPUT_CATALOG[o]?.label ?? o).filter(Boolean).join(", ")} />
+      <Row label="Legenda" value={({ none: "Não gerar", short: "Curta", full: "Completa", both: "Duas variações" } as Record<CaptionMode, string>)[state.caption_mode]} />
       <Row label="Modo" value={state.generation_mode === "safe" ? "Seguro" : "Rápido"} />
       <Row label="Título" value={state.internal_title} />
       <Row label="Tema" value={state.theme} essential onEdit={onEditBriefing} />
