@@ -80,9 +80,9 @@ export function buildReviewPrompt(args: {
 }): string {
   const { piece, brand, project, otherPieces, guidance } = args;
 
-  const tone = trim(brand.tone_of_voice || brand.brand_personality || "tom alinhado à marca", 180);
+  const tone = trim(brand.tone_of_voice || brand.personality || "tom alinhado à marca", 180);
   const theme = trim(project.theme || project.main_message || project.internal_title || "tema da campanha", 160);
-  const generalObjective = trim(project.main_objective || project.call_to_action || "", 120);
+  const generalObjective = trim(project.objective || project.call_to_action || "", 120);
   const prohibited = Array.isArray(brand.prohibited_words)
     ? brand.prohibited_words.filter(Boolean).slice(0, 20).join(", ")
     : "";
