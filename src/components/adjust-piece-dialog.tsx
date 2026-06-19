@@ -158,15 +158,22 @@ export function AdjustPieceDialog({
     toast.success("Versão anterior restaurada na edição. Salve para confirmar.");
   };
 
+  const [autoIdx, setAutoIdx] = useState(0);
   const autoVariation = () => {
-    const angleKey = (guidance.angle as CopyAngle) ?? draft.communicationAngle;
-    const next = variationByAngle?.(draft.mainText, angleKey) ?? draft.mainText;
-    if (next && next !== draft.mainText) {
-      setDraft({ ...draft, mainText: next });
-      toast.success("Variação automática aplicada (sem IA). Revise antes de salvar.");
-    } else {
-      toast.info("Sem variação automática disponível para este ângulo.");
+    const heads = draft.headlineOptions ?? [];
+    const supports = draft.supportTextOptions ?? [];
+    if (heads.length <= 1 && supports.length <= 1) {
+      toast.info("Sem variações automáticas disponíveis. Enriqueça o briefing ou use a revisão no ChatGPT.");
+      return;
     }
+    const next = autoIdx + 1;
+    setAutoIdx(next);
+    setDraft({
+      ...draft,
+      mainText: heads.length ? heads[next % heads.length] : draft.mainText,
+      supportText: supports.length ? supports[next % Math.max(supports.length, 1)] : draft.supportText,
+    });
+    toast.success("Variação automática aplicada (modelos internos, sem IA). Revise antes de salvar.");
   };
 
   const prepareReview = () => {
