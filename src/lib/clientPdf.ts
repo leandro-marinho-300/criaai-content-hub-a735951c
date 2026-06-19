@@ -288,24 +288,26 @@ function buildGridPage(thumbs: GridThumb[], input: ClientPdfInput, t: ThemeToken
 
 
   page.innerHTML = `
-    <div style="padding:32px 40px;height:100%;display:flex;flex-direction:column;">
-      <header style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-        <div>
-          <div style="width:36px;height:3px;background:${t.accent};border-radius:2px;margin-bottom:8px;"></div>
-          <h1 style="font-family:${t.fontHeading};font-size:22px;font-weight:700;margin:0;color:${t.fg};">Prévia das peças${pageInfo ? ` <span style='font-size:13px;font-weight:400;color:${t.muted};'>(${pageInfo})</span>` : ""}</h1>
+    <div style="padding:${mm(L.marginTop)} ${mm(L.marginX)} ${mm(L.marginBottom)} ${mm(L.marginX)};width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;">
+      <header style="height:${mm(L.headerH)};display:flex;align-items:center;justify-content:space-between;box-sizing:border-box;overflow:hidden;flex-shrink:0;">
+        <div style="min-width:0;max-width:65%;">
+          <div style="width:36px;height:3px;background:${t.accent};border-radius:2px;margin-bottom:6px;"></div>
+          <h1 style="font-family:${t.fontHeading};font-size:18px;font-weight:700;margin:0;color:${t.fg};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Prévia das peças${pageInfo ? ` <span style='font-size:12px;font-weight:400;color:${t.muted};'>(${pageInfo})</span>` : ""}</h1>
         </div>
-        <div style="color:${t.muted};font-size:11px;text-align:right;">
-          <div style="font-weight:600;color:${t.fg};">${escapeHtml(input.brandName)}</div>
-          ${input.title ? `<div>${escapeHtml(input.title)}</div>` : ""}
+        <div style="color:${t.muted};font-size:10.5px;text-align:right;min-width:0;max-width:35%;">
+          <div style="font-weight:600;color:${t.fg};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(input.brandName)}</div>
+          ${input.title ? `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(input.title)}</div>` : ""}
         </div>
       </header>
-      <div style="flex:1;display:grid;grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr);gap:18px;min-height:0;">
+      <div style="height:${mm(L.headerGap)};flex-shrink:0;"></div>
+      <div style="flex:0 0 auto;display:grid;grid-template-columns:repeat(${cols},${mm(cellW)});grid-auto-rows:${mm(cellH)};gap:${mm(L.gap)};justify-content:center;align-content:start;">
         ${tiles}
       </div>
     </div>
   `;
   return page;
 }
+
 
 // -----------------------------------------------------------------------------
 // Página 3 — Planejamento da publicação
