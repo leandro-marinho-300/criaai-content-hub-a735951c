@@ -425,7 +425,7 @@ function ContentWizard() {
         )}
       </div>
 
-      {step === 6 && !canGenerate && (
+      {step === 7 && !canGenerate && (
         <Card className="border-destructive/40 bg-destructive/5">
           <CardContent className="flex items-start gap-3 p-4 text-sm">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
