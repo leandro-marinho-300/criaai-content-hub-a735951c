@@ -297,12 +297,12 @@ function ContentWizard() {
               ? ("manually_reviewed" as const)
               : ("draft_auto" as const),
         campaign_content_json: (state.develop.imported || Object.keys(state.develop.campaign).length)
-          ? ({
+          ? (JSON.parse(JSON.stringify({
               campaign: state.develop.campaign,
               pieces: state.develop.imported?.pieces ?? [],
               caption: state.develop.imported?.caption,
               source: state.develop.source,
-            } as unknown as Record<string, unknown>)
+            })))
           : null,
         imported_at: state.develop.imported?.imported_at ?? null,
         selected_differentiators: state.develop.selected_differentiators,
