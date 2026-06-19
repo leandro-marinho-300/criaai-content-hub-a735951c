@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   Plus,
   Briefcase,
@@ -16,12 +17,22 @@ import {
   ClipboardList,
   Wand2,
   Copy,
+  Lightbulb,
+  Sparkles,
+  RefreshCw,
+  ArrowRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HelpDialog } from "@/components/help-dialog";
+import { quickIdea, type Idea } from "@/lib/ideaGenerator";
+import type { Tables } from "@/integrations/supabase/types";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: "Início — Cria Aí" }] }),
