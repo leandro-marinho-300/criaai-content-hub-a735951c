@@ -825,6 +825,46 @@ export function buildPieces(args: BuildArgs): Piece[] {
     });
   }
 
+  // -------- OVERRIDE com conteúdo importado do ChatGPT (se houver) --------
+  const imported = projectImported(project);
+  if (imported?.pieces?.length) {
+    const importedPieces = imported.pieces;
+    const importedCaption = imported.caption;
+    pieces.forEach((p, i) => {
+      const src = importedPieces[i];
+      if (!src) return;
+      const headline = typeof src.headline === "string" ? src.headline.trim() : "";
+      const support = typeof src.support_text === "string" ? src.support_text.trim() : "";
+      const cta = typeof src.cta === "string" ? src.cta.trim() : "";
+      const bullets = Array.isArray(src.bullets) ? (src.bullets as string[]).filter(Boolean) : [];
+      if (headline) p.mainText = headline;
+      if (support) p.supportText = support;
+      if (cta) p.cta = cta;
+      if (bullets.length) p.bullets = bullets;
+      p.copySource = "external_chatgpt";
+      // re-avalia qualidade considerando avoid_terms
+      const prohibited = arr(brand.prohibited_words).concat(avoidTerms);
+      const headEval = evaluateAndCollect(p.mainText, { isHeadline: true, prohibited, minLen: 3 }, "Texto principal");
+      const suppEval = evaluateAndCollect(p.supportText, { prohibited, minLen: 15 }, "Texto de apoio");
+      p.qualityStatus = worseStatus(headEval.status, suppEval.status);
+      p.qualityIssues = [...headEval.issues, ...suppEval.issues];
+      // reconstrói o prompt operacional com a copy nova
+      p.readyPrompt = buildReadyPrompt({
+        piece: p,
+        brand,
+        project,
+        mode: effectiveMode,
+        productionNotes: p.productionNotes,
+        restrictionsBrief,
+      });
+    });
+    // Substitui legenda da capa do carrossel se o ChatGPT mandou caption
+    if (importedCaption?.text) {
+      const cover = pieces.find((p) => p.formatKey === "carrossel" && p.role === "capa");
+      if (cover) cover.caption = importedCaption.text;
+    }
+  }
+
   return pieces;
 }
 
