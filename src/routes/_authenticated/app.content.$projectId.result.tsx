@@ -487,6 +487,9 @@ function PieceCard({
             {/* Ações */}
             <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
               <CopyButton text={allOfPiece} label="Copiar tudo" variant="outline" size="sm" />
+              <Button size="sm" variant="outline" onClick={cycleVariation}>
+                <Shuffle className="mr-2 h-3.5 w-3.5" />Gerar variação de copy
+              </Button>
               {!editing ? (
                 <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
                   <Pencil className="mr-2 h-3.5 w-3.5" />Editar conteúdo
