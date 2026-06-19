@@ -47,13 +47,13 @@ function ResultPage() {
     queryKey: ["project-result", projectId],
     queryFn: async () => {
       const { data: project, error } = await supabase
-        .from("content_projects").select("*, brands(name, logo_url)").eq("id", projectId).single();
+        .from("content_projects").select("*, brands(*)").eq("id", projectId).single();
       if (error) throw error;
       const { data: outputs, error: e2 } = await supabase
         .from("content_outputs").select("*").eq("project_id", projectId).order("display_order");
       if (e2) throw e2;
       return {
-        project: project as Tables<"content_projects"> & { brands: { name: string; logo_url: string | null } | null },
+        project: project as Tables<"content_projects"> & { brands: Tables<"brands"> | null },
         outputs: outputs as Output[],
       };
     },
