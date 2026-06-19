@@ -9,16 +9,45 @@ import type { IdeaApproach, IdeaFocus } from "./ideaTaxonomy";
 
 type Brand = Tables<"brands">;
 
-function splitList(value: string | null | undefined): string[] {
-  if (!value) return [];
-  return value
-    .split(/[;\n\r]+/g)
-    .map((s) => s.trim())
-    .filter(Boolean);
+/**
+ * Normaliza qualquer valor para um array de strings limpas.
+ * Aceita: string[] (Postgres ARRAY), string com `;`/quebras de linha, null, undefined,
+ * jsonb ou tipos inesperados. Nunca lança.
+ */
+function toStringArray(value: unknown): string[] {
+  if (value == null) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => (v == null ? "" : String(v)).trim())
+      .filter((s) => s.length > 0);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/[;\n\r]+/g)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  try {
+    const s = String(value).trim();
+    return s ? [s] : [];
+  } catch {
+    return [];
+  }
 }
 
-function asArray(value: string[] | null | undefined): string[] {
-  return (value ?? []).filter((v) => typeof v === "string" && v.trim().length > 0);
+function splitList(value: unknown): string[] {
+  return toStringArray(value);
+}
+
+function asArray(value: unknown): string[] {
+  return toStringArray(value);
+}
+
+function asText(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.filter(Boolean).join("\n");
+  try { return String(value); } catch { return ""; }
 }
 
 export interface BrandIdeaSources {
@@ -54,58 +83,70 @@ const HAS_TOPICS = "Assuntos permitidos";
 const HAS_CTAS = "Chamadas para ação";
 const HAS_TESTIMONIALS = "Depoimentos autorizados";
 
-export function getBrandIdeaSources(brand: Brand): BrandIdeaSources {
-  // testimonials pode estar em campos não estruturados; só consideramos prova social
-  // quando houver um campo explícito (compat: campo `testimonials` se existir).
-  const rawTestimonials = (brand as unknown as { testimonials?: string | null }).testimonials ?? null;
-  const usableTestimonials = splitList(rawTestimonials);
+const EMPTY_SOURCES: BrandIdeaSources = {
+  usableProducts: [], usableServices: [], usableBenefits: [], usableQuestions: [],
+  usableDifferentiators: [], usableTopics: [], usableDates: [], usableDifficulties: [],
+  usableValues: [], usableNeeds: [], usableHistory: [], usableTestimonials: [],
+  ctas: [], availableSources: [], missingSources: [],
+};
 
-  const productsList = splitList(brand.products_services);
-  const priorityList = splitList((brand as unknown as { priority_services?: string | null }).priority_services ?? null);
-  const allProducts = Array.from(new Set([...priorityList, ...productsList]));
+export function getBrandIdeaSources(brand: Brand | null | undefined): BrandIdeaSources {
+  if (!brand) return { ...EMPTY_SOURCES, missingSources: [HAS_PRODUCTS, HAS_DESC] };
+  try {
+    const b = brand as unknown as Record<string, unknown>;
+    const rawTestimonials = b.testimonials;
+    const usableTestimonials = splitList(rawTestimonials);
 
-  const sources: BrandIdeaSources = {
-    usableProducts: allProducts,
-    usableServices: allProducts, // mesmo campo no schema atual
-    usableBenefits: [
-      ...splitList(brand.differentiators),
-      ...splitList(brand.audience_needs),
-    ].slice(0, 12),
-    usableQuestions: splitList(brand.frequently_asked_questions),
-    usableDifferentiators: splitList(brand.differentiators),
-    usableTopics: asArray(brand.allowed_topics),
-    usableDates: splitList(brand.important_dates),
-    usableDifficulties: splitList(brand.audience_difficulties),
-    usableValues: splitList((brand as unknown as { audience_values?: string | null }).audience_values ?? null),
-    usableNeeds: splitList(brand.audience_needs),
-    usableHistory: splitList(brand.description),
-    usableTestimonials,
-    ctas: asArray(brand.calls_to_action),
-    availableSources: [],
-    missingSources: [],
-  };
+    const productsList = splitList(b.products_services);
+    const priorityList = splitList(b.priority_services);
+    const allProducts = Array.from(new Set([...priorityList, ...productsList]));
 
-  const checks: Array<[string, boolean]> = [
-    [HAS_PRODUCTS, productsList.length > 0],
-    [HAS_PRIORITY, priorityList.length > 0],
-    [HAS_DESC, !!brand.description?.trim()],
-    [HAS_DIFF, sources.usableDifferentiators.length > 0],
-    [HAS_FAQ, sources.usableQuestions.length > 0],
-    [HAS_DATES, sources.usableDates.length > 0],
-    [HAS_DIFFIC, sources.usableDifficulties.length > 0],
-    [HAS_NEEDS, sources.usableNeeds.length > 0],
-    [HAS_VALUES, sources.usableValues.length > 0],
-    [HAS_TOPICS, sources.usableTopics.length > 0],
-    [HAS_CTAS, sources.ctas.length > 0],
-    [HAS_TESTIMONIALS, usableTestimonials.length > 0],
-  ];
+    const sources: BrandIdeaSources = {
+      usableProducts: allProducts,
+      usableServices: allProducts,
+      usableBenefits: [
+        ...splitList(b.differentiators),
+        ...splitList(b.audience_needs),
+      ].slice(0, 12),
+      usableQuestions: splitList(b.frequently_asked_questions),
+      usableDifferentiators: splitList(b.differentiators),
+      usableTopics: asArray(b.allowed_topics),
+      usableDates: splitList(b.important_dates),
+      usableDifficulties: splitList(b.audience_difficulties),
+      usableValues: splitList(b.audience_values),
+      usableNeeds: splitList(b.audience_needs),
+      usableHistory: splitList(b.description),
+      usableTestimonials,
+      ctas: asArray(b.calls_to_action),
+      availableSources: [],
+      missingSources: [],
+    };
 
-  for (const [label, has] of checks) {
-    if (has) sources.availableSources.push(label);
-    else sources.missingSources.push(label);
+    const checks: Array<[string, boolean]> = [
+      [HAS_PRODUCTS, productsList.length > 0],
+      [HAS_PRIORITY, priorityList.length > 0],
+      [HAS_DESC, splitList(b.description).length > 0],
+      [HAS_DIFF, sources.usableDifferentiators.length > 0],
+      [HAS_FAQ, sources.usableQuestions.length > 0],
+      [HAS_DATES, sources.usableDates.length > 0],
+      [HAS_DIFFIC, sources.usableDifficulties.length > 0],
+      [HAS_NEEDS, sources.usableNeeds.length > 0],
+      [HAS_VALUES, sources.usableValues.length > 0],
+      [HAS_TOPICS, sources.usableTopics.length > 0],
+      [HAS_CTAS, sources.ctas.length > 0],
+      [HAS_TESTIMONIALS, usableTestimonials.length > 0],
+    ];
+
+    for (const [label, has] of checks) {
+      if (has) sources.availableSources.push(label);
+      else sources.missingSources.push(label);
+    }
+
+    return sources;
+  } catch (err) {
+    console.error("[brandIdeaSources] normalização falhou", err);
+    return { ...EMPTY_SOURCES };
   }
-
-  return sources;
 }
 
 /** A marca tem dado mínimo para gerar qualquer ideia? (apenas bloqueia se TUDO estiver vazio.) */

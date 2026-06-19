@@ -182,9 +182,11 @@ interface TemplateContext {
 
 type ApproachBuilder = (ctx: TemplateContext) => Built | null;
 
-function firstSentence(text: string | null | undefined): string {
-  if (!text) return "";
-  const m = text.trim().split(/(?<=[.!?])\s+/)[0] ?? text.trim();
+function firstSentence(text: unknown): string {
+  if (text == null) return "";
+  const raw = Array.isArray(text) ? text.filter(Boolean).join(" ") : String(text);
+  if (!raw) return "";
+  const m = raw.trim().split(/(?<=[.!?])\s+/)[0] ?? raw.trim();
   return m.replace(/\s+/g, " ").trim();
 }
 

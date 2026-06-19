@@ -90,19 +90,24 @@ function IdeasLab() {
 
   const result = useMemo(() => {
     if (!brand) return null;
-    return generateIdeasWithMeta({
-      brand,
-      objective: surprise ? "qualquer" : objective,
-      focus: surprise ? "qualquer" : focus,
-      approach: surprise ? "auto" : approach,
-      format: surprise ? "auto" : format,
-      tone: surprise ? "marca" : tone,
-      quantity,
-      history: history ?? [],
-      excludeTitles: sessionTitles,
-      allowFallback,
-      seed: hash(brand.id + objective + focus + approach + format + tone + quantity + seedBump + (surprise ? "s" : "")),
-    });
+    try {
+      return generateIdeasWithMeta({
+        brand,
+        objective: surprise ? "qualquer" : objective,
+        focus: surprise ? "qualquer" : focus,
+        approach: surprise ? "auto" : approach,
+        format: surprise ? "auto" : format,
+        tone: surprise ? "marca" : tone,
+        quantity,
+        history: history ?? [],
+        excludeTitles: sessionTitles,
+        allowFallback,
+        seed: hash(brand.id + objective + focus + approach + format + tone + quantity + seedBump + (surprise ? "s" : "")),
+      });
+    } catch (err) {
+      console.error("[IdeasLab] falha ao gerar ideias para a marca", brand?.id, err);
+      return null;
+    }
   }, [brand, objective, focus, approach, format, tone, quantity, history, sessionTitles, seedBump, surprise, allowFallback]);
 
   const ideas: Idea[] = result?.ideas ?? [];
