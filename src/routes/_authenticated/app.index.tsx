@@ -358,16 +358,21 @@ function UpcomingPublicationsSection() {
           {upcoming.map((it) => {
             const d = effectiveDate(it);
             const t = effectiveTime(it);
+            const title = getScheduleItemTitle(it);
+            const fmt = it.format ? FORMAT_LABELS[it.format] ?? it.format : null;
+            const ch = it.channel ? CHANNEL_LABELS[it.channel as ChannelKind] ?? it.channel : null;
             return (
               <Link
                 key={it.id}
                 to="/app/calendar"
-                className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-3 transition-colors hover:border-primary/40"
+                title={title}
+                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border/60 bg-card p-3 transition-colors hover:border-primary/40"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{it.title ?? "Sem título"}</p>
+                  <p className="line-clamp-2 break-words text-sm font-medium">{title}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {it.brands?.name ?? "Sem marca"}{d ? ` · ${formatDateBR(d)}${t ? ` às ${t}` : ""}` : ""}
+                    {d ? `${formatDateBR(d)}${t ? ` às ${t}` : ""} · ` : ""}{it.brands?.name ?? "Sem marca"}
+                    {fmt ? ` · ${fmt}` : ""}{ch ? ` · ${ch}` : ""}
                   </p>
                 </div>
                 <Badge variant="outline" className="shrink-0">{STATUS_LABELS[(it.schedule_status ?? "sem_data") as ScheduleStatus]}</Badge>
