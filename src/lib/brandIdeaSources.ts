@@ -83,36 +83,45 @@ const HAS_TOPICS = "Assuntos permitidos";
 const HAS_CTAS = "Chamadas para ação";
 const HAS_TESTIMONIALS = "Depoimentos autorizados";
 
-export function getBrandIdeaSources(brand: Brand): BrandIdeaSources {
-  // testimonials pode estar em campos não estruturados; só consideramos prova social
-  // quando houver um campo explícito (compat: campo `testimonials` se existir).
-  const rawTestimonials = (brand as unknown as { testimonials?: string | null }).testimonials ?? null;
-  const usableTestimonials = splitList(rawTestimonials);
+const EMPTY_SOURCES: BrandIdeaSources = {
+  usableProducts: [], usableServices: [], usableBenefits: [], usableQuestions: [],
+  usableDifferentiators: [], usableTopics: [], usableDates: [], usableDifficulties: [],
+  usableValues: [], usableNeeds: [], usableHistory: [], usableTestimonials: [],
+  ctas: [], availableSources: [], missingSources: [],
+};
 
-  const productsList = splitList(brand.products_services);
-  const priorityList = splitList((brand as unknown as { priority_services?: string | null }).priority_services ?? null);
-  const allProducts = Array.from(new Set([...priorityList, ...productsList]));
+export function getBrandIdeaSources(brand: Brand | null | undefined): BrandIdeaSources {
+  if (!brand) return { ...EMPTY_SOURCES, missingSources: [HAS_PRODUCTS, HAS_DESC] };
+  try {
+    const b = brand as unknown as Record<string, unknown>;
+    const rawTestimonials = b.testimonials;
+    const usableTestimonials = splitList(rawTestimonials);
 
-  const sources: BrandIdeaSources = {
-    usableProducts: allProducts,
-    usableServices: allProducts, // mesmo campo no schema atual
-    usableBenefits: [
-      ...splitList(brand.differentiators),
-      ...splitList(brand.audience_needs),
-    ].slice(0, 12),
-    usableQuestions: splitList(brand.frequently_asked_questions),
-    usableDifferentiators: splitList(brand.differentiators),
-    usableTopics: asArray(brand.allowed_topics),
-    usableDates: splitList(brand.important_dates),
-    usableDifficulties: splitList(brand.audience_difficulties),
-    usableValues: splitList((brand as unknown as { audience_values?: string | null }).audience_values ?? null),
-    usableNeeds: splitList(brand.audience_needs),
-    usableHistory: splitList(brand.description),
-    usableTestimonials,
-    ctas: asArray(brand.calls_to_action),
-    availableSources: [],
-    missingSources: [],
-  };
+    const productsList = splitList(b.products_services);
+    const priorityList = splitList(b.priority_services);
+    const allProducts = Array.from(new Set([...priorityList, ...productsList]));
+
+    const sources: BrandIdeaSources = {
+      usableProducts: allProducts,
+      usableServices: allProducts,
+      usableBenefits: [
+        ...splitList(b.differentiators),
+        ...splitList(b.audience_needs),
+      ].slice(0, 12),
+      usableQuestions: splitList(b.frequently_asked_questions),
+      usableDifferentiators: splitList(b.differentiators),
+      usableTopics: asArray(b.allowed_topics),
+      usableDates: splitList(b.important_dates),
+      usableDifficulties: splitList(b.audience_difficulties),
+      usableValues: splitList(b.audience_values),
+      usableNeeds: splitList(b.audience_needs),
+      usableHistory: splitList(b.description),
+      usableTestimonials,
+      ctas: asArray(b.calls_to_action),
+      availableSources: [],
+      missingSources: [],
+    };
+
 
   const checks: Array<[string, boolean]> = [
     [HAS_PRODUCTS, productsList.length > 0],
