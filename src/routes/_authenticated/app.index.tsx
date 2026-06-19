@@ -294,6 +294,99 @@ function statusLabel(s: string) {
   );
 }
 
+function UpcomingPublicationsSection() {
+  const { data } = useQuery({
+    queryKey: ["dashboard-schedule"],
+    queryFn: () => listScheduleItems(),
+  });
+  const items = data ?? [];
+  const now = new Date();
+  const todayIso = now.toISOString().slice(0, 10);
+
+  const upcoming = items
+    .filter((it) => {
+      const d = effectiveDate(it);
+      return d && d >= todayIso && it.schedule_status !== "publicado" && it.schedule_status !== "cancelado";
+    })
+    .sort((a, b) => {
+      const da = `${effectiveDate(a)}T${effectiveTime(a) ?? "00:00"}`;
+      const db = `${effectiveDate(b)}T${effectiveTime(b) ?? "00:00"}`;
+      return da.localeCompare(db);
+    })
+    .slice(0, 5);
+
+  const weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekIso = weekEnd.toISOString().slice(0, 10);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+
+  const metrics = {
+    scheduledWeek: items.filter((it) => { const d = effectiveDate(it); return d && d >= todayIso && d <= weekIso && it.schedule_status === "agendado"; }).length,
+    waitingApproval: items.filter((it) => it.schedule_status === "aguardando_aprovacao").length,
+    overdue: items.filter((it) => computeIsOverdue(it)).length,
+    publishedMonth: items.filter((it) => it.schedule_status === "publicado" && (effectiveDate(it) ?? "") >= monthStart).length,
+    noDate: items.filter((it) => it.schedule_status === "sem_data").length,
+  };
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2"><CalendarCheck className="h-4 w-4" />Próximas publicações</h2>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/app/calendar">Ver calendário</Link>
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <MetricTile label="Agendadas esta semana" value={metrics.scheduledWeek} />
+        <MetricTile label="Aguardando aprovação" value={metrics.waitingApproval} />
+        <MetricTile label="Atrasadas" value={metrics.overdue} highlight={metrics.overdue > 0} />
+        <MetricTile label="Publicadas no mês" value={metrics.publishedMonth} />
+        <MetricTile label="Sem data" value={metrics.noDate} />
+      </div>
+      {upcoming.length ? (
+        <div className="grid gap-2">
+          {upcoming.map((it) => {
+            const d = effectiveDate(it);
+            const t = effectiveTime(it);
+            return (
+              <Link
+                key={it.id}
+                to="/app/calendar"
+                className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-3 transition-colors hover:border-primary/40"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{it.title ?? "Sem título"}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {it.brands?.name ?? "Sem marca"}{d ? ` · ${formatDateBR(d)}${t ? ` às ${t}` : ""}` : ""}
+                  </p>
+                </div>
+                <Badge variant="outline" className="shrink-0">{STATUS_LABELS[(it.schedule_status ?? "sem_data") as ScheduleStatus]}</Badge>
+              </Link>
+            );
+          })}
+        </div>
+      ) : (
+        <Card className="border-dashed">
+          <CardContent className="grid place-items-center gap-2 p-6 text-center">
+            <p className="text-sm text-muted-foreground">Nenhuma publicação próxima.</p>
+            <Button asChild size="sm" variant="outline"><Link to="/app/calendar">Abrir calendário</Link></Button>
+          </CardContent>
+        </Card>
+      )}
+    </section>
+  );
+}
+
+function MetricTile({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
+  return (
+    <Card className={highlight ? "border-red-500/40" : "border-border/60"}>
+      <CardContent className="p-3">
+        <p className="text-2xl font-bold leading-none">{value}</p>
+        <p className="mt-1 truncate text-xs text-muted-foreground">{label}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 function QuickIdeaBlock() {
   const navigate = useNavigate();
   const qc = useQueryClient();
