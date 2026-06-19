@@ -654,14 +654,24 @@ function pieceToReadableText(p: Piece): string {
   lines.push(`Formato: ${p.formatLabel}`);
   lines.push(`Objetivo: ${p.objective}`);
   lines.push("");
+  lines.push("");
+  lines.push(`Ângulo: ${p.communicationAngle}`);
+  if (p.mainPromise && p.mainPromise !== "[PREENCHER]") lines.push(`Promessa: ${p.mainPromise}`);
+  if (p.mainProblem && p.mainProblem !== "[PREENCHER]") lines.push(`Dor: ${p.mainProblem}`);
+  if (p.mainBenefit && p.mainBenefit !== "[PREENCHER]") lines.push(`Benefício: ${p.mainBenefit}`);
   if (p.mainText) lines.push(`Texto principal: ${p.mainText}`);
   if (p.supportText) lines.push(`Texto de apoio: ${p.supportText}`);
+  if (p.bullets && p.bullets.length) lines.push(`Bullets: ${p.bullets.map((b) => `• ${b}`).join("  ")}`);
   if (p.cta) lines.push(`CTA: ${p.cta}`);
   if (p.caption) { lines.push("", "Legenda:"); lines.push(p.caption); }
   if (p.hashtags && p.hashtags.length) { lines.push("", `Hashtags: ${p.hashtags.join(" ")}`); }
   if (p.productionNotes.length) {
     lines.push("", "Observações de produção:");
     p.productionNotes.forEach((n) => lines.push(`- ${n}`));
+  }
+  if (p.qualityIssues && p.qualityIssues.length) {
+    lines.push("", "⚠ Necessita revisão de copy:");
+    p.qualityIssues.forEach((q) => lines.push(`- ${q.message}`));
   }
   lines.push("", "Prompt pronto para colar em uma IA:");
   lines.push(p.readyPrompt);
