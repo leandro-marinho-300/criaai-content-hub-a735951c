@@ -19,7 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { buildPrompts, FORMAT_LABELS, OBJECTIVE_LABELS, OUTPUT_LABELS, type GenerationMode } from "@/lib/promptBuilder";
+import { buildPrompts, FORMAT_LABELS, OBJECTIVE_LABELS, type GenerationMode } from "@/lib/promptBuilder";
+import {
+  OUTPUT_CATALOG,
+  resolveOutputsFromFormats,
+  appliesToLabel,
+  withCaptionToken,
+  extractCaptionMode,
+  type CaptionMode,
+} from "@/lib/formatOutputRules";
 import type { Tables } from "@/integrations/supabase/types";
 import { HelpDialog } from "@/components/help-dialog";
 
