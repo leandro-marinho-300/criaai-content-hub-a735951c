@@ -283,7 +283,7 @@ function ContentWizard() {
         restrictions: state.restrictions || null,
         notes: state.notes || null,
         selected_formats: state.selected_formats,
-        selected_outputs: state.selected_outputs,
+        selected_outputs: withCaptionToken(state.selected_outputs, state.caption_mode),
         generation_mode: state.generation_mode,
         status: "draft" as const,
       };
