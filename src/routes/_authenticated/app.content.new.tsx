@@ -30,6 +30,7 @@ import {
 } from "@/lib/formatOutputRules";
 import type { Tables } from "@/integrations/supabase/types";
 import { HelpDialog } from "@/components/help-dialog";
+import { DevelopContentStep, DEFAULT_DEVELOP_STATE, type DevelopState } from "@/components/develop-content-step";
 
 export const Route = createFileRoute("/_authenticated/app/content/new")({
   head: () => ({ meta: [{ title: "Novo conteúdo — Cria Aí" }] }),
@@ -39,7 +40,7 @@ export const Route = createFileRoute("/_authenticated/app/content/new")({
   component: ContentWizard,
 });
 
-const STEPS = ["Marca", "Objetivo", "Formatos", "Briefing", "Pacote", "Modo", "Revisão"] as const;
+const STEPS = ["Marca", "Objetivo", "Formatos", "Briefing", "Desenvolver", "Pacote", "Modo", "Revisão"] as const;
 
 type State = {
   brand_id: string | null;
@@ -66,6 +67,7 @@ type State = {
   formality_level: string;
   restrictions: string;
   notes: string;
+  develop: DevelopState;
 };
 
 const DEFAULT_STATE: State = {
@@ -93,6 +95,7 @@ const DEFAULT_STATE: State = {
   formality_level: "",
   restrictions: "",
   notes: "",
+  develop: DEFAULT_DEVELOP_STATE,
 };
 
 const DRAFT_KEY = "cria-wizard-draft";
@@ -236,7 +239,8 @@ function ContentWizard() {
     if (step === 1) return !!state.objective;
     if (step === 2) return state.selected_formats.length > 0;
     if (step === 3) return briefingValid;
-    if (step === 4) return state.selected_outputs.length > 0;
+    if (step === 4) return true; // Desenvolver é opcional
+    if (step === 5) return state.selected_outputs.length > 0;
     return true;
   };
 
@@ -285,6 +289,24 @@ function ContentWizard() {
         selected_outputs: withCaptionToken(state.selected_outputs, state.caption_mode),
         generation_mode: state.generation_mode,
         status: "draft" as const,
+        content_source: state.develop.source,
+        content_development_status:
+          state.develop.source === "external_chatgpt" && state.develop.imported
+            ? ("imported" as const)
+            : state.develop.source === "manual"
+              ? ("manually_reviewed" as const)
+              : ("draft_auto" as const),
+        campaign_content_json: (state.develop.imported || Object.keys(state.develop.campaign).length)
+          ? (JSON.parse(JSON.stringify({
+              campaign: state.develop.campaign,
+              pieces: state.develop.imported?.pieces ?? [],
+              caption: state.develop.imported?.caption,
+              source: state.develop.source,
+            })))
+          : null,
+        imported_at: state.develop.imported?.imported_at ?? null,
+        selected_differentiators: state.develop.selected_differentiators,
+        avoid_terms: state.develop.avoid_terms,
       };
       const { data: project, error } = await supabase.from("content_projects").insert(payload).select("*").single();
       if (error) throw error;
@@ -356,9 +378,34 @@ function ContentWizard() {
           {step === 1 && <StepObjective value={state.objective} onChange={(v) => set("objective", v)} />}
           {step === 2 && <StepFormats values={state.selected_formats} onToggle={(v) => toggleArr("selected_formats", v)} />}
           {step === 3 && <StepBriefing state={state} set={set} errors={showErrors ? briefingErrors : {}} />}
-          {step === 4 && <StepOutputs formats={state.selected_formats} values={state.selected_outputs} captionMode={state.caption_mode} onToggle={(v) => toggleArr("selected_outputs", v)} onCaptionChange={(m) => set("caption_mode", m)} />}
-          {step === 5 && <StepMode value={state.generation_mode} onChange={(v) => set("generation_mode", v)} />}
-          {step === 6 && <StepReview state={state} brand={selectedBrand} errors={briefingErrors} onEditBriefing={goToBriefing} />}
+          {step === 4 && (
+            <DevelopContentStep
+              brand={selectedBrand}
+              projectLike={{
+                internal_title: state.internal_title,
+                theme: state.theme,
+                objective: state.objective,
+                selected_formats: state.selected_formats,
+                specific_audience: state.specific_audience,
+                audience_problem: state.audience_problem,
+                main_message: state.main_message,
+                mandatory_information: state.mandatory_information,
+                call_to_action: state.call_to_action,
+                event_date: state.event_date,
+                event_time: state.event_time,
+                location: state.location,
+                price_information: state.price_information,
+                contact_information: state.contact_information,
+                restrictions: state.restrictions,
+                notes: state.notes,
+              }}
+              state={state.develop}
+              onChange={(d) => set("develop", d)}
+            />
+          )}
+          {step === 5 && <StepOutputs formats={state.selected_formats} values={state.selected_outputs} captionMode={state.caption_mode} onToggle={(v) => toggleArr("selected_outputs", v)} onCaptionChange={(m) => set("caption_mode", m)} />}
+          {step === 6 && <StepMode value={state.generation_mode} onChange={(v) => set("generation_mode", v)} />}
+          {step === 7 && <StepReview state={state} brand={selectedBrand} errors={briefingErrors} onEditBriefing={goToBriefing} />}
         </CardContent>
       </Card>
 
@@ -378,7 +425,7 @@ function ContentWizard() {
         )}
       </div>
 
-      {step === 6 && !canGenerate && (
+      {step === 7 && !canGenerate && (
         <Card className="border-destructive/40 bg-destructive/5">
           <CardContent className="flex items-start gap-3 p-4 text-sm">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />

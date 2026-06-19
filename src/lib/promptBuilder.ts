@@ -518,17 +518,36 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
 }
 
 // Resumo enxuto de restrições da marca para usar em cada prompt individual.
-export function summarizeRestrictions(brand: Brand): string {
+export function summarizeRestrictions(brand: Brand, avoidTerms: string[] = []): string {
   const parts: string[] = [];
   if (brand.forbidden_inventions) {
     const f = brand.forbidden_inventions.split(/[.;\n]/)[0].trim().slice(0, 120);
     if (f) parts.push(f);
   }
-  if (arr(brand.prohibited_words).length) {
-    parts.push(`palavras proibidas: ${list(brand.prohibited_words)}`);
+  const prohibited = arr(brand.prohibited_words).concat(avoidTerms.filter(Boolean));
+  if (prohibited.length) {
+    parts.push(`palavras proibidas: ${prohibited.join(", ")}`);
   }
   return parts.join("; ");
 }
+
+// Lê arrays opcionais salvos no project (selected_differentiators / avoid_terms).
+function projectAvoidTerms(project: Project): string[] {
+  const raw = (project as unknown as { avoid_terms?: string[] }).avoid_terms;
+  return Array.isArray(raw) ? raw.filter((s) => !!s && typeof s === "string") : [];
+}
+
+function projectImported(project: Project): {
+  campaign?: Record<string, unknown>;
+  pieces?: Array<Record<string, unknown>>;
+  caption?: { text?: string; hashtags?: string[] };
+  source?: string;
+} | null {
+  const raw = (project as unknown as { campaign_content_json?: unknown }).campaign_content_json;
+  if (!raw || typeof raw !== "object") return null;
+  return raw as ReturnType<typeof projectImported>;
+}
+
 
 // -------- avaliação de informações parciais --------
 
@@ -552,7 +571,7 @@ function buildCarouselPieces(args: {
   mode: GenerationMode;
 }): { pieces: Piece[]; nextIndex: number } {
   const { brand, project, composed, intent, angle, mode } = args;
-  const restrictionsBrief = summarizeRestrictions(brand);
+  const restrictionsBrief = summarizeRestrictions(brand, projectAvoidTerms(project));
   const fmtLabel = formatLabel("carrossel");
   const pieces: Piece[] = [];
   let index = args.indexStart;
@@ -729,7 +748,8 @@ export function buildPieces(args: BuildArgs): Piece[] {
     objective: project.objective,
     formats: project.selected_formats,
   });
-  const restrictionsBrief = summarizeRestrictions(brand);
+  const avoidTerms = projectAvoidTerms(project);
+  const restrictionsBrief = summarizeRestrictions(brand, avoidTerms);
 
   const formats = unique(arr(project.selected_formats));
   const pieces: Piece[] = [];
@@ -803,6 +823,46 @@ export function buildPieces(args: BuildArgs): Piece[] {
         p.hashtags = tags;
       }
     });
+  }
+
+  // -------- OVERRIDE com conteúdo importado do ChatGPT (se houver) --------
+  const imported = projectImported(project);
+  if (imported?.pieces?.length) {
+    const importedPieces = imported.pieces;
+    const importedCaption = imported.caption;
+    pieces.forEach((p, i) => {
+      const src = importedPieces[i];
+      if (!src) return;
+      const headline = typeof src.headline === "string" ? src.headline.trim() : "";
+      const support = typeof src.support_text === "string" ? src.support_text.trim() : "";
+      const cta = typeof src.cta === "string" ? src.cta.trim() : "";
+      const bullets = Array.isArray(src.bullets) ? (src.bullets as string[]).filter(Boolean) : [];
+      if (headline) p.mainText = headline;
+      if (support) p.supportText = support;
+      if (cta) p.cta = cta;
+      if (bullets.length) p.bullets = bullets;
+      p.copySource = "external_chatgpt";
+      // re-avalia qualidade considerando avoid_terms
+      const prohibited = arr(brand.prohibited_words).concat(avoidTerms);
+      const headEval = evaluateAndCollect(p.mainText, { isHeadline: true, prohibited, minLen: 3 }, "Texto principal");
+      const suppEval = evaluateAndCollect(p.supportText, { prohibited, minLen: 15 }, "Texto de apoio");
+      p.qualityStatus = worseStatus(headEval.status, suppEval.status);
+      p.qualityIssues = [...headEval.issues, ...suppEval.issues];
+      // reconstrói o prompt operacional com a copy nova
+      p.readyPrompt = buildReadyPrompt({
+        piece: p,
+        brand,
+        project,
+        mode: effectiveMode,
+        productionNotes: p.productionNotes,
+        restrictionsBrief,
+      });
+    });
+    // Substitui legenda da capa do carrossel se o ChatGPT mandou caption
+    if (importedCaption?.text) {
+      const cover = pieces.find((p) => p.formatKey === "carrossel" && p.role === "capa");
+      if (cover) cover.caption = importedCaption.text;
+    }
   }
 
   return pieces;

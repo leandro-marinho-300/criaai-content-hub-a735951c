@@ -139,7 +139,18 @@ function ResultPage() {
         </Button>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
           <div className="min-w-0">
-            <Badge variant="outline" className="mb-2">{project.brands?.name ?? "Sem marca"}</Badge>
+            <div className="mb-2 flex flex-wrap gap-2">
+              <Badge variant="outline">{project.brands?.name ?? "Sem marca"}</Badge>
+              <Badge variant={(project as unknown as { content_source?: string }).content_source === "external_chatgpt" ? "default" : "secondary"}>
+                Fonte da copy: {
+                  (project as unknown as { content_source?: string }).content_source === "external_chatgpt"
+                    ? "ChatGPT externo"
+                    : (project as unknown as { content_source?: string }).content_source === "manual"
+                      ? "Edição manual"
+                      : "Gerador automático"
+                }
+              </Badge>
+            </div>
             <h1 className="truncate text-2xl font-bold">{project.internal_title || "Pacote de produção"}</h1>
             <p className="text-sm text-muted-foreground">
               {pieces.length} peça{pieces.length === 1 ? "" : "s"} gerada{pieces.length === 1 ? "" : "s"} ·
