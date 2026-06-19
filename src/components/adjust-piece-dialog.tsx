@@ -104,7 +104,7 @@ export function AdjustPieceDialog({
 
   // reset quando abrir com peça nova
   const pieceKey = `${piece.index}-${piece.name}`;
-  useMemo(() => {
+  useEffect(() => {
     setDraft(piece);
     setMode("editor");
     setGuidance(EMPTY_GUIDANCE);
