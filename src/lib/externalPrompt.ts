@@ -67,7 +67,7 @@ export function buildExternalCampaignPrompt(args: BuildExternalPromptArgs): stri
   if (project.contact_information) mandatory.push(`Contato: ${project.contact_information}`);
 
   const audienceShort = summarize(project.specific_audience ?? brand.audience, 25);
-  const toneShort = summarize([brand.tone_of_voice, brand.communication_style].filter(Boolean).join(". "), 25);
+  const toneShort = summarize(txt(brand.tone_of_voice), 25);
   const restrictions = summarize(
     [project.restrictions, brand.forbidden_inventions].filter(Boolean).join(". "),
     40,
