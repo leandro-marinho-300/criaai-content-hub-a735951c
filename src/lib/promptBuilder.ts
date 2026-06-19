@@ -567,6 +567,10 @@ export function buildPieces(args: BuildArgs): Piece[] {
   const effectiveMode: GenerationMode =
     (mode ?? (project.generation_mode as GenerationMode) ?? "safe") as GenerationMode;
 
+  // ⬇️ Síntese de copy: roda UMA vez por projeto e alimenta todas as peças.
+  const composed: ComposedCopy = composeCopy({ brand, project });
+  const angle: CopyAngle = ALL_ANGLES.includes("acolhedor") ? (composed.placeholders.length ? "institucional" : (project.objective?.toLowerCase().includes("vender") ? "comercial" : "acolhedor")) : "acolhedor";
+
   const formats = unique(arr(project.selected_formats));
   const pieces: Piece[] = [];
   let index = 0;
@@ -575,7 +579,7 @@ export function buildPieces(args: BuildArgs): Piece[] {
     const templates = ROLE_TEMPLATES[formatKey] ?? ROLE_TEMPLATES.outro;
     for (const tmpl of templates) {
       index += 1;
-      const derived = deriveTexts(tmpl.role, project);
+      const derived = deriveTexts(tmpl.role, composed, brand, project);
       const fmtLabel = formatLabel(formatKey);
       const productionNotes = buildProductionNotes(tmpl.role, brand, project);
 
@@ -586,10 +590,18 @@ export function buildPieces(args: BuildArgs): Piece[] {
         name: tmpl.name,
         formatLabel: fmtLabel,
         objective: tmpl.objective,
+        communicationAngle: angle,
+        mainPromise: composed.key_promise,
+        mainProblem: composed.main_problem,
+        mainBenefit: composed.main_benefit,
         mainText: derived.mainText,
         supportText: derived.supportText,
+        bullets: derived.bullets,
         cta: derived.cta,
         productionNotes,
+        qualityIssues: derived.qualityIssues.length ? derived.qualityIssues : undefined,
+        headlineOptions: composed.headline_options,
+        supportTextOptions: composed.support_text_options,
       };
 
       const readyPrompt = buildReadyPrompt({ piece: base, brand, project, mode: effectiveMode, productionNotes });
