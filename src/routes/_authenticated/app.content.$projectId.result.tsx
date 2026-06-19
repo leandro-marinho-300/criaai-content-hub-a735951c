@@ -32,6 +32,10 @@ import { CopyButton } from "@/components/copy-button";
 import { parsePiece, pieceToPlainText, type Piece } from "@/lib/promptBuilder";
 import type { Tables } from "@/integrations/supabase/types";
 import { AdjustPieceDialog } from "@/components/adjust-piece-dialog";
+import { PieceAssetUploader } from "@/components/piece-asset-uploader";
+import { fetchAssetsForProject, type PieceAsset } from "@/lib/pieceAssets";
+import { useAuth } from "@/hooks/use-auth";
+import { FileImage } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
