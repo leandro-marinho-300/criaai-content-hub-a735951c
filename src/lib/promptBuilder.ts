@@ -557,7 +557,13 @@ export function buildPieces(args: BuildArgs): Piece[] {
 
   // ⬇️ Síntese de copy: roda UMA vez por projeto e alimenta todas as peças.
   const composed: ComposedCopy = composeCopy({ brand, project });
-  const angle: CopyAngle = ALL_ANGLES.includes("acolhedor") ? (composed.placeholders.length ? "institucional" : (project.objective?.toLowerCase().includes("vender") ? "comercial" : "acolhedor")) : "acolhedor";
+  const obj = (project.objective ?? "").toLowerCase();
+  const angle: CopyAngle = obj.includes("vender") || obj.includes("contato")
+    ? "comercial"
+    : obj.includes("comunicado") || obj.includes("informar")
+      ? "institucional"
+      : "acolhedor";
+  void ALL_ANGLES; void variationByAngle;
 
   const formats = unique(arr(project.selected_formats));
   const pieces: Piece[] = [];
