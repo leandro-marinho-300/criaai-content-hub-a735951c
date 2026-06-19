@@ -351,6 +351,72 @@ export type Database = {
           },
         ]
       }
+      content_piece_assets: {
+        Row: {
+          created_at: string
+          display_order: number
+          file_name: string
+          file_size: number
+          file_type: string
+          id: string
+          image_height: number | null
+          image_width: number | null
+          is_approved: boolean
+          output_id: string
+          project_id: string
+          storage_path: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          file_name: string
+          file_size?: number
+          file_type: string
+          id?: string
+          image_height?: number | null
+          image_width?: number | null
+          is_approved?: boolean
+          output_id: string
+          project_id: string
+          storage_path: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          id?: string
+          image_height?: number | null
+          image_width?: number | null
+          is_approved?: boolean
+          output_id?: string
+          project_id?: string
+          storage_path?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_piece_assets_output_id_fkey"
+            columns: ["output_id"]
+            isOneToOne: false
+            referencedRelation: "content_outputs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_piece_assets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "content_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_projects: {
         Row: {
           audience_problem: string | null
@@ -358,6 +424,7 @@ export type Database = {
           brand_id: string | null
           call_to_action: string | null
           campaign_content_json: Json | null
+          client_pdf_settings: Json | null
           contact_information: string | null
           content_development_status: string
           content_source: string
@@ -394,6 +461,7 @@ export type Database = {
           brand_id?: string | null
           call_to_action?: string | null
           campaign_content_json?: Json | null
+          client_pdf_settings?: Json | null
           contact_information?: string | null
           content_development_status?: string
           content_source?: string
@@ -430,6 +498,7 @@ export type Database = {
           brand_id?: string | null
           call_to_action?: string | null
           campaign_content_json?: Json | null
+          client_pdf_settings?: Json | null
           contact_information?: string | null
           content_development_status?: string
           content_source?: string
