@@ -157,6 +157,27 @@ function ContentWizard() {
     } catch {}
   }, [state]);
 
+  // Reconcilia entregas conforme formatos: insere obrigatórias/recomendadas,
+  // preserva opcionais ainda compatíveis e remove incompatíveis.
+  const formatsKey = state.selected_formats.join("|");
+  useEffect(() => {
+    if (!state.selected_formats.length) return;
+    setState((s) => {
+      const resolved = resolveOutputsFromFormats(s.selected_formats, s.selected_outputs, s.caption_mode);
+      const before = new Set(s.selected_outputs);
+      const after = new Set(resolved.selectedOutputs);
+      let changed = before.size !== after.size;
+      if (!changed) for (const id of after) if (!before.has(id)) { changed = true; break; }
+      if (!changed && s.caption_mode === resolved.captionMode) return s;
+      if (changed && typeof window !== "undefined") {
+        // notificação discreta
+        import("sonner").then(({ toast }) => toast("Entregas atualizadas de acordo com os formatos selecionados.", { duration: 2500 }));
+      }
+      return { ...s, selected_outputs: resolved.selectedOutputs, caption_mode: resolved.captionMode };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formatsKey]);
+
   const { data: brands } = useQuery({
     queryKey: ["brands-light"],
     queryFn: async () => {
