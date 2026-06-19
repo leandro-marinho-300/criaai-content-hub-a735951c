@@ -48,6 +48,7 @@ function ResultPage() {
   const { projectId } = Route.useParams();
   const qc = useQueryClient();
 
+  const { user } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ["project-result", projectId],
     queryFn: async () => {
@@ -57,9 +58,11 @@ function ResultPage() {
       const { data: outputs, error: e2 } = await supabase
         .from("content_outputs").select("*").eq("project_id", projectId).order("display_order");
       if (e2) throw e2;
+      const assets = await fetchAssetsForProject(projectId);
       return {
         project: project as Tables<"content_projects"> & { brands: Tables<"brands"> | null },
         outputs: outputs as Output[],
+        assets,
       };
     },
   });
