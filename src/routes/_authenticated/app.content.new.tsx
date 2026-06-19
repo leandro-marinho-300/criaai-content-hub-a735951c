@@ -41,30 +41,12 @@ export const Route = createFileRoute("/_authenticated/app/content/new")({
 
 const STEPS = ["Marca", "Objetivo", "Formatos", "Briefing", "Pacote", "Modo", "Revisão"] as const;
 
-const REQUEST_LABELS: Record<string, string> = {
-  estrategia: "Solicitar estratégia",
-  conceito: "Solicitar conceito criativo",
-  textos_artes: "Solicitar textos das artes",
-  layouts: "Solicitar layouts",
-  carrossel: "Solicitar carrossel",
-  stories: "Solicitar Stories",
-  roteiro_reel: "Solicitar roteiro de Reel",
-  legenda_curta: "Solicitar legenda curta",
-  legenda_media: "Solicitar legenda intermediária",
-  legenda_completa: "Solicitar legenda completa",
-  whatsapp: "Solicitar versão para WhatsApp",
-  hashtags: "Solicitar hashtags",
-  engajamento: "Solicitar recursos de engajamento",
-  prompt_visual: "Solicitar prompt visual",
-  texto_alternativo: "Solicitar texto alternativo",
-  checklist: "Solicitar revisão de qualidade",
-};
-
 type State = {
   brand_id: string | null;
   objective: string;
   selected_formats: string[];
   selected_outputs: string[];
+  caption_mode: CaptionMode;
   generation_mode: GenerationMode;
   internal_title: string;
   theme: string;
