@@ -117,8 +117,9 @@ export async function toggleIncludeInPdf(id: string, include: boolean): Promise<
 }
 
 export async function updateAssetOrder(id: string, displayOrder: number, outputId?: string): Promise<void> {
-  const patch: Record<string, unknown> = { display_order: displayOrder };
-  if (outputId) patch.output_id = outputId;
+  const patch = outputId
+    ? { display_order: displayOrder, output_id: outputId }
+    : { display_order: displayOrder };
   const { error } = await supabase.from("content_piece_assets").update(patch).eq("id", id);
   if (error) throw error;
 }
