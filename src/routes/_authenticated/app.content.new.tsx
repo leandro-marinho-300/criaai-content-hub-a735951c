@@ -239,7 +239,8 @@ function ContentWizard() {
     if (step === 1) return !!state.objective;
     if (step === 2) return state.selected_formats.length > 0;
     if (step === 3) return briefingValid;
-    if (step === 4) return state.selected_outputs.length > 0;
+    if (step === 4) return true; // Desenvolver é opcional
+    if (step === 5) return state.selected_outputs.length > 0;
     return true;
   };
 
