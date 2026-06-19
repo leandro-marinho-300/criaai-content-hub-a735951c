@@ -19,6 +19,7 @@ import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppTemplatesRouteImport } from './routes/_authenticated/app.templates'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppLibraryRouteImport } from './routes/_authenticated/app.library'
+import { Route as AuthenticatedAppIdeasRouteImport } from './routes/_authenticated/app.ideas'
 import { Route as AuthenticatedAppBrandsIndexRouteImport } from './routes/_authenticated/app.brands.index'
 import { Route as AuthenticatedAppContentNewRouteImport } from './routes/_authenticated/app.content.new'
 import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
@@ -76,6 +77,11 @@ const AuthenticatedAppLibraryRoute = AuthenticatedAppLibraryRouteImport.update({
   path: '/library',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppIdeasRoute = AuthenticatedAppIdeasRouteImport.update({
+  id: '/ideas',
+  path: '/ideas',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppBrandsIndexRoute =
   AuthenticatedAppBrandsIndexRouteImport.update({
     id: '/brands/',
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
+  '/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/app/library': typeof AuthenticatedAppLibraryRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/templates': typeof AuthenticatedAppTemplatesRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/app/library': typeof AuthenticatedAppLibraryRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/templates': typeof AuthenticatedAppTemplatesRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/_authenticated/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/_authenticated/app/library': typeof AuthenticatedAppLibraryRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/templates': typeof AuthenticatedAppTemplatesRoute
@@ -164,6 +173,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/sitemap.xml'
     | '/app'
+    | '/app/ideas'
     | '/app/library'
     | '/app/settings'
     | '/app/templates'
@@ -179,6 +189,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/sitemap.xml'
+    | '/app/ideas'
     | '/app/library'
     | '/app/settings'
     | '/app/templates'
@@ -196,6 +207,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/sitemap.xml'
     | '/_authenticated/app'
+    | '/_authenticated/app/ideas'
     | '/_authenticated/app/library'
     | '/_authenticated/app/settings'
     | '/_authenticated/app/templates'
@@ -287,6 +299,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppLibraryRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/ideas': {
+      id: '/_authenticated/app/ideas'
+      path: '/ideas'
+      fullPath: '/app/ideas'
+      preLoaderRoute: typeof AuthenticatedAppIdeasRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/brands/': {
       id: '/_authenticated/app/brands/'
       path: '/brands'
@@ -326,6 +345,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAppRouteChildren {
+  AuthenticatedAppIdeasRoute: typeof AuthenticatedAppIdeasRoute
   AuthenticatedAppLibraryRoute: typeof AuthenticatedAppLibraryRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppTemplatesRoute: typeof AuthenticatedAppTemplatesRoute
@@ -338,6 +358,7 @@ interface AuthenticatedAppRouteChildren {
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
+  AuthenticatedAppIdeasRoute: AuthenticatedAppIdeasRoute,
   AuthenticatedAppLibraryRoute: AuthenticatedAppLibraryRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppTemplatesRoute: AuthenticatedAppTemplatesRoute,

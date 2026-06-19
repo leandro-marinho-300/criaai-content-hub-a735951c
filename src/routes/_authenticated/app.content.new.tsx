@@ -105,6 +105,7 @@ const DEFAULT_STATE: State = {
 };
 
 const DRAFT_KEY = "cria-wizard-draft";
+const PREFILL_KEY = "cria-wizard-prefill";
 
 const formatNoun = (key: string) => {
   const labels: Record<string, string> = {
@@ -128,9 +129,16 @@ function ContentWizard() {
   const qc = useQueryClient();
   const search = Route.useSearch();
   const [step, setStep] = useState(0);
+  const [fromIdea, setFromIdea] = useState(false);
   const [state, setState] = useState<State>(() => {
     if (typeof window === "undefined") return DEFAULT_STATE;
     try {
+      const prefillRaw = localStorage.getItem(PREFILL_KEY);
+      if (prefillRaw) {
+        const prefill = JSON.parse(prefillRaw);
+        localStorage.removeItem(PREFILL_KEY);
+        return { ...DEFAULT_STATE, ...prefill };
+      }
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) return { ...DEFAULT_STATE, ...JSON.parse(raw) };
     } catch {}
@@ -138,10 +146,16 @@ function ContentWizard() {
   });
   const [showErrors, setShowErrors] = useState(false);
 
-  // Pre-select format from query (?format=post)
+  // Pre-select format from query (?format=post) e flag de "vindo de ideia"
   useEffect(() => {
     if (search.format && FORMAT_LABELS[search.format]) {
       setState((s) => (s.selected_formats.includes(search.format!) ? s : { ...s, selected_formats: [...s.selected_formats, search.format!] }));
+    }
+    if (typeof window !== "undefined" && sessionStorage.getItem("cria-wizard-from-idea") === "1") {
+      setFromIdea(true);
+      sessionStorage.removeItem("cria-wizard-from-idea");
+      // Pula direto para a etapa de Briefing quando vem do laboratório
+      setStep(3);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -307,6 +321,12 @@ function ContentWizard() {
           </div>
         </div>
         <Progress value={((step + 1) / STEPS.length) * 100} />
+
+        {fromIdea && (
+          <p className="rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs">
+            Briefing iniciado a partir de uma ideia do Laboratório. Revise e complemente os dados factuais antes de gerar o prompt.
+          </p>
+        )}
 
         {state.selected_formats.length > 0 && (
           <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
