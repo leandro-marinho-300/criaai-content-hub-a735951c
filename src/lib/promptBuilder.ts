@@ -259,13 +259,6 @@ const ROLE_TEMPLATES: Record<string, RoleTemplate[]> = {
   ],
 };
 
-// -------- derivação de textos por papel --------
-
-interface DerivedTexts {
-  mainText: string;
-  supportText: string;
-  cta: string;
-}
 
 // -------- derivação SEMÂNTICA dos textos por papel --------
 // Em vez de reaproveitar trechos do briefing, lemos da estrutura
