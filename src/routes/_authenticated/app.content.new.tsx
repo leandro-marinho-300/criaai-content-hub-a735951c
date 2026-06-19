@@ -30,6 +30,7 @@ import {
 } from "@/lib/formatOutputRules";
 import type { Tables } from "@/integrations/supabase/types";
 import { HelpDialog } from "@/components/help-dialog";
+import { DevelopContentStep, DEFAULT_DEVELOP_STATE, type DevelopState } from "@/components/develop-content-step";
 
 export const Route = createFileRoute("/_authenticated/app/content/new")({
   head: () => ({ meta: [{ title: "Novo conteúdo — Cria Aí" }] }),
