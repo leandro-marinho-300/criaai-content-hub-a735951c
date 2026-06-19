@@ -23,9 +23,11 @@ import {
   ArrowRight,
   CalendarCheck,
 } from "lucide-react";
-import { listScheduleItems } from "@/lib/scheduleQueries";
-import { effectiveDate, effectiveTime, formatDateBR, STATUS_LABELS, computeIsOverdue, type ScheduleStatus } from "@/lib/calendar";
+import { listScheduleItems, getScheduleItemTitle } from "@/lib/scheduleQueries";
+import { effectiveDate, effectiveTime, formatDateBR, STATUS_LABELS, computeIsOverdue, CHANNEL_LABELS, type ScheduleStatus, type ChannelKind } from "@/lib/calendar";
 import { supabase } from "@/integrations/supabase/client";
+import { getProjectDisplayTitle } from "@/lib/displayTitle";
+import { FORMAT_LABELS } from "@/lib/promptBuilder";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +54,7 @@ function Dashboard() {
         supabase.from("content_projects").select("id", { count: "exact", head: true }).eq("status", "approved"),
         supabase.from("content_projects").select("id", { count: "exact", head: true }).eq("status", "published"),
         supabase.from("content_projects").select("id", { count: "exact", head: true }).eq("is_favorite", true),
-        supabase.from("content_projects").select("id, internal_title, status, updated_at, brand_id, brands(name)").order("updated_at", { ascending: false }).limit(6),
+        supabase.from("content_projects").select("id, internal_title, display_title, theme, main_message, status, updated_at, brand_id, brands(name)").order("updated_at", { ascending: false }).limit(6),
       ]);
       return {
         brands: brandsRes.count ?? 0,
@@ -63,6 +65,9 @@ function Dashboard() {
         recent: (recentRes.data ?? []) as Array<{
           id: string;
           internal_title: string | null;
+          display_title: string | null;
+          theme: string | null;
+          main_message: string | null;
           status: string;
           updated_at: string;
           brand_id: string | null;
@@ -92,17 +97,17 @@ function Dashboard() {
     {
       icon: Briefcase,
       title: "1. Escolha uma marca",
-      desc: "A identidade, o público e o tom de voz serão carregados automaticamente.",
+      desc: "A identidade, o público e o tom de voz são carregados automaticamente.",
     },
     {
       icon: ClipboardList,
       title: "2. Preencha o briefing",
-      desc: "Informe o tema, a mensagem, os dados obrigatórios e a ação esperada.",
+      desc: "Informe o tema, a mensagem e a ação esperada. O Cria Aí gera copy, legenda e estrutura.",
     },
     {
-      icon: Copy,
-      title: "3. Copie e execute o prompt",
-      desc: "Cole o prompt no ChatGPT ou em outra IA para receber o conteúdo final.",
+      icon: CalendarCheck,
+      title: "3. Anexe as artes e planeje",
+      desc: "Suba os layouts, gere o PDF para aprovação do cliente e agende a publicação no calendário.",
     },
   ];
 
@@ -117,8 +122,8 @@ function Dashboard() {
               Está sem criatividade hoje?
             </h1>
             <p className="max-w-xl text-sm text-muted-foreground">
-              Escolha uma marca, preencha o briefing e deixe o Cria Aí organizar suas ideias em um prompt
-              profissional para você executar no ChatGPT ou outra IA.
+              O Cria Aí organiza o briefing, cria os textos, monta as peças e gera os prompts para os layouts.
+              Você anexa as artes finais, exporta o PDF para o cliente e planeja a publicação no calendário.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -163,8 +168,9 @@ function Dashboard() {
           <CardContent className="flex items-start gap-3 p-4 text-sm">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
             <p>
-              O Cria Aí organiza e prepara o pedido. A criação do conteúdo final acontece na ferramenta de IA
-              escolhida por você.
+              O Cria Aí entrega o pacote de produção: copy, legenda, hashtags, estrutura das peças e prompts
+              para os layouts. A geração da imagem final acontece fora do app — você pode usar IAs externas
+              como apoio e importar a arte de volta para gerar o PDF e agendar a publicação.
             </p>
           </CardContent>
         </Card>
@@ -196,13 +202,13 @@ function Dashboard() {
               key={s.label}
               to="/app/content/new"
               search={{ format: s.format }}
-              className="group rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-primary/40 hover:shadow-lg"
+              className="group min-w-0 rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-primary/40 hover:shadow-lg"
             >
               <div className="grid h-10 w-10 place-items-center rounded-lg bg-accent/10 text-accent transition-colors group-hover:bg-primary/15 group-hover:text-primary">
                 <s.icon className="h-5 w-5" />
               </div>
-              <p className="mt-3 font-medium">{s.label}</p>
-              <p className="text-xs text-muted-foreground">Preparar prompt</p>
+              <p className="mt-3 truncate font-medium">{s.label}</p>
+              <p className="truncate text-xs text-muted-foreground">Criar conteúdo</p>
             </Link>
           ))}
         </div>
@@ -224,8 +230,9 @@ function Dashboard() {
             <div className="rounded-lg border border-dashed bg-muted/30 p-4 text-sm">
               <p className="font-semibold">Resultado esperado</p>
               <p className="mt-1 text-muted-foreground">
-                Um prompt completo que solicita à IA: textos, legenda, hashtags, estrutura de layouts e
-                prompt visual para a peça. O Cria Aí monta o pedido — outra IA cria o conteúdo final.
+                O Cria Aí transforma a ideia em um pacote de produção: textos, legenda, hashtags, estrutura
+                das peças e prompts para criação dos layouts. Depois, você anexa as artes, gera o PDF de
+                aprovação e planeja a publicação no calendário. A imagem final é criada fora do aplicativo.
               </p>
             </div>
           </CardContent>
@@ -243,20 +250,24 @@ function Dashboard() {
         </div>
         {stats?.recent?.length ? (
           <div className="grid gap-3">
-            {stats.recent.map((p) => (
-              <Link
-                key={p.id}
-                to="/app/content/$projectId/result"
-                params={{ projectId: p.id }}
-                className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-primary/40"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{p.internal_title || "Sem título"}</p>
-                  <p className="truncate text-xs text-muted-foreground">{p.brands?.name ?? "Sem marca"}</p>
-                </div>
-                <Badge variant="outline" className="shrink-0 capitalize">{statusLabel(p.status)}</Badge>
-              </Link>
-            ))}
+            {stats.recent.map((p) => {
+              const display = getProjectDisplayTitle(p);
+              return (
+                <Link
+                  key={p.id}
+                  to="/app/content/$projectId/result"
+                  params={{ projectId: p.id }}
+                  title={display}
+                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-primary/40"
+                >
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 break-words font-medium">{display}</p>
+                    <p className="truncate text-xs text-muted-foreground">{p.brands?.name ?? "Sem marca"}</p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0 capitalize">{statusLabel(p.status)}</Badge>
+                </Link>
+              );
+            })}
           </div>
         ) : (
           <Card className="border-dashed">
