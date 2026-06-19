@@ -1,5 +1,8 @@
 // Cria Aí — Prompt Builder determinístico (sem IA).
-// Combina marca + briefing + formatos + saídas + modo em blocos copiáveis.
+// Gera um PACOTE DE PRODUÇÃO POR PEÇA: cada formato selecionado se desdobra
+// em peças individuais com nome, formato, objetivo, textos, CTA, legenda,
+// hashtags, observações de produção e um PROMPT OPERACIONAL pronto para
+// colar em uma ferramenta de IA (ex.: ChatGPT) e produzir a arte final.
 
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -8,38 +11,73 @@ export type Project = Tables<"content_projects">;
 
 export type GenerationMode = "safe" | "fast";
 
+// -------- tipos públicos --------
+
+export interface Piece {
+  /** ordem da peça dentro do pacote (1-based) */
+  index: number;
+  /** chave estável de formato (post, sequencia_stories, ...) */
+  formatKey: string;
+  /** papel da peça dentro do conjunto (capa, gancho, cta, ...) */
+  role: string;
+  /** nome legível: "Story 1 — Gancho" */
+  name: string;
+  /** rótulo de formato com proporção: "Story 9:16" */
+  formatLabel: string;
+  /** objetivo da peça em uma frase */
+  objective: string;
+  /** texto principal sugerido para a arte */
+  mainText: string;
+  /** texto de apoio sugerido */
+  supportText: string;
+  /** CTA da peça (pode ser vazio quando não se aplica) */
+  cta: string;
+  /** legenda completa para postar (quando aplicável) */
+  caption?: string;
+  /** hashtags (quando aplicável) */
+  hashtags?: string[];
+  /** observações de produção */
+  productionNotes: string[];
+  /** prompt operacional pronto para colar em uma IA */
+  readyPrompt: string;
+  /** alerta de informações parciais */
+  warning?: string;
+}
+
+export interface CampaignSummary {
+  brandName: string;
+  internalTitle: string;
+  theme: string;
+  objective: string;
+  formats: string[];
+  mainMessage: string;
+  callToAction: string;
+}
+
 export interface PromptBlock {
+  /** "summary" | "piece" | "master" */
   key: string;
   title: string;
+  /** Para "piece" o conteúdo é JSON.stringify(Piece). Para os demais é texto. */
   content: string;
 }
 
 export interface PromptBuildResult {
-  blocks: PromptBlock[];
+  summary: CampaignSummary;
+  pieces: Piece[];
   masterPrompt: string;
+  /** Representação serializada para persistência em content_outputs. */
+  blocks: PromptBlock[];
 }
 
-// -------- helpers --------
-const isBlank = (v: unknown): boolean => v == null || (typeof v === "string" && v.trim() === "");
-const arr = (v: string[] | null | undefined): string[] => (Array.isArray(v) ? v.filter((s) => s && s.trim()) : []);
-const list = (v: string[] | null | undefined, sep = ", "): string => arr(v).join(sep);
-
-function line(label: string, value: unknown): string | null {
-  if (isBlank(value)) return null;
-  if (Array.isArray(value)) {
-    const s = list(value as string[]);
-    return s ? `- ${label}: ${s}` : null;
-  }
-  return `- ${label}: ${String(value).trim()}`;
+export interface BuildArgs {
+  brand: Brand;
+  project: Project;
+  mode?: GenerationMode;
 }
 
-function section(title: string, lines: (string | null | undefined)[]): string | null {
-  const body = lines.filter((l): l is string => !!l && l.trim() !== "").join("\n");
-  if (!body) return null;
-  return `## ${title}\n${body}`;
-}
+// -------- labels (mantidos para o wizard) --------
 
-// -------- labels --------
 export const FORMAT_LABELS: Record<string, string> = {
   post: "Post para Feed",
   carrossel: "Carrossel",
@@ -90,355 +128,534 @@ export const OUTPUT_LABELS: Record<string, string> = {
   checklist: "Checklist de qualidade",
 };
 
-// -------- blocks --------
-function buildBriefingSummary(brand: Brand, project: Project): PromptBlock | null {
-  const body = [
-    section("Marca", [
-      line("Nome", brand.name),
-      line("Segmento", brand.segment),
-      line("Descrição", brand.description),
-      line("Tom de voz", brand.tone_of_voice),
-      line("Público", brand.audience),
-    ]),
-    section("Briefing", [
-      line("Título interno", project.internal_title),
-      line("Tema principal", project.theme),
-      line("Objetivo", project.objective ? OBJECTIVE_LABELS[project.objective] ?? project.objective : null),
-      line("Público específico", project.specific_audience),
-      line("Problema ou necessidade", project.audience_problem),
-      line("Mensagem principal", project.main_message),
-      line("Chamada para ação", project.call_to_action),
-      line("Estilo desejado", project.desired_style),
-      line("Nível de formalidade", project.formality_level),
-    ]),
-    section("Dados práticos (NÃO INVENTAR)", [
-      line("Data de publicação", project.publication_date),
-      line("Data do evento", project.event_date),
-      line("Horário", project.event_time),
-      line("Local", project.location),
-      line("Valor", project.price_information),
-      line("Contato", project.contact_information),
-      line("Informações obrigatórias", project.mandatory_information),
-    ]),
-    section("Restrições", [line("Restrições", project.restrictions), line("Observações", project.notes)]),
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-  if (!body) return null;
-  return { key: "briefing", title: "Resumo do briefing", content: body };
-}
+// -------- helpers --------
 
-function buildBrandRules(brand: Brand, mode: GenerationMode): PromptBlock {
-  const parts: string[] = [];
-  parts.push(section("Identidade da marca", [
-    line("Personalidade", brand.personality),
-    line("Tom de voz", brand.tone_of_voice),
-    line("Linguagem recomendada", brand.audience_language),
-    line("Palavras recomendadas", brand.recommended_words),
-    line("Palavras proibidas", brand.prohibited_words),
-  ]) ?? "");
-  parts.push(section("Visual", [
-    line("Cor principal", brand.primary_color),
-    line("Cor secundária", brand.secondary_color),
-    line("Cores adicionais", brand.additional_colors),
-    line("Fontes", brand.fonts),
-    line("Estilo visual", brand.visual_style),
-    line("Elementos gráficos", brand.graphic_elements),
-    line("Referências visuais", brand.visual_references),
-  ]) ?? "");
-  parts.push(section("Conteúdo permitido / evitar", [
-    line("Assuntos permitidos", brand.allowed_topics),
-    line("Assuntos a evitar", brand.avoided_topics),
-    line("Serviços prioritários", brand.priority_services),
-    line("Chamadas para ação recomendadas", brand.calls_to_action),
-    line("Informações legais", brand.legal_information),
-  ]) ?? "");
-  const forbidden = brand.forbidden_inventions?.trim();
-  parts.push(
-    section("Regras anti-invenção", [
-      "- Nunca inventar nomes, datas, valores, telefones, locais, e-mails, links ou depoimentos.",
-      "- Usar apenas informações fornecidas no briefing acima.",
-      forbidden ? `- Restrições específicas da marca: ${forbidden}` : null,
-      mode === "safe"
-        ? "- Em caso de dúvida sobre qualquer dado, escrever [PREENCHER] no lugar."
-        : "- Em caso de dúvida, omitir o dado em vez de inventar.",
-    ]) ?? "",
-  );
-  return { key: "brand_rules", title: "Regras da marca", content: parts.filter(Boolean).join("\n\n") };
-}
+const blank = (v: unknown): boolean =>
+  v == null || (typeof v === "string" && v.trim() === "");
 
-function buildStrategy(project: Project): PromptBlock {
-  const objLabel = project.objective ? OBJECTIVE_LABELS[project.objective] ?? project.objective : "não informado";
-  const fmts = arr(project.selected_formats).map((f) => FORMAT_LABELS[f] ?? f).join(", ") || "não informado";
-  return {
-    key: "strategy",
-    title: "Estratégia solicitada",
-    content: [
-      `Objetivo principal: ${objLabel}.`,
-      `Formatos a produzir: ${fmts}.`,
-      project.main_message ? `Mensagem central: ${project.main_message}.` : null,
-      project.specific_audience ? `Direcionado a: ${project.specific_audience}.` : null,
-      "Defina ângulo, gancho e jornada da peça antes de produzir os textos.",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  };
-}
+const arr = (v: string[] | null | undefined): string[] =>
+  Array.isArray(v) ? v.filter((s) => s && s.trim()) : [];
 
-function buildConcept(): PromptBlock {
-  return {
-    key: "concept",
-    title: "Conceito criativo",
-    content: [
-      "Proponha 2 conceitos criativos curtos (1 frase cada).",
-      "Para cada conceito: gancho de abertura, ideia central e razão por que funciona com este público.",
-      "Use apenas elementos da identidade visual e do tom de voz informados.",
-    ].join("\n"),
-  };
-}
+const list = (v: string[] | null | undefined, sep = ", "): string =>
+  arr(v).join(sep);
 
-function buildArtTexts(brand: Brand, project: Project): PromptBlock {
-  return {
-    key: "art_texts",
-    title: "Textos das artes",
-    content: [
-      "Crie os textos que ficarão DENTRO das artes, separados em camadas:",
-      "- Título (até 6 palavras).",
-      "- Subtítulo (até 12 palavras).",
-      "- Apoio/legenda da arte (até 18 palavras).",
-      brand.calls_to_action && brand.calls_to_action.length
-        ? `- CTA: priorize entre [${list(brand.calls_to_action)}].`
-        : "- CTA: 1 frase curta e direta.",
-      project.formality_level ? `Nível de formalidade: ${project.formality_level}.` : null,
-      "Não use emojis se não estiverem alinhados ao tom de voz da marca.",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  };
-}
+const txt = (v: string | null | undefined, fallback = ""): string =>
+  blank(v) ? fallback : String(v).trim();
 
-function buildLayouts(): PromptBlock {
-  return {
-    key: "layouts",
-    title: "Estrutura dos layouts",
-    content: [
-      "Para cada formato, descreva a estrutura visual em camadas:",
-      "1. Plano de fundo (cor/imagem/textura).",
-      "2. Hierarquia tipográfica (título, subtítulo, apoio).",
-      "3. Elemento gráfico de destaque.",
-      "4. Posicionamento da logo (canto/área segura).",
-      "5. CTA visualmente destacado.",
-      "Respeite a área segura de cada formato (proporção e margens).",
-    ].join("\n"),
-  };
-}
-
-function buildCarousel(): PromptBlock {
-  return {
-    key: "carousel",
-    title: "Estrutura do carrossel",
-    content: [
-      "Monte um carrossel de 5 a 8 slides com este fluxo:",
-      "1. Capa: gancho + promessa.",
-      "2. Contexto/problema.",
-      "3-6. Conteúdo principal em etapas, exemplos ou dicas.",
-      "7. Síntese.",
-      "8. CTA com instrução clara.",
-      "Para cada slide entregue: TÍTULO, TEXTO INTERNO e indicação visual.",
-    ].join("\n"),
-  };
-}
-
-function buildStories(): PromptBlock {
-  return {
-    key: "stories",
-    title: "Estrutura dos Stories",
-    content: [
-      "Sequência de 3 a 5 stories:",
-      "- Story 1: abertura/curiosidade.",
-      "- Story 2-3: desenvolvimento com enquete, caixa de pergunta ou quiz quando fizer sentido.",
-      "- Story 4: prova/exemplo.",
-      "- Story 5: CTA com link/arrastar/responder.",
-      "Indique elementos interativos por story.",
-    ].join("\n"),
-  };
-}
-
-function buildReel(): PromptBlock {
-  return {
-    key: "reel",
-    title: "Roteiro de Reel",
-    content: [
-      "Roteiro de Reel de 15 a 30 segundos no formato:",
-      "[0-2s] Gancho visual + frase de impacto.",
-      "[2-15s] Desenvolvimento em 2 a 3 blocos com cortes rápidos.",
-      "[15-25s] Virada/insight.",
-      "[25-30s] CTA falado e em texto na tela.",
-      "Para cada bloco entregue: FALA, TEXTO NA TELA e AÇÃO/CENA.",
-    ].join("\n"),
-  };
-}
-
-function buildCaptions(project: Project): PromptBlock {
-  const cta = project.call_to_action?.trim();
-  return {
-    key: "captions",
-    title: "Legendas",
-    content: [
-      "Produza três versões de legenda:",
-      "- Curta (até 220 caracteres).",
-      "- Intermediária (300 a 600 caracteres).",
-      "- Completa (até 1500 caracteres) com gancho, desenvolvimento, prova e CTA.",
-      cta ? `Encerre todas com o CTA: "${cta}".` : "Encerre todas com um CTA único e claro.",
-      "Não use mais de 2 emojis por legenda, salvo se a marca permitir.",
-    ].join("\n"),
-  };
-}
-
-function buildHashtags(brand: Brand): PromptBlock {
-  return {
-    key: "hashtags",
-    title: "Hashtags",
-    content: [
-      "Liste 12 a 18 hashtags em PT-BR organizadas em 3 níveis:",
-      "- Amplas (alto volume).",
-      "- Médias (nicho do segmento).",
-      "- Específicas (marca/cidade/serviço).",
-      brand.segment ? `Segmento: ${brand.segment}.` : null,
-      brand.service_region ? `Região: ${brand.service_region}.` : null,
-      "Não inventar hashtags com nome de marca de terceiros.",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  };
-}
-
-function buildEngagement(): PromptBlock {
-  return {
-    key: "engagement",
-    title: "Recursos de engajamento",
-    content: [
-      "Sugira 3 recursos práticos para aumentar o engajamento:",
-      "- 1 enquete/caixa de pergunta para Stories.",
-      "- 1 pergunta para a legenda incentivar comentários.",
-      "- 1 ideia de resposta padrão no WhatsApp para quem chegar pela peça.",
-    ].join("\n"),
-  };
-}
-
-function buildVisualPrompt(brand: Brand, project: Project): PromptBlock {
-  return {
-    key: "visual_prompt",
-    title: "Prompt visual (para gerador de imagem)",
-    content: [
-      "Descreva uma imagem coerente com a peça em uma frase densa contendo:",
-      "- Sujeito e cena.",
-      "- Estilo visual (fotografia, ilustração, 3D, etc.).",
-      "- Iluminação e atmosfera.",
-      "- Paleta de cores baseada na marca.",
-      "- Composição e enquadramento.",
-      brand.visual_style ? `Estilo da marca: ${brand.visual_style}.` : null,
-      brand.primary_color ? `Cor principal: ${brand.primary_color}.` : null,
-      project.desired_style ? `Estilo desejado pelo briefing: ${project.desired_style}.` : null,
-      "Não incluir texto na imagem (o texto entra na arte).",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  };
-}
-
-function buildWhatsApp(project: Project): PromptBlock {
-  return {
-    key: "whatsapp",
-    title: "Versão para WhatsApp",
-    content: [
-      "Adapte o conteúdo para WhatsApp:",
-      "- Mensagem curta (até 350 caracteres).",
-      "- Status do WhatsApp (1 frase + CTA).",
-      "- Texto para grupo (com saudação personalizável).",
-      project.contact_information ? `Inclua contato apenas se for: ${project.contact_information}.` : "Inclua link/contato somente se fornecido no briefing.",
-    ].join("\n"),
-  };
-}
-
-function buildAudit(brand: Brand, project: Project): PromptBlock {
-  return {
-    key: "audit",
-    title: "Auditoria final (checklist)",
-    content: [
-      "Antes de entregar, verifique:",
-      "[ ] Nenhum dado inventado (datas, valores, locais, contatos).",
-      brand.prohibited_words && brand.prohibited_words.length
-        ? `[ ] Nenhuma palavra proibida usada: ${list(brand.prohibited_words)}.`
-        : "[ ] Linguagem alinhada às palavras recomendadas da marca.",
-      "[ ] Tom de voz consistente com a marca.",
-      "[ ] CTA presente e claro.",
-      project.mandatory_information ? `[ ] Informação obrigatória incluída: ${project.mandatory_information}.` : null,
-      "[ ] Ortografia e concordância revisadas.",
-      "[ ] Texto legível dentro da área segura de cada formato.",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  };
-}
-
-// -------- builder principal --------
-export interface BuildArgs {
-  brand: Brand;
-  project: Project;
-  mode?: GenerationMode;
-}
-
-const BLOCK_MAP: Record<string, (b: Brand, p: Project) => PromptBlock | null> = {
-  estrategia: (_b, p) => buildStrategy(p),
-  conceito: () => buildConcept(),
-  textos_artes: (b, p) => buildArtTexts(b, p),
-  layouts: () => buildLayouts(),
-  carrossel: () => buildCarousel(),
-  stories: () => buildStories(),
-  roteiro_reel: () => buildReel(),
-  legenda_curta: (_b, p) => buildCaptions(p),
-  legenda_media: (_b, p) => buildCaptions(p),
-  legenda_completa: (_b, p) => buildCaptions(p),
-  whatsapp: (_b, p) => buildWhatsApp(p),
-  hashtags: (b) => buildHashtags(b),
-  engajamento: () => buildEngagement(),
-  prompt_visual: (b, p) => buildVisualPrompt(b, p),
-  checklist: (b, p) => buildAudit(b, p),
+const shorten = (s: string, max: number): string => {
+  const t = (s ?? "").trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[.,;:!?]+$/, "") + "…";
 };
 
-export function buildPrompts({ brand, project, mode }: BuildArgs): PromptBuildResult {
-  const effectiveMode: GenerationMode = (mode ?? (project.generation_mode as GenerationMode) ?? "safe") as GenerationMode;
-  const blocks: PromptBlock[] = [];
+const firstSentence = (s: string): string => {
+  const t = (s ?? "").trim();
+  if (!t) return "";
+  const m = t.match(/^[^.!?\n]+[.!?]?/);
+  return (m ? m[0] : t).trim();
+};
 
-  const summary = buildBriefingSummary(brand, project);
-  if (summary) blocks.push(summary);
-  blocks.push(buildBrandRules(brand, effectiveMode));
+const slug = (s: string): string =>
+  (s ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w, i) => (i === 0 ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1).toLowerCase()))
+    .join("");
 
-  const requested = arr(project.selected_outputs);
-  const seen = new Set<string>();
-  for (const key of requested) {
-    const fn = BLOCK_MAP[key];
-    if (!fn) continue;
-    const block = fn(brand, project);
-    if (block && !seen.has(block.key)) {
-      seen.add(block.key);
-      blocks.push(block);
+const unique = <T,>(xs: T[]): T[] => Array.from(new Set(xs));
+
+// -------- proporção / rótulo por formato --------
+
+const FORMAT_RATIO: Record<string, string> = {
+  post: "4:5 (Feed)",
+  carrossel: "4:5 (Carrossel)",
+  story: "9:16 (Story)",
+  sequencia_stories: "9:16 (Story)",
+  status_whatsapp: "9:16 (Status)",
+  reel: "9:16 (Reel)",
+  capa_reel: "9:16 (Capa de Reel)",
+  comunicado: "1:1 ou 4:5",
+  banner: "16:9 (Banner)",
+  texto_grupo: "somente texto",
+  impresso: "A4 / personalizado",
+  outro: "conforme uso",
+};
+
+const formatLabel = (key: string): string =>
+  `${FORMAT_LABELS[key] ?? key} · ${FORMAT_RATIO[key] ?? "conforme uso"}`;
+
+// -------- templates de papéis por formato --------
+
+interface RoleTemplate {
+  role: string;
+  name: string;
+  objective: string;
+}
+
+const ROLE_TEMPLATES: Record<string, RoleTemplate[]> = {
+  post: [
+    { role: "apresentacao", name: "Post Feed — Apresentação", objective: "apresentar a mensagem central com impacto visual e CTA claro" },
+  ],
+  carrossel: [
+    { role: "capa", name: "Carrossel — Página 1 (Capa)", objective: "gancho e promessa que justifique avançar" },
+    { role: "contexto", name: "Carrossel — Página 2 (Contexto)", objective: "contextualizar o problema, desejo ou cenário" },
+    { role: "desenvolvimento1", name: "Carrossel — Página 3 (Desenvolvimento)", objective: "apresentar o ponto principal de forma direta" },
+    { role: "desenvolvimento2", name: "Carrossel — Página 4 (Aprofundamento)", objective: "aprofundar com benefícios, exemplos ou diferenciais" },
+    { role: "orientacao", name: "Carrossel — Página 5 (Orientação)", objective: "orientar o próximo passo prático" },
+    { role: "fechamento", name: "Carrossel — Página 6 (Fechamento)", objective: "sintetizar a mensagem em frase de impacto" },
+    { role: "cta", name: "Carrossel — Página 7 (CTA)", objective: "chamar a ação com clareza e incentivo direto" },
+  ],
+  story: [
+    { role: "unico", name: "Story — Peça única", objective: "comunicar a mensagem central em um único Story" },
+  ],
+  sequencia_stories: [
+    { role: "gancho", name: "Story 1 — Gancho", objective: "gerar curiosidade imediata" },
+    { role: "contexto", name: "Story 2 — Contexto", objective: "contextualizar o tema para o público" },
+    { role: "beneficio", name: "Story 3 — Benefício", objective: "destacar o benefício principal" },
+    { role: "prova", name: "Story 4 — Prova / Diferencial", objective: "reforçar credibilidade ou diferencial" },
+    { role: "cta", name: "Story 5 — CTA", objective: "incentivar a ação esperada" },
+  ],
+  status_whatsapp: [
+    { role: "principal", name: "Status WhatsApp — Mensagem", objective: "comunicar a oferta de forma direta e curta" },
+    { role: "reforco", name: "Status WhatsApp — Reforço", objective: "reforçar o CTA e gerar resposta" },
+  ],
+  reel: [
+    { role: "capa", name: "Reel — Capa", objective: "capa estática atrativa que represente o vídeo" },
+    { role: "roteiro", name: "Reel — Roteiro (15-30s)", objective: "roteiro completo do vídeo com falas e cenas" },
+    { role: "legenda", name: "Reel — Legenda + CTA", objective: "legenda otimizada para alcance com CTA" },
+  ],
+  capa_reel: [
+    { role: "capa", name: "Capa de Reel", objective: "criar capa estática para o Reel" },
+  ],
+  comunicado: [
+    { role: "unico", name: "Comunicado — Peça única", objective: "comunicar de forma objetiva e clara" },
+  ],
+  banner: [
+    { role: "unico", name: "Banner", objective: "comunicar a mensagem em formato banner" },
+  ],
+  texto_grupo: [
+    { role: "unico", name: "Texto para Grupo", objective: "mensagem para enviar em grupo de WhatsApp" },
+  ],
+  impresso: [
+    { role: "unico", name: "Material Impresso", objective: "peça para impressão" },
+  ],
+  outro: [
+    { role: "unico", name: "Peça Personalizada", objective: "peça conforme briefing" },
+  ],
+};
+
+// -------- derivação de textos por papel --------
+
+interface DerivedTexts {
+  mainText: string;
+  supportText: string;
+  cta: string;
+}
+
+function deriveTexts(role: string, project: Project): DerivedTexts {
+  const theme = txt(project.theme);
+  const main = txt(project.main_message);
+  const problem = txt(project.audience_problem);
+  const audience = txt(project.specific_audience);
+  const product = txt(project.mandatory_information);
+  const mandatory = txt(project.mandatory_information);
+  const cta = txt(project.call_to_action);
+  const contact = txt(project.contact_information);
+
+  const firstMain = firstSentence(main) || theme;
+
+  switch (role) {
+    case "gancho":
+    case "capa":
+      return {
+        mainText: shorten(firstMain || theme, 60),
+        supportText: shorten(problem || audience || product, 90),
+        cta: "",
+      };
+    case "contexto":
+      return {
+        mainText: shorten(problem || audience || theme, 80),
+        supportText: shorten(audience || product, 90),
+        cta: "",
+      };
+    case "beneficio":
+    case "desenvolvimento1":
+      return {
+        mainText: shorten(firstMain, 80),
+        supportText: shorten(product || problem, 110),
+        cta: "",
+      };
+    case "desenvolvimento2":
+      return {
+        mainText: shorten(product || main, 90),
+        supportText: shorten(mandatory || problem, 110),
+        cta: "",
+      };
+    case "orientacao":
+      return {
+        mainText: "Como aproveitar agora:",
+        supportText: shorten(cta || mandatory || product, 110),
+        cta: "",
+      };
+    case "prova":
+      return {
+        mainText: shorten(mandatory || product || "Por que confiar", 80),
+        supportText: shorten(product || main, 110),
+        cta: "",
+      };
+    case "fechamento":
+      return {
+        mainText: shorten(firstMain, 60),
+        supportText: shorten(audience || product, 90),
+        cta: "",
+      };
+    case "cta":
+      return {
+        mainText: shorten(cta || firstMain, 60),
+        supportText: shorten(contact || mandatory, 110),
+        cta: cta,
+      };
+    case "reforco":
+      return {
+        mainText: shorten(cta || firstMain, 50),
+        supportText: shorten(contact, 90),
+        cta: cta,
+      };
+    case "principal":
+      return {
+        mainText: shorten(firstMain, 70),
+        supportText: shorten(cta || product, 110),
+        cta: cta,
+      };
+    case "roteiro":
+      return {
+        mainText: shorten(firstMain, 90),
+        supportText: shorten(product || problem, 140),
+        cta: cta,
+      };
+    case "legenda":
+      return {
+        mainText: shorten(firstMain, 90),
+        supportText: shorten(product || audience, 140),
+        cta: cta,
+      };
+    case "unico":
+    case "apresentacao":
+    default:
+      return {
+        mainText: shorten(firstMain, 80),
+        supportText: shorten(problem || audience || product, 110),
+        cta: cta,
+      };
+  }
+}
+
+// -------- legenda / hashtags --------
+
+const ROLES_WITH_CAPTION = new Set([
+  "apresentacao",
+  "unico",
+  "cta",
+  "legenda",
+  "principal",
+  "fechamento",
+]);
+
+function buildCaption(brand: Brand, project: Project, piece: { mainText: string; cta: string; objective: string }): string {
+  const lines: string[] = [];
+  const hook = piece.mainText || txt(project.theme);
+  if (hook) lines.push(hook);
+  const message = txt(project.main_message);
+  if (message && message !== hook) lines.push("", message);
+  const product = txt(project.mandatory_information);
+  if (product) lines.push("", product);
+  const mandatory = txt(project.mandatory_information);
+  if (mandatory) lines.push("", mandatory);
+  const cta = piece.cta || txt(project.call_to_action);
+  if (cta) lines.push("", `👉 ${cta}`);
+  const contact = txt(project.contact_information);
+  if (contact) lines.push(contact);
+  void brand;
+  return lines.join("\n").trim();
+}
+
+function buildHashtags(brand: Brand, project: Project): string[] {
+  const tags = new Set<string>();
+  const push = (raw: string) => {
+    const s = slug(raw);
+    if (s) tags.add(`#${s}`);
+  };
+  push(brand.name);
+  if (brand.segment) push(brand.segment);
+  if (brand.service_region) push(brand.service_region);
+  // tokens do tema (apenas o que veio do usuário)
+  const themeWords = txt(project.theme).split(/\s+/).filter((w) => w.length >= 5).slice(0, 4);
+  themeWords.forEach((w) => push(w));
+  // palavras recomendadas da marca (campo livre do cadastro)
+  arr(brand.recommended_words).slice(0, 4).forEach((w) => push(w));
+  return Array.from(tags).slice(0, 14);
+}
+
+// -------- observações de produção --------
+
+function buildProductionNotes(role: string, brand: Brand, project: Project): string[] {
+  const notes: string[] = [];
+  const style = txt(project.desired_style) || txt(brand.visual_style);
+  if (style) notes.push(`Estilo visual: ${style}.`);
+  if (brand.primary_color) notes.push(`Usar cor principal da marca: ${brand.primary_color}.`);
+  if (brand.fonts) notes.push(`Tipografia da marca: ${brand.fonts}.`);
+  if (role === "capa" || role === "gancho" || role === "apresentacao" || role === "unico" || role === "principal") {
+    notes.push("Manter respiro no topo para o título e logo discreta no canto.");
+  }
+  if (role === "cta" || role === "reforco") {
+    notes.push("CTA em destaque, com contraste alto e área clicável visualmente clara.");
+  }
+  if (role.startsWith("desenvolvimento") || role === "contexto" || role === "prova" || role === "orientacao" || role === "fechamento") {
+    notes.push("Evitar excesso de elementos: prioridade para legibilidade.");
+  }
+  if (brand.forbidden_inventions) {
+    notes.push(`Restrições da marca: ${brand.forbidden_inventions}.`);
+  }
+  if (brand.graphic_elements) {
+    notes.push(`Elementos gráficos: ${brand.graphic_elements}.`);
+  }
+  return notes;
+}
+
+// -------- prompt operacional pronto --------
+
+function buildReadyPrompt(args: {
+  piece: Omit<Piece, "readyPrompt" | "caption" | "hashtags" | "warning">;
+  brand: Brand;
+  project: Project;
+  mode: GenerationMode;
+  productionNotes: string[];
+}): string {
+  const { piece, brand, project, mode, productionNotes } = args;
+  const style = txt(project.desired_style) || txt(brand.visual_style) || "alinhado à identidade da marca";
+  const identityBits = [
+    brand.primary_color ? `cor principal ${brand.primary_color}` : null,
+    brand.secondary_color ? `cor secundária ${brand.secondary_color}` : null,
+    brand.fonts ? `tipografia ${brand.fonts}` : null,
+    brand.tone_of_voice ? `tom de voz ${brand.tone_of_voice}` : null,
+  ].filter(Boolean).join(", ");
+
+  const visualDirection = [
+    txt(brand.visual_style),
+    txt(brand.graphic_elements),
+    txt(brand.visual_references),
+  ].filter(Boolean).join(" · ") || "composição limpa, hierarquia clara, espaço de respiro";
+
+  const head =
+    `Crie uma arte para ${piece.formatLabel} da empresa "${brand.name}", no estilo ${style}, ` +
+    `seguindo rigorosamente as informações abaixo.`;
+
+  const block: string[] = [head, ""];
+  block.push(`Objetivo da peça: ${piece.objective}.`);
+  if (piece.mainText) block.push(`Texto principal da arte: "${piece.mainText}"`);
+  if (piece.supportText) block.push(`Texto de apoio: "${piece.supportText}"`);
+  if (piece.cta) block.push(`CTA: "${piece.cta}"`);
+  block.push(`Direção visual: ${visualDirection}.`);
+  if (identityBits) block.push(`Identidade da marca: ${identityBits}.`);
+
+  const dataLines: string[] = [];
+  if (project.event_date) dataLines.push(`data do evento ${project.event_date}`);
+  if (project.event_time) dataLines.push(`horário ${project.event_time}`);
+  if (project.location) dataLines.push(`local ${project.location}`);
+  if (project.price_information) dataLines.push(`valor ${project.price_information}`);
+  if (project.contact_information) dataLines.push(`contato ${project.contact_information}`);
+  if (dataLines.length) {
+    block.push(`Dados literais a respeitar (não alterar): ${dataLines.join("; ")}.`);
+  }
+
+  if (productionNotes.length) {
+    block.push("");
+    block.push("Observações de produção:");
+    productionNotes.forEach((n) => block.push(`- ${n}`));
+  }
+
+  block.push("");
+  block.push("Regras obrigatórias:");
+  block.push("- Caso exista imagem de referência anexada, utilizá-la obrigatoriamente como base. Não alterar cor, formato, proporções ou características do produto/serviço.");
+  block.push("- Não inventar preço, data, telefone, endereço, benefício, depoimento ou condição comercial que não esteja explicitamente neste prompt.");
+  block.push("- Não inserir textos longos diretamente sobre a imagem; preferir camadas de texto separadas e legíveis.");
+  if (arr(brand.prohibited_words).length) {
+    block.push(`- Não usar as palavras proibidas da marca: ${list(brand.prohibited_words)}.`);
+  }
+  if (mode === "safe") {
+    block.push("- Em caso de dúvida sobre qualquer dado, escrever [PREENCHER] no lugar — nunca inventar.");
+  } else {
+    block.push("- Em caso de dúvida sobre qualquer dado, omitir — nunca inventar.");
+  }
+
+  // Instruções específicas por papel
+  if (piece.role === "roteiro") {
+    block.push("");
+    block.push("Para o roteiro do Reel, entregue: [0-2s] gancho, [2-15s] desenvolvimento em 2-3 cortes, [15-25s] virada/insight, [25-30s] CTA falado e em texto. Para cada bloco: FALA, TEXTO NA TELA e AÇÃO/CENA.");
+  }
+  if (piece.role === "legenda") {
+    block.push("");
+    block.push("Para a legenda, entregue versão de até 1200 caracteres com gancho, desenvolvimento, prova e CTA encerrando o texto.");
+  }
+
+  return block.join("\n");
+}
+
+// -------- avaliação de informações parciais --------
+
+function pieceWarning(role: string, project: Project): string | undefined {
+  const missing: string[] = [];
+  if (!txt(project.main_message)) missing.push("mensagem principal");
+  if ((role === "cta" || role === "reforco" || role === "principal") && !txt(project.call_to_action)) missing.push("CTA");
+  if ((role === "prova" || role === "desenvolvimento2") && !txt(project.mandatory_information))
+    missing.push("informações obrigatórias / descrição do produto");
+  if (!missing.length) return undefined;
+  return `Esta peça foi gerada com base em informações parciais (${missing.join(", ")}). Revise antes de publicar.`;
+}
+
+// -------- geração principal --------
+
+export function buildPieces(args: BuildArgs): Piece[] {
+  const { brand, project, mode } = args;
+  const effectiveMode: GenerationMode =
+    (mode ?? (project.generation_mode as GenerationMode) ?? "safe") as GenerationMode;
+
+  const formats = unique(arr(project.selected_formats));
+  const pieces: Piece[] = [];
+  let index = 0;
+
+  for (const formatKey of formats) {
+    const templates = ROLE_TEMPLATES[formatKey] ?? ROLE_TEMPLATES.outro;
+    for (const tmpl of templates) {
+      index += 1;
+      const derived = deriveTexts(tmpl.role, project);
+      const fmtLabel = formatLabel(formatKey);
+      const productionNotes = buildProductionNotes(tmpl.role, brand, project);
+
+      const base: Omit<Piece, "readyPrompt" | "caption" | "hashtags" | "warning"> = {
+        index,
+        formatKey,
+        role: tmpl.role,
+        name: tmpl.name,
+        formatLabel: fmtLabel,
+        objective: tmpl.objective,
+        mainText: derived.mainText,
+        supportText: derived.supportText,
+        cta: derived.cta,
+        productionNotes,
+      };
+
+      const readyPrompt = buildReadyPrompt({ piece: base, brand, project, mode: effectiveMode, productionNotes });
+
+      const piece: Piece = { ...base, readyPrompt };
+
+      if (ROLES_WITH_CAPTION.has(tmpl.role)) {
+        piece.caption = buildCaption(brand, project, { mainText: derived.mainText, cta: derived.cta, objective: tmpl.objective });
+        piece.hashtags = buildHashtags(brand, project);
+      }
+
+      const warning = pieceWarning(tmpl.role, project);
+      if (warning) piece.warning = warning;
+
+      pieces.push(piece);
     }
   }
 
-  // Garante auditoria final no modo seguro
-  if (effectiveMode === "safe" && !seen.has("audit")) {
-    blocks.push(buildAudit(brand, project));
+  return pieces;
+}
+
+function buildSummary(brand: Brand, project: Project): CampaignSummary {
+  return {
+    brandName: brand.name,
+    internalTitle: txt(project.internal_title),
+    theme: txt(project.theme),
+    objective: project.objective ? OBJECTIVE_LABELS[project.objective] ?? project.objective : "",
+    formats: arr(project.selected_formats).map((f) => FORMAT_LABELS[f] ?? f),
+    mainMessage: txt(project.main_message),
+    callToAction: txt(project.call_to_action),
+  };
+}
+
+function summaryToText(s: CampaignSummary): string {
+  const lines: string[] = [];
+  lines.push(`Marca: ${s.brandName}`);
+  if (s.internalTitle) lines.push(`Projeto: ${s.internalTitle}`);
+  if (s.theme) lines.push(`Tema: ${s.theme}`);
+  if (s.objective) lines.push(`Objetivo: ${s.objective}`);
+  if (s.formats.length) lines.push(`Formatos: ${s.formats.join(", ")}`);
+  if (s.mainMessage) lines.push(`Mensagem central: ${s.mainMessage}`);
+  if (s.callToAction) lines.push(`CTA principal: ${s.callToAction}`);
+  return lines.join("\n");
+}
+
+function pieceToReadableText(p: Piece): string {
+  const lines: string[] = [];
+  lines.push(`# ${p.name}`);
+  lines.push(`Formato: ${p.formatLabel}`);
+  lines.push(`Objetivo: ${p.objective}`);
+  lines.push("");
+  if (p.mainText) lines.push(`Texto principal: ${p.mainText}`);
+  if (p.supportText) lines.push(`Texto de apoio: ${p.supportText}`);
+  if (p.cta) lines.push(`CTA: ${p.cta}`);
+  if (p.caption) { lines.push("", "Legenda:"); lines.push(p.caption); }
+  if (p.hashtags && p.hashtags.length) { lines.push("", `Hashtags: ${p.hashtags.join(" ")}`); }
+  if (p.productionNotes.length) {
+    lines.push("", "Observações de produção:");
+    p.productionNotes.forEach((n) => lines.push(`- ${n}`));
   }
+  lines.push("", "Prompt pronto para colar em uma IA:");
+  lines.push(p.readyPrompt);
+  if (p.warning) lines.push("", `⚠ ${p.warning}`);
+  return lines.join("\n");
+}
 
-  const header = [
-    `# Pacote de prompts — ${brand.name}${project.internal_title ? ` · ${project.internal_title}` : ""}`,
-    `Modo de geração: ${effectiveMode === "safe" ? "Seguro" : "Rápido"}.`,
-    "Use este material como instrução para um gerador de conteúdo. Respeite estritamente os dados informados.",
-  ].join("\n");
+export function buildPrompts(args: BuildArgs): PromptBuildResult {
+  const { brand, project } = args;
+  const pieces = buildPieces(args);
+  const summary = buildSummary(brand, project);
 
-  const masterPrompt = [header, ...blocks.map((b) => `## ${b.title}\n${b.content}`)].join("\n\n---\n\n");
+  const masterParts: string[] = [];
+  masterParts.push(`# Pacote de produção — ${brand.name}${summary.internalTitle ? ` · ${summary.internalTitle}` : ""}`);
+  masterParts.push(summaryToText(summary));
+  masterParts.push("");
+  masterParts.push(`Total de peças geradas: ${pieces.length}.`);
+  masterParts.push("");
+  pieces.forEach((p) => {
+    masterParts.push("---");
+    masterParts.push(pieceToReadableText(p));
+    masterParts.push("");
+  });
+  const masterPrompt = masterParts.join("\n");
 
-  return { blocks, masterPrompt };
+  const blocks: PromptBlock[] = [];
+  blocks.push({ key: "summary", title: "Resumo da campanha", content: summaryToText(summary) });
+  pieces.forEach((p) => {
+    blocks.push({ key: "piece", title: p.name, content: JSON.stringify(p) });
+  });
+  blocks.push({ key: "master", title: "Prompt mestre (opcional)", content: masterPrompt });
+
+  return { summary, pieces, masterPrompt, blocks };
+}
+
+// Utilitário para a UI: parse seguro de uma peça persistida.
+export function parsePiece(content: string): Piece | null {
+  try {
+    const obj = JSON.parse(content);
+    if (obj && typeof obj === "object" && typeof obj.name === "string" && typeof obj.readyPrompt === "string") {
+      return obj as Piece;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+export function pieceToPlainText(p: Piece): string {
+  return pieceToReadableText(p);
 }
