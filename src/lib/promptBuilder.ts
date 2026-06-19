@@ -438,7 +438,7 @@ interface PromptBuildCtx {
   restrictionsBrief?: string;
 }
 
-function buildReadyPrompt(args: PromptBuildCtx): string {
+export function buildReadyPrompt(args: PromptBuildCtx): string {
   const { piece, brand, project, mode, productionNotes, restrictionsBrief } = args;
 
   // se a copy está bloqueada, devolve mensagem clara em vez de "USAR EXATAMENTE"
