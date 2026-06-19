@@ -230,11 +230,23 @@ function ResultPage() {
 
       {/* SEÇÃO 2 — PEÇAS GERADAS */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-lg font-semibold">Peças geradas ({pieces.length})</h2>
-          {pieces.length > 0 && (
-            <CopyButton text={allPiecesText} label="Copiar todas as peças" variant="outline" size="sm" />
-          )}
+          <div className="flex items-center gap-2">
+            {(() => {
+              const assetsByOutput: Record<string, PieceAsset[]> = {};
+              (data.assets ?? []).forEach((a) => { (assetsByOutput[a.output_id] ||= []).push(a); });
+              const withArt = pieces.filter((p) => (assetsByOutput[p.row.id] ?? []).length > 0).length;
+              return (
+                <Badge variant="outline" className="text-xs">
+                  Artes finais: {withArt} de {pieces.length} peça(s)
+                </Badge>
+              );
+            })()}
+            {pieces.length > 0 && (
+              <CopyButton text={allPiecesText} label="Copiar todas as peças" variant="outline" size="sm" />
+            )}
+          </div>
         </div>
         {pieces.length === 0 && (
           <p className="text-sm text-muted-foreground">Nenhuma peça foi gerada para este projeto.</p>
@@ -249,6 +261,9 @@ function ResultPage() {
               project={project}
               allPieces={pieces.map((p) => p.piece).filter(Boolean) as Piece[]}
               onCopyAndOpen={copyAndOpenChatGPT}
+              userId={user?.id ?? ""}
+              assets={(data.assets ?? []).filter((a) => a.output_id === row.id)}
+              onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
             />
           ) : (
             <LegacyBlockCard key={row.id} block={row} />
