@@ -128,6 +128,19 @@ const ANGLE_TONE: Record<CopyAngle, { promise: string; opener: string }> = {
 
 // =================== síntese ===================
 
+/**
+ * Reduz a descrição extensa do público a uma frase curta (≤ 8 palavras),
+ * para não copiar a lista completa de personas em cada peça.
+ */
+export function summarizeAudience(raw: string | null | undefined, fallback = "o público"): string {
+  const s = txt(raw, "");
+  if (!s) return fallback;
+  const firstChunk = s.split(/incluindo|,|\.|;|—|–|:/i)[0] ?? s;
+  const words = firstChunk.trim().split(/\s+/).slice(0, 8);
+  const out = words.join(" ").replace(/[.,;:]+$/, "");
+  return out || fallback;
+}
+
 export interface ComposeInput {
   brand: Brand;
   project: Project;
@@ -139,10 +152,10 @@ export function composeCopy(input: ComposeInput): ComposedCopy {
   const angle: CopyAngle = input.angle ?? inferAngle(project);
   const placeholders: string[] = [];
 
-  // matérias-primas
   const theme = txt(project.theme);
   const mainMsg = txt(project.main_message);
-  const audience = txt(project.specific_audience) || txt(brand.audience);
+  // ⚠ versão CURTA do público
+  const audienceShort = summarizeAudience(project.specific_audience ?? brand.audience, "o público");
   const product = txt(project.mandatory_information) || txt(brand.products_services);
   const ctaRaw = txt(project.call_to_action);
 
@@ -165,7 +178,7 @@ export function composeCopy(input: ComposeInput): ComposedCopy {
   } else {
     const top = pains.slice(0, 2).map(lower);
     main_problem = endWithPeriod(
-      `Hoje, ${audience ? lower(audience) : "o público"} enfrenta desafios como ${top[0]} e ${top[1]}, o que pode gerar insegurança na hora de decidir`,
+      `Hoje, ${audienceShort} enfrenta desafios como ${top[0]} e ${top[1]}, o que pode gerar insegurança na hora de decidir`,
     );
   }
 
@@ -174,10 +187,10 @@ export function composeCopy(input: ComposeInput): ComposedCopy {
   if (diffs.length > 0) {
     const top = joinNatural(diffs.slice(0, 2));
     main_benefit = endWithPeriod(
-      `Com ${top}, ${audience ? lower(audience) : "você"} recebe apoio para escolher com mais clareza e segurança`,
+      `Com ${top}, você recebe apoio para escolher com mais clareza e segurança`,
     );
   } else if (product) {
-    main_benefit = endWithPeriod(`${cap(brand.name)} ajuda você a ${lower(actionFromObjective(project))} com mais confiança`);
+    main_benefit = endWithPeriod(`A ${brand.name} ajuda você a ${lower(actionFromObjective(project))} com mais confiança`);
   } else {
     main_benefit = "";
   }
@@ -186,16 +199,14 @@ export function composeCopy(input: ComposeInput): ComposedCopy {
   const promiseSeed = mainMsg ? firstClause(mainMsg) : ANGLE_TONE[angle].promise;
   const key_promise = endWithPeriod(promiseSeed);
 
-  // --- ângulos ---
   const emotional_angle = inferEmotional(pains, angle);
+  // ✅ sempre com sujeito (evita "Construído com ...")
   const trust_angle = diffs.length
-    ? endWithPeriod(`Construído com ${joinNatural(diffs.slice(0, 2))}`)
+    ? endWithPeriod(`A ${brand.name} apoia você com ${joinNatural(diffs.slice(0, 2))}`)
     : endWithPeriod(`A experiência da ${brand.name} como referência`);
 
-  // --- support_points ---
   const support_points = diffs.slice(0, 3).map((d) => endWithPeriod(cap(d)));
 
-  // --- bullets (substantivos curtos) ---
   const bullet_options = dedupe([
     ...diffs,
     ...parseBullets(brand.products_services).slice(0, 3),
@@ -204,13 +215,11 @@ export function composeCopy(input: ComposeInput): ComposedCopy {
     .filter((s) => s.length >= 3 && s.length <= 60)
     .slice(0, 5);
 
-  // --- CTA ---
   const cta_line = ctaRaw
     ? endWithPeriod(stripTrailingPunctNotKeep(ctaRaw))
     : defaultCTA(project, brand);
   if (!ctaRaw) placeholders.push("call_to_action");
 
-  // --- headlines ---
   const themeNoun = lower(theme || product || "sua próxima decisão");
   const benefitNoun = lower(diffs[0] ?? "apoio próximo");
   const painNoun = lower(pains[0] ?? "dúvida");
@@ -229,17 +238,16 @@ export function composeCopy(input: ComposeInput): ComposedCopy {
       .filter((h) => h.length >= 12 && h.length <= 90),
   ).slice(0, 5);
 
-  // --- support text (parágrafos) ---
   const diffPhrase = diffs.length ? joinNatural(diffs.slice(0, 2)) : "apoio próximo e responsável";
   const rawSupports: string[] = [];
   rawSupports.push(
     endWithPeriod(
-      `A ${brand.name} ajuda ${audience ? lower(audience) : "você"} a ${lower(actionFromObjective(project))} com ${diffPhrase}, para decidir com mais tranquilidade`,
+      `A ${brand.name} ajuda você a ${lower(actionFromObjective(project))} com ${diffPhrase}, para decidir com mais tranquilidade`,
     ),
   );
   rawSupports.push(
     endWithPeriod(
-      `Do primeiro contato ao acompanhamento, você conta com ${diffPhrase}${pains.length ? ", para reduzir " + lower(pains[0]) : ""} ao longo de todo o processo`,
+      `Do primeiro contato ao acompanhamento, você conta com ${diffPhrase}${pains.length ? ", reduzindo " + lower(pains[0]) : ""}`,
     ),
   );
   if (mainMsg) {
@@ -250,21 +258,20 @@ export function composeCopy(input: ComposeInput): ComposedCopy {
     rawSupports.map((s) => s.replace(/\s+/g, " ").trim()).filter((s) => s.length >= 30 && s.length <= 320),
   ).slice(0, 3);
 
-  // --- placeholders sinalizados ---
   if (!main_problem) placeholders.push("audience_problem");
   if (!main_benefit) placeholders.push("differentiators/products_services");
   if (headline_options.length === 0) placeholders.push("main_message/theme");
 
   return {
-    main_problem: main_problem || PLACEHOLDER,
-    main_benefit: main_benefit || PLACEHOLDER,
+    main_problem,
+    main_benefit,
     key_promise,
     emotional_angle,
     trust_angle,
     support_points,
     cta_line,
-    headline_options: headline_options.length ? headline_options : [PLACEHOLDER],
-    support_text_options: support_text_options.length ? support_text_options : [PLACEHOLDER],
+    headline_options,
+    support_text_options,
     bullet_options,
     placeholders,
   };

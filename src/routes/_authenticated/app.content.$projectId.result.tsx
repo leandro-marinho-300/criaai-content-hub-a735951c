@@ -290,11 +290,14 @@ function PieceCard({
 
   const save = useMutation({
     mutationFn: async () => {
+      // ao salvar manualmente, consideramos a copy revisada pelo usuário
+      const updated: Piece = { ...draft, qualityStatus: "approved", qualityIssues: undefined };
       const { error } = await supabase
         .from("content_outputs")
-        .update({ edited_content: JSON.stringify(draft) })
+        .update({ edited_content: JSON.stringify(updated) })
         .eq("id", row.id);
       if (error) throw error;
+      setDraft(updated);
     },
     onSuccess: () => {
       toast.success("Peça salva.");
@@ -370,10 +373,23 @@ function PieceCard({
             <span>{piece.warning}</span>
           </div>
         )}
-        {piece.qualityIssues && piece.qualityIssues.length > 0 && (
+        {draft.qualityStatus === "blocked" && (
+          <div className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <AlertTriangle className="h-3.5 w-3.5" />Esta copy precisa ser revisada antes da produção
+            </p>
+            {piece.qualityIssues && piece.qualityIssues.length > 0 && (
+              <ul className="ml-5 mt-1 list-disc space-y-0.5">
+                {piece.qualityIssues.map((q, i) => <li key={i}>{q.message}</li>)}
+              </ul>
+            )}
+            <p className="mt-1 text-[11px] opacity-80">Edite o texto manualmente para liberar o prompt da página.</p>
+          </div>
+        )}
+        {draft.qualityStatus !== "blocked" && piece.qualityIssues && piece.qualityIssues.length > 0 && (
           <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-900 dark:text-amber-200">
             <p className="flex items-center gap-1.5 font-semibold">
-              <AlertTriangle className="h-3.5 w-3.5" />Necessita revisão de copy
+              <AlertTriangle className="h-3.5 w-3.5" />Avisos de copy (não bloqueia o prompt)
             </p>
             <ul className="ml-5 list-disc space-y-0.5">
               {piece.qualityIssues.map((q, i) => <li key={i}>{q.message}</li>)}
@@ -464,13 +480,19 @@ function PieceCard({
             {/* Prompt pronto */}
             <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-primary">Prompt pronto para colar no ChatGPT</span>
-                <div className="flex gap-1">
-                  <CopyButton text={draft.readyPrompt} label="Copiar prompt" variant="default" size="sm" />
-                  <Button size="sm" variant="secondary" onClick={() => onCopyAndOpen(draft.readyPrompt)} className="gap-1.5">
-                    <ExternalLink className="h-3.5 w-3.5" />Abrir ChatGPT
-                  </Button>
-                </div>
+                <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  {draft.qualityStatus === "blocked"
+                    ? "Prompt indisponível — copy bloqueada"
+                    : "Prompt pronto para colar no ChatGPT"}
+                </span>
+                {draft.qualityStatus !== "blocked" && (
+                  <div className="flex gap-1">
+                    <CopyButton text={draft.readyPrompt} label="Copiar prompt da página" variant="default" size="sm" />
+                    <Button size="sm" variant="secondary" onClick={() => onCopyAndOpen(draft.readyPrompt)} className="gap-1.5">
+                      <ExternalLink className="h-3.5 w-3.5" />Abrir ChatGPT
+                    </Button>
+                  </div>
+                )}
               </div>
               {editing ? (
                 <Textarea
