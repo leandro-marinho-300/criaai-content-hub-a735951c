@@ -267,103 +267,135 @@ interface DerivedTexts {
   cta: string;
 }
 
-function deriveTexts(role: string, project: Project): DerivedTexts {
-  const theme = txt(project.theme);
-  const main = txt(project.main_message);
-  const problem = txt(project.audience_problem);
-  const audience = txt(project.specific_audience);
-  const product = txt(project.mandatory_information);
-  const mandatory = txt(project.mandatory_information);
-  const cta = txt(project.call_to_action);
-  const contact = txt(project.contact_information);
+// -------- derivação SEMÂNTICA dos textos por papel --------
+// Em vez de reaproveitar trechos do briefing, lemos da estrutura
+// já SINTETIZADA pelo composer e escolhemos a melhor opção via
+// pickBestCopy (com validação de qualidade).
 
-  const firstMain = firstSentence(main) || theme;
+interface DerivedTexts {
+  mainText: string;
+  supportText: string;
+  cta: string;
+  bullets: string[];
+  qualityIssues: QualityIssue[];
+}
+
+function deriveTexts(role: string, composed: ComposedCopy, brand: Brand, project: Project): DerivedTexts {
+  const prohibited = arr(brand.prohibited_words);
+  const headlines = composed.headline_options;
+  const supports = composed.support_text_options;
+  const ctaLine = composed.cta_line;
+  const bullets = composed.bullet_options;
+
+  const headOpts = {
+    prohibited,
+    isHeadline: true as const,
+    minLen: 8,
+    maxLen: 90,
+  };
+  const paraOpts = {
+    prohibited,
+    minLen: 30,
+    maxLen: 320,
+  };
+
+  const bestHeadline = pickBestCopy(headlines, headOpts);
+  const bestSupport = pickBestCopy(supports, paraOpts);
+  const altHeadline = pickBestCopy(headlines.slice(1).concat(headlines), headOpts);
+
+  let mainText = "";
+  let supportText = "";
+  let cta = "";
+  let useBullets: string[] = [];
+  const issues: QualityIssue[] = [];
 
   switch (role) {
     case "gancho":
     case "capa":
-      return {
-        mainText: shorten(firstMain || theme, 60),
-        supportText: shorten(problem || audience || product, 90),
-        cta: "",
-      };
+      mainText = bestHeadline.text;
+      supportText = composed.main_problem !== "[PREENCHER]" ? composed.main_problem : "";
+      break;
     case "contexto":
-      return {
-        mainText: shorten(problem || audience || theme, 80),
-        supportText: shorten(audience || product, 90),
-        cta: "",
-      };
+      mainText = composed.main_problem !== "[PREENCHER]" ? composed.main_problem : bestHeadline.text;
+      supportText = bestSupport.text;
+      break;
     case "beneficio":
+      mainText = composed.key_promise;
+      supportText = composed.main_benefit !== "[PREENCHER]" ? composed.main_benefit : bestSupport.text;
+      useBullets = bullets.slice(0, 3);
+      break;
     case "desenvolvimento1":
-      return {
-        mainText: shorten(firstMain, 80),
-        supportText: shorten(product || problem, 110),
-        cta: "",
-      };
+      mainText = altHeadline.text || bestHeadline.text;
+      supportText = composed.main_benefit !== "[PREENCHER]" ? composed.main_benefit : bestSupport.text;
+      useBullets = bullets.slice(0, 3);
+      break;
     case "desenvolvimento2":
-      return {
-        mainText: shorten(product || main, 90),
-        supportText: shorten(mandatory || problem, 110),
-        cta: "",
-      };
+      mainText = composed.trust_angle;
+      supportText = composed.support_text_options[1] ?? bestSupport.text;
+      useBullets = bullets.slice(0, 4);
+      break;
     case "orientacao":
-      return {
-        mainText: "Como aproveitar agora:",
-        supportText: shorten(cta || mandatory || product, 110),
-        cta: "",
-      };
+      mainText = "Como aproveitar agora";
+      supportText = bestSupport.text;
+      useBullets = bullets.slice(0, 3);
+      break;
     case "prova":
-      return {
-        mainText: shorten(mandatory || product || "Por que confiar", 80),
-        supportText: shorten(product || main, 110),
-        cta: "",
-      };
+      mainText = composed.trust_angle;
+      supportText = composed.main_benefit !== "[PREENCHER]" ? composed.main_benefit : bestSupport.text;
+      break;
     case "fechamento":
-      return {
-        mainText: shorten(firstMain, 60),
-        supportText: shorten(audience || product, 90),
-        cta: "",
-      };
+      mainText = composed.key_promise;
+      supportText = bestSupport.text;
+      break;
     case "cta":
-      return {
-        mainText: shorten(cta || firstMain, 60),
-        supportText: shorten(contact || mandatory, 110),
-        cta: cta,
-      };
+      mainText = ctaLine;
+      supportText = composed.trust_angle;
+      cta = ctaLine;
+      break;
     case "reforco":
-      return {
-        mainText: shorten(cta || firstMain, 50),
-        supportText: shorten(contact, 90),
-        cta: cta,
-      };
+      mainText = ctaLine;
+      supportText = composed.support_text_options[1] ?? composed.trust_angle;
+      cta = ctaLine;
+      break;
     case "principal":
-      return {
-        mainText: shorten(firstMain, 70),
-        supportText: shorten(cta || product, 110),
-        cta: cta,
-      };
+      mainText = bestHeadline.text;
+      supportText = bestSupport.text;
+      cta = ctaLine;
+      useBullets = bullets.slice(0, 3);
+      break;
     case "roteiro":
-      return {
-        mainText: shorten(firstMain, 90),
-        supportText: shorten(product || problem, 140),
-        cta: cta,
-      };
+      mainText = bestHeadline.text;
+      supportText = bestSupport.text;
+      cta = ctaLine;
+      break;
     case "legenda":
-      return {
-        mainText: shorten(firstMain, 90),
-        supportText: shorten(product || audience, 140),
-        cta: cta,
-      };
+      mainText = bestHeadline.text;
+      supportText = bestSupport.text;
+      cta = ctaLine;
+      break;
     case "unico":
     case "apresentacao":
     default:
-      return {
-        mainText: shorten(firstMain, 80),
-        supportText: shorten(problem || audience || product, 110),
-        cta: cta,
-      };
+      mainText = bestHeadline.text;
+      supportText = bestSupport.text;
+      cta = ctaLine;
+      useBullets = bullets.slice(0, 3);
+      break;
   }
+
+  // valida texto final
+  if (mainText && mainText !== "[PREENCHER]") {
+    const q = checkCopyQuality(mainText, { ...headOpts, isHeadline: true });
+    if (!q.passed) issues.push(...q.issues.map((i) => ({ ...i, message: `Texto principal: ${i.message}` })));
+  }
+  if (supportText && supportText !== "[PREENCHER]") {
+    const q = checkCopyQuality(supportText, paraOpts);
+    if (!q.passed) issues.push(...q.issues.map((i) => ({ ...i, message: `Texto de apoio: ${i.message}` })));
+  }
+  void project;
+  return { mainText, supportText, cta, bullets: useBullets, qualityIssues: issues };
 }
+
 
 // -------- legenda / hashtags --------
 
