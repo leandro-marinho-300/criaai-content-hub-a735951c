@@ -263,7 +263,7 @@ function deriveTexts(role: string, project: Project): DerivedTexts {
   const main = txt(project.main_message);
   const problem = txt(project.audience_problem);
   const audience = txt(project.specific_audience);
-  const product = txt(project.product_description);
+  const product = txt(project.mandatory_information);
   const mandatory = txt(project.mandatory_information);
   const cta = txt(project.call_to_action);
   const contact = txt(project.contact_information);
@@ -373,7 +373,7 @@ function buildCaption(brand: Brand, project: Project, piece: { mainText: string;
   if (hook) lines.push(hook);
   const message = txt(project.main_message);
   if (message && message !== hook) lines.push("", message);
-  const product = txt(project.product_description);
+  const product = txt(project.mandatory_information);
   if (product) lines.push("", product);
   const mandatory = txt(project.mandatory_information);
   if (mandatory) lines.push("", mandatory);
@@ -513,7 +513,7 @@ function pieceWarning(role: string, project: Project): string | undefined {
   const missing: string[] = [];
   if (!txt(project.main_message)) missing.push("mensagem principal");
   if ((role === "cta" || role === "reforco" || role === "principal") && !txt(project.call_to_action)) missing.push("CTA");
-  if ((role === "prova" || role === "desenvolvimento2") && !txt(project.mandatory_information) && !txt(project.product_description))
+  if ((role === "prova" || role === "desenvolvimento2") && !txt(project.mandatory_information))
     missing.push("informações obrigatórias / descrição do produto");
   if (!missing.length) return undefined;
   return `Esta peça foi gerada com base em informações parciais (${missing.join(", ")}). Revise antes de publicar.`;
