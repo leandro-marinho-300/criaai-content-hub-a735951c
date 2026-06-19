@@ -288,3 +288,131 @@ function statusLabel(s: string) {
     }[s] ?? s
   );
 }
+
+function QuickIdeaBlock() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [brandId, setBrandId] = useState<string>("");
+  const [idea, setIdea] = useState<Idea | null>(null);
+  const [excluded, setExcluded] = useState<string[]>([]);
+
+  const { data: brands } = useQuery({
+    queryKey: ["brands-light-dash"],
+    queryFn: async () => {
+      const { data } = await supabase.from("brands").select("*").order("name");
+      return (data ?? []) as Tables<"brands">[];
+    },
+  });
+
+  const generate = () => {
+    const brand = brands?.find((b) => b.id === brandId);
+    if (!brand) {
+      toast.error("Selecione uma marca para gerar uma ideia.");
+      return;
+    }
+    const next = quickIdea(brand, [...excluded, ...(idea ? [idea.title] : [])]);
+    if (!next) {
+      toast.error("Não há dados suficientes nesta marca para gerar uma ideia.");
+      return;
+    }
+    if (idea) setExcluded((p) => [...p, idea.title]);
+    setIdea(next);
+  };
+
+  const useIt = () => {
+    if (!idea || !brandId) return;
+    const formatMap: Record<string, string> = {
+      "Post Feed": "post", "Carrossel": "carrossel", "Stories": "story",
+      "Status WhatsApp": "status_whatsapp", "Reel": "reel", "Comunicado": "comunicado",
+    };
+    const prefill = {
+      brand_id: brandId,
+      objective: idea.objective,
+      selected_formats: formatMap[idea.recommended_format] ? [formatMap[idea.recommended_format]] : [],
+      internal_title: idea.title,
+      theme: idea.theme,
+      specific_audience: idea.target_audience,
+      audience_problem: idea.audience_problem,
+      main_message: idea.central_message,
+      call_to_action: idea.suggested_cta,
+      mandatory_information: idea.required_information.join("\n"),
+      desired_style: idea.visual_direction,
+      notes: `Origem: Ideia rápida. Gancho: ${idea.hook}`,
+    };
+    try {
+      localStorage.setItem("cria-wizard-prefill", JSON.stringify(prefill));
+      sessionStorage.setItem("cria-wizard-from-idea", "1");
+    } catch {}
+    navigate({ to: "/app/content/new" });
+  };
+
+  const save = async () => {
+    if (!idea || !brandId) return;
+    const { data: u } = await supabase.auth.getUser();
+    if (!u.user) return;
+    const { error } = await supabase.from("content_ideas").insert({
+      user_id: u.user.id, brand_id: brandId,
+      title: idea.title, theme: idea.theme, content_pillar: idea.content_pillar,
+      objective: idea.objective, recommended_format: idea.recommended_format,
+      angle: idea.angle, target_audience: idea.target_audience,
+      audience_problem: idea.audience_problem, central_message: idea.central_message,
+      hook: idea.hook, suggested_cta: idea.suggested_cta,
+      required_information: idea.required_information, visual_direction: idea.visual_direction,
+      reason_to_publish: idea.reason_to_publish, source_elements: idea.source_elements,
+      novelty_score: idea.novelty_score, novelty_badge: idea.novelty_badge,
+      template_key: idea.template_key, status: "favorita", source_type: "lab",
+    });
+    if (error) toast.error("Não foi possível salvar", { description: error.message });
+    else {
+      toast.success("Ideia salva no Banco de Ideias");
+      qc.invalidateQueries({ queryKey: ["saved-ideas"] });
+    }
+  };
+
+  return (
+    <section className="rounded-2xl border border-accent/30 bg-accent/5 p-5">
+      <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+        <div className="space-y-1">
+          <Badge variant="outline" className="gap-1"><Sparkles className="h-3 w-3" />Ideia rápida</Badge>
+          <h2 className="text-lg font-semibold">Precisa postar, mas não sabe o quê?</h2>
+          <p className="text-sm text-muted-foreground">Escolha a marca e receba uma sugestão pronta, baseada no que ela já tem cadastrado.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={brandId} onValueChange={setBrandId}>
+            <SelectTrigger className="w-[220px]"><SelectValue placeholder="Selecione a marca" /></SelectTrigger>
+            <SelectContent>
+              {(brands ?? []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={generate} className="gap-2">
+            <Sparkles className="h-4 w-4" />Gerar uma ideia rápida
+          </Button>
+        </div>
+      </div>
+
+      {idea && (
+        <Card className="mt-4 border-border/60 bg-card">
+          <CardContent className="space-y-2 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="font-semibold">{idea.title}</p>
+              <Badge variant="outline">{idea.novelty_badge}</Badge>
+            </div>
+            <div className="flex flex-wrap gap-1 text-xs">
+              <Badge variant="outline" className="font-normal">{idea.recommended_format}</Badge>
+              <Badge variant="outline" className="font-normal">{idea.content_pillar}</Badge>
+              <Badge variant="outline" className="font-normal">{idea.objective}</Badge>
+            </div>
+            {idea.hook && <p className="text-sm text-muted-foreground italic">Gancho: “{idea.hook}”</p>}
+            {idea.suggested_cta && <p className="text-sm"><span className="text-muted-foreground">CTA: </span>{idea.suggested_cta}</p>}
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button size="sm" onClick={useIt} className="gap-1"><ArrowRight className="h-3 w-3" />Usar esta ideia</Button>
+              <Button size="sm" variant="outline" onClick={generate} className="gap-1"><RefreshCw className="h-3 w-3" />Gerar outra</Button>
+              <Button size="sm" variant="ghost" onClick={save}>Salvar para depois</Button>
+              <Button asChild size="sm" variant="ghost"><Link to="/app/ideas">Abrir Laboratório</Link></Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </section>
+  );
+}
