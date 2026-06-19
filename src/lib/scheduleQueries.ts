@@ -90,10 +90,11 @@ export async function upsertScheduleItem(input: UpsertScheduleInput): Promise<Sc
   }
   let saved: ScheduleItem;
   if (patch.id) {
+    const { id, ...updatePatch } = patch;
     const { data, error } = await supabase
       .from("publication_schedule_items")
-      .update(patch)
-      .eq("id", patch.id)
+      .update(updatePatch as never)
+      .eq("id", id)
       .select()
       .single();
     if (error) throw error;
