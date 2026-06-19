@@ -246,21 +246,46 @@ function gridLayout(n: number): { cols: number; rows: number } {
 
 interface GridThumb { dataUrl: string; number: number; label: string }
 
+// Dimensões fixas (mm) para A4 landscape
+// pageW=297, pageH=210. Reservamos áreas determinísticas para que tudo caiba.
+const GRID_LAYOUT_MM = {
+  marginX: 10,
+  marginTop: 10,
+  marginBottom: 10,
+  headerH: 20,      // cabeçalho compacto (máx)
+  headerGap: 5,     // espaço entre cabeçalho e grade
+  gap: 6,           // gap entre células
+  labelH: 7,        // altura reservada para o rótulo
+  labelGap: 2,      // espaço entre imagem e rótulo
+};
+
 function buildGridPage(thumbs: GridThumb[], input: ClientPdfInput, t: ThemeTokens, pageInfo?: string): HTMLElement {
   const page = createPageContainer("landscape");
   applyStyles(page, pageBaseStyles(t));
   const { cols, rows } = gridLayout(thumbs.length);
+  const L = GRID_LAYOUT_MM;
+
+  // Área útil em mm
+  const availW = A4_LANDSCAPE.w - L.marginX * 2;
+  const availH = A4_LANDSCAPE.h - L.marginTop - L.marginBottom - L.headerH - L.headerGap;
+  const cellW = (availW - L.gap * (cols - 1)) / cols;
+  const cellH = (availH - L.gap * (rows - 1)) / rows;
+  const imageAreaH = cellH - L.labelH - L.labelGap;
+
+  // Converte mm → px para o DOM offscreen (px-per-mm já usado pelo container)
+  const mm = (v: number) => `${v * PX_PER_MM}px`;
 
   const tiles = thumbs.map((th) => `
-    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;">
-      <div style="flex:1;display:flex;align-items:center;justify-content:center;width:100%;background:${t.card};border:1px solid ${t.border};border-radius:8px;overflow:hidden;">
-        <img src="${th.dataUrl}" style="max-width:100%;max-height:100%;object-fit:contain;display:block;"/>
+    <div style="width:${mm(cellW)};height:${mm(cellH)};display:flex;flex-direction:column;align-items:center;box-sizing:border-box;">
+      <div style="width:100%;height:${mm(imageAreaH)};display:flex;align-items:center;justify-content:center;background:${t.card};border:1px solid ${t.border};border-radius:8px;overflow:hidden;box-sizing:border-box;">
+        <img src="${th.dataUrl}" style="max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;"/>
       </div>
-      <div style="font-size:11px;color:${t.fg};font-weight:600;text-align:center;">
-        <span style="color:${t.accent};">${th.number}</span> — ${escapeHtml(th.label)}
+      <div style="height:${mm(L.labelH)};margin-top:${mm(L.labelGap)};font-size:10.5px;color:${t.fg};font-weight:600;text-align:center;line-height:1.2;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+        <span><span style="color:${t.accent};">${th.number}</span> — ${escapeHtml(th.label)}</span>
       </div>
     </div>
   `).join("");
+
 
   page.innerHTML = `
     <div style="padding:32px 40px;height:100%;display:flex;flex-direction:column;">
