@@ -182,7 +182,7 @@ export const CAPTION_TOKENS = {
   both: "caption_both",
 } as const;
 
-export const CAPTION_TOKEN_SET = new Set(Object.values(CAPTION_TOKENS));
+export const CAPTION_TOKEN_SET: Set<string> = new Set(Object.values(CAPTION_TOKENS));
 
 export function extractCaptionMode(outputs: string[], fallback: CaptionMode): CaptionMode {
   for (const t of outputs) {
