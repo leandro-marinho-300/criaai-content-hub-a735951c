@@ -151,20 +151,7 @@ const list = (v: string[] | null | undefined, sep = ", "): string =>
 const txt = (v: string | null | undefined, fallback = ""): string =>
   blank(v) ? fallback : String(v).trim();
 
-const shorten = (s: string, max: number): string => {
-  const t = (s ?? "").trim();
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max);
-  const lastSpace = cut.lastIndexOf(" ");
-  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[.,;:!?]+$/, "") + "…";
-};
-
-const firstSentence = (s: string): string => {
-  const t = (s ?? "").trim();
-  if (!t) return "";
-  const m = t.match(/^[^.!?\n]+[.!?]?/);
-  return (m ? m[0] : t).trim();
-};
+// (helpers shorten/firstSentence removidos — síntese de copy agora é feita no copyComposer)
 
 const slug = (s: string): string =>
   (s ?? "")
