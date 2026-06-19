@@ -120,6 +120,12 @@ function Dashboard() {
           </div>
           <div className="flex flex-wrap gap-2">
             <HelpDialog autoOpen />
+            <Button asChild variant="outline" size="lg" className="gap-2">
+              <Link to="/app/ideas">
+                <Lightbulb className="h-4 w-4" />
+                Estou sem ideias
+              </Link>
+            </Button>
             <Button asChild size="lg" className="gap-2">
               <Link to="/app/content/new">
                 <Plus className="h-4 w-4" />
@@ -129,6 +135,8 @@ function Dashboard() {
           </div>
         </div>
       </section>
+
+      <QuickIdeaBlock />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
