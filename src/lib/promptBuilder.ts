@@ -505,7 +505,7 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
 }
 
 // Resumo enxuto de restrições da marca para usar em cada prompt individual.
-function summarizeRestrictions(brand: Brand): string {
+export function summarizeRestrictions(brand: Brand): string {
   const parts: string[] = [];
   if (brand.forbidden_inventions) {
     const f = brand.forbidden_inventions.split(/[.;\n]/)[0].trim().slice(0, 120);
