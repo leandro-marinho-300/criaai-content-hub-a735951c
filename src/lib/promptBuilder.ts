@@ -571,7 +571,7 @@ function buildCarouselPieces(args: {
   mode: GenerationMode;
 }): { pieces: Piece[]; nextIndex: number } {
   const { brand, project, composed, intent, angle, mode } = args;
-  const restrictionsBrief = summarizeRestrictions(brand);
+  const restrictionsBrief = summarizeRestrictions(brand, projectAvoidTerms(project));
   const fmtLabel = formatLabel("carrossel");
   const pieces: Piece[] = [];
   let index = args.indexStart;
