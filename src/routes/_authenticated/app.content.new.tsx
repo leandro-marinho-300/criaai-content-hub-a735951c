@@ -289,6 +289,24 @@ function ContentWizard() {
         selected_outputs: withCaptionToken(state.selected_outputs, state.caption_mode),
         generation_mode: state.generation_mode,
         status: "draft" as const,
+        content_source: state.develop.source,
+        content_development_status:
+          state.develop.source === "external_chatgpt" && state.develop.imported
+            ? ("imported" as const)
+            : state.develop.source === "manual"
+              ? ("manually_reviewed" as const)
+              : ("draft_auto" as const),
+        campaign_content_json: (state.develop.imported || Object.keys(state.develop.campaign).length)
+          ? ({
+              campaign: state.develop.campaign,
+              pieces: state.develop.imported?.pieces ?? [],
+              caption: state.develop.imported?.caption,
+              source: state.develop.source,
+            } as unknown as Record<string, unknown>)
+          : null,
+        imported_at: state.develop.imported?.imported_at ?? null,
+        selected_differentiators: state.develop.selected_differentiators,
+        avoid_terms: state.develop.avoid_terms,
       };
       const { data: project, error } = await supabase.from("content_projects").insert(payload).select("*").single();
       if (error) throw error;
