@@ -47,7 +47,7 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
   const { data: projects } = useQuery({
     queryKey: ["projects-light-cal", brandId],
     queryFn: async () => {
-      let q = supabase.from("content_projects").select("id, internal_title, brand_id, selected_formats").order("updated_at", { ascending: false }).limit(60);
+      let q = supabase.from("content_projects").select("id, internal_title, display_title, theme, main_message, brand_id, selected_formats").order("updated_at", { ascending: false }).limit(60);
       if (brandId) q = q.eq("brand_id", brandId);
       return (await q).data ?? [];
     },

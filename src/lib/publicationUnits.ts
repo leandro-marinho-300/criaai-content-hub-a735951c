@@ -39,7 +39,8 @@ export function suggestChannel(format: string): ChannelKind {
 /** Agrupa outputs por format/output_type para virar unidades de publicação. */
 export function derivePublicationUnits(project: Project, outputs: Output[]): PublicationUnit[] {
   const formats: string[] = (project.selected_formats as string[] | null) ?? [];
-  const baseTitle = project.internal_title?.trim() || "Publicação";
+  const projectAny = project as { display_title?: string | null; internal_title?: string | null; theme?: string | null };
+  const baseTitle = (projectAny.display_title?.trim() || projectAny.internal_title?.trim() || projectAny.theme?.trim()?.slice(0, 80) || "Publicação");
 
   // Se temos a lista de formatos selecionados, criamos uma unidade por formato
   // — agrupando todos os outputs que pertencem àquele formato.
