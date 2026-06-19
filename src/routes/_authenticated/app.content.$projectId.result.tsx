@@ -477,13 +477,19 @@ function PieceCard({
             {/* Prompt pronto */}
             <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-primary">Prompt pronto para colar no ChatGPT</span>
-                <div className="flex gap-1">
-                  <CopyButton text={draft.readyPrompt} label="Copiar prompt" variant="default" size="sm" />
-                  <Button size="sm" variant="secondary" onClick={() => onCopyAndOpen(draft.readyPrompt)} className="gap-1.5">
-                    <ExternalLink className="h-3.5 w-3.5" />Abrir ChatGPT
-                  </Button>
-                </div>
+                <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  {draft.qualityStatus === "blocked"
+                    ? "Prompt indisponível — copy bloqueada"
+                    : "Prompt pronto para colar no ChatGPT"}
+                </span>
+                {draft.qualityStatus !== "blocked" && (
+                  <div className="flex gap-1">
+                    <CopyButton text={draft.readyPrompt} label="Copiar prompt da página" variant="default" size="sm" />
+                    <Button size="sm" variant="secondary" onClick={() => onCopyAndOpen(draft.readyPrompt)} className="gap-1.5">
+                      <ExternalLink className="h-3.5 w-3.5" />Abrir ChatGPT
+                    </Button>
+                  </div>
+                )}
               </div>
               {editing ? (
                 <Textarea
