@@ -39,7 +39,7 @@ export const Route = createFileRoute("/_authenticated/app/content/new")({
   component: ContentWizard,
 });
 
-const STEPS = ["Marca", "Objetivo", "Formatos", "Briefing", "Pacote", "Modo", "Revisão"] as const;
+const STEPS = ["Marca", "Objetivo", "Formatos", "Briefing", "Desenvolver", "Pacote", "Modo", "Revisão"] as const;
 
 type State = {
   brand_id: string | null;
