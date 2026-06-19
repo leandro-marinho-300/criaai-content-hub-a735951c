@@ -46,7 +46,7 @@ export interface ScheduleFilters {
 const REL_SELECT = `
   *,
   brands ( id, name, logo_url ),
-  content_projects ( id, internal_title, status ),
+  content_projects ( id, internal_title, display_title, theme, main_message, status ),
   publication_schedule_outputs (
     id, output_id, display_order,
     content_outputs ( id, title, output_type )
