@@ -218,7 +218,15 @@ function ResultPage() {
         )}
         {pieces.map(({ row, piece }) =>
           piece ? (
-            <PieceCard key={row.id} row={row} piece={piece} onCopyAndOpen={copyAndOpenChatGPT} />
+            <PieceCard
+              key={row.id}
+              row={row}
+              piece={piece}
+              brand={project.brands}
+              project={project}
+              allPieces={pieces.map((p) => p.piece).filter(Boolean) as Piece[]}
+              onCopyAndOpen={copyAndOpenChatGPT}
+            />
           ) : (
             <LegacyBlockCard key={row.id} block={row} />
           ),
