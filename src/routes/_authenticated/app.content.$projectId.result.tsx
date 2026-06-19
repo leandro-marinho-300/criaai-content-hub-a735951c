@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/copy-button";
 import { parsePiece, pieceToPlainText, type Piece } from "@/lib/promptBuilder";
 import type { Tables } from "@/integrations/supabase/types";
+import { AdjustPieceDialog } from "@/components/adjust-piece-dialog";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
@@ -47,13 +48,13 @@ function ResultPage() {
     queryKey: ["project-result", projectId],
     queryFn: async () => {
       const { data: project, error } = await supabase
-        .from("content_projects").select("*, brands(name, logo_url)").eq("id", projectId).single();
+        .from("content_projects").select("*, brands(*)").eq("id", projectId).single();
       if (error) throw error;
       const { data: outputs, error: e2 } = await supabase
         .from("content_outputs").select("*").eq("project_id", projectId).order("display_order");
       if (e2) throw e2;
       return {
-        project: project as Tables<"content_projects"> & { brands: { name: string; logo_url: string | null } | null },
+        project: project as Tables<"content_projects"> & { brands: Tables<"brands"> | null },
         outputs: outputs as Output[],
       };
     },
@@ -217,7 +218,15 @@ function ResultPage() {
         )}
         {pieces.map(({ row, piece }) =>
           piece ? (
-            <PieceCard key={row.id} row={row} piece={piece} onCopyAndOpen={copyAndOpenChatGPT} />
+            <PieceCard
+              key={row.id}
+              row={row}
+              piece={piece}
+              brand={project.brands}
+              project={project}
+              allPieces={pieces.map((p) => p.piece).filter(Boolean) as Piece[]}
+              onCopyAndOpen={copyAndOpenChatGPT}
+            />
           ) : (
             <LegacyBlockCard key={row.id} block={row} />
           ),
@@ -262,13 +271,21 @@ function statusLabel(s: string) {
 // ============ PIECE CARD ============
 
 function PieceCard({
-  row, piece, onCopyAndOpen,
-}: { row: Output; piece: Piece; onCopyAndOpen: (text: string) => void }) {
+  row, piece, brand, project, allPieces, onCopyAndOpen,
+}: {
+  row: Output; piece: Piece;
+  brand: Tables<"brands"> | null;
+  project: Tables<"content_projects">;
+  allPieces: Piece[];
+  onCopyAndOpen: (text: string) => void;
+}) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Piece>(piece);
   const [variationIdx, setVariationIdx] = useState(0);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustFocus, setAdjustFocus] = useState<"mainText" | "supportText" | "cta" | "bullets" | undefined>(undefined);
 
   const cycleVariation = () => {
     const heads = piece.headlineOptions ?? [];
@@ -358,6 +375,14 @@ function PieceCard({
             <p className="text-xs text-muted-foreground">Objetivo: {piece.objective}</p>
           </div>
           <div className="flex flex-wrap items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setAdjustFocus(undefined); setAdjustOpen(true); }}
+              className="gap-1.5"
+            >
+              <Pencil className="h-3.5 w-3.5" />Ajustar esta peça
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => fav.mutate()} aria-label="Favoritar">
               <Star className={`h-4 w-4 ${row.is_favorite ? "fill-primary text-primary" : ""}`} />
             </Button>
@@ -368,10 +393,14 @@ function PieceCard({
         </div>
 
         {piece.warning && (
-          <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-900 dark:text-amber-200">
+          <button
+            type="button"
+            onClick={() => { setAdjustFocus(undefined); setAdjustOpen(true); }}
+            className="mt-3 flex w-full items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-left text-xs text-amber-900 transition hover:bg-amber-500/20 dark:text-amber-200"
+          >
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>{piece.warning}</span>
-          </div>
+            <span>{piece.warning} <span className="underline">Clique para ajustar.</span></span>
+          </button>
         )}
         {draft.qualityStatus === "blocked" && (
           <div className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
@@ -380,10 +409,20 @@ function PieceCard({
             </p>
             {piece.qualityIssues && piece.qualityIssues.length > 0 && (
               <ul className="ml-5 mt-1 list-disc space-y-0.5">
-                {piece.qualityIssues.map((q, i) => <li key={i}>{q.message}</li>)}
+                {piece.qualityIssues.map((q, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      className="underline-offset-2 hover:underline"
+                      onClick={() => { setAdjustFocus(focusFromIssue(q.code)); setAdjustOpen(true); }}
+                    >
+                      {q.message}
+                    </button>
+                  </li>
+                ))}
               </ul>
             )}
-            <p className="mt-1 text-[11px] opacity-80">Edite o texto manualmente para liberar o prompt da página.</p>
+            <p className="mt-1 text-[11px] opacity-80">Clique em um aviso para abrir o editor com o campo destacado, ou use "Ajustar esta peça".</p>
           </div>
         )}
         {draft.qualityStatus !== "blocked" && piece.qualityIssues && piece.qualityIssues.length > 0 && (
@@ -392,9 +431,19 @@ function PieceCard({
               <AlertTriangle className="h-3.5 w-3.5" />Avisos de copy (não bloqueia o prompt)
             </p>
             <ul className="ml-5 list-disc space-y-0.5">
-              {piece.qualityIssues.map((q, i) => <li key={i}>{q.message}</li>)}
+              {piece.qualityIssues.map((q, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    className="underline-offset-2 hover:underline"
+                    onClick={() => { setAdjustFocus(focusFromIssue(q.code)); setAdjustOpen(true); }}
+                  >
+                    {q.message}
+                  </button>
+                </li>
+              ))}
             </ul>
-            <p className="mt-1 text-[11px] opacity-80">Use "Gerar variação de copy" ou edite o texto manualmente.</p>
+            <p className="mt-1 text-[11px] opacity-80">Clique no aviso para ajustar, ou use "Gerar variação de copy".</p>
           </div>
         )}
 
@@ -538,8 +587,37 @@ function PieceCard({
           </div>
         )}
       </CardContent>
+      {brand && (
+        <AdjustPieceDialog
+          open={adjustOpen}
+          onOpenChange={setAdjustOpen}
+          piece={draft}
+          brand={brand}
+          project={project}
+          otherPieces={allPieces}
+          initialFocus={adjustFocus}
+          prohibited={Array.isArray(brand.prohibited_words) ? brand.prohibited_words.filter(Boolean) : []}
+          onSave={async (updated) => {
+            const { error } = await supabase
+              .from("content_outputs")
+              .update({ edited_content: JSON.stringify(updated) })
+              .eq("id", row.id);
+            if (error) throw error;
+            setDraft(updated);
+            qc.invalidateQueries({ queryKey: ["project-result", row.project_id] });
+          }}
+        />
+      )}
     </Card>
   );
+}
+
+function focusFromIssue(code: string): "mainText" | "supportText" | "cta" | "bullets" | undefined {
+  // heurística simples para destacar o campo provavelmente problemático
+  if (/headline|too_short|no_verb|missing_subject/.test(code)) return "mainText";
+  if (/raw_list|too_long|too_many_semicolons|placeholder|empty|incomplete/.test(code)) return "supportText";
+  if (/cta/i.test(code)) return "cta";
+  return "supportText";
 }
 
 function PieceField({

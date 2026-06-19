@@ -53,6 +53,19 @@ export interface Piece {
   qualityStatus: CopyStatus;
   headlineOptions: string[];
   supportTextOptions: string[];
+  /** Origem da copy atual. */
+  copySource?: "deterministic" | "manual" | "external_chatgpt";
+  /** Histórico curto (últimas 3) de versões anteriores para restauração. */
+  revisionHistory?: Array<{
+    date: string;
+    source: "manual" | "external_chatgpt" | "deterministic";
+    mainText: string;
+    supportText: string;
+    bullets: string[];
+    cta: string;
+    angle?: string;
+    guidance?: Record<string, unknown>;
+  }>;
 }
 
 export interface CampaignSummary {
@@ -428,7 +441,7 @@ function buildProductionNotes(role: string, brand: Brand, project: Project): str
 
 // -------- prompt operacional ENXUTO --------
 
-interface PromptBuildCtx {
+export interface PromptBuildCtx {
   piece: Omit<Piece, "readyPrompt" | "caption" | "hashtags" | "warning">;
   brand: Brand;
   project: Project;
@@ -438,7 +451,7 @@ interface PromptBuildCtx {
   restrictionsBrief?: string;
 }
 
-function buildReadyPrompt(args: PromptBuildCtx): string {
+export function buildReadyPrompt(args: PromptBuildCtx): string {
   const { piece, brand, project, mode, productionNotes, restrictionsBrief } = args;
 
   // se a copy está bloqueada, devolve mensagem clara em vez de "USAR EXATAMENTE"
@@ -505,7 +518,7 @@ function buildReadyPrompt(args: PromptBuildCtx): string {
 }
 
 // Resumo enxuto de restrições da marca para usar em cada prompt individual.
-function summarizeRestrictions(brand: Brand): string {
+export function summarizeRestrictions(brand: Brand): string {
   const parts: string[] = [];
   if (brand.forbidden_inventions) {
     const f = brand.forbidden_inventions.split(/[.;\n]/)[0].trim().slice(0, 120);
