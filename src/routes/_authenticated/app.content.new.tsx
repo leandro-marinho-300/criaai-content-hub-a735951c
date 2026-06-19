@@ -95,6 +95,7 @@ const DEFAULT_STATE: State = {
   formality_level: "",
   restrictions: "",
   notes: "",
+  develop: DEFAULT_DEVELOP_STATE,
 };
 
 const DRAFT_KEY = "cria-wizard-draft";
