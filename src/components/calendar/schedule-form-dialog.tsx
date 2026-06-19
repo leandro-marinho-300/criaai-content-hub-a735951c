@@ -14,6 +14,7 @@ import { APPROVAL_LABELS, APPROVAL_STATUSES, CHANNEL_LABELS, CHANNELS, SCHEDULE_
 import { upsertScheduleItem } from "@/lib/scheduleQueries";
 import { FORMAT_LABELS } from "@/lib/promptBuilder";
 import { derivePublicationUnits } from "@/lib/publicationUnits";
+import { getProjectDisplayTitle } from "@/lib/displayTitle";
 
 interface Props {
   open: boolean;
@@ -47,7 +48,7 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
   const { data: projects } = useQuery({
     queryKey: ["projects-light-cal", brandId],
     queryFn: async () => {
-      let q = supabase.from("content_projects").select("id, internal_title, brand_id, selected_formats").order("updated_at", { ascending: false }).limit(60);
+      let q = supabase.from("content_projects").select("id, internal_title, display_title, theme, main_message, brand_id, selected_formats").order("updated_at", { ascending: false }).limit(60);
       if (brandId) q = q.eq("brand_id", brandId);
       return (await q).data ?? [];
     },
@@ -84,6 +85,9 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
       const unit = units.find((x) => x.unitKey === unitKey);
       const finalProjectId = projectId;
       if (!finalProjectId) throw new Error("Selecione um projeto. Para publicações avulsas, crie o conteúdo antes.");
+      const finalTitle = title || unit?.title || "Publicação";
+      const defaultTitle = unit?.title ?? "";
+      const overrideFlag = !!title && title !== defaultTitle;
       return upsertScheduleItem({
         user_id: u.user.id,
         project_id: finalProjectId,
@@ -91,7 +95,8 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
         publication_unit: unit?.unitKey ?? `${finalProjectId}:manual:${Date.now()}`,
         format: format || unit?.format || null,
         channel: (channel || unit?.channelSuggestion || null) as ChannelKind | null,
-        title: title || unit?.title || "Publicação",
+        title: finalTitle,
+        title_override: overrideFlag,
         confirmed_date: date || null,
         confirmed_time: time || null,
         schedule_status: status,

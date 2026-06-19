@@ -436,6 +436,7 @@ export type Database = {
           content_source: string
           created_at: string
           desired_style: string | null
+          display_title: string | null
           event_date: string | null
           event_time: string | null
           formality_level: string | null
@@ -458,6 +459,8 @@ export type Database = {
           specific_audience: string | null
           status: string
           theme: string | null
+          title_source: string | null
+          title_updated_at: string | null
           updated_at: string
           user_id: string
         }
@@ -473,6 +476,7 @@ export type Database = {
           content_source?: string
           created_at?: string
           desired_style?: string | null
+          display_title?: string | null
           event_date?: string | null
           event_time?: string | null
           formality_level?: string | null
@@ -495,6 +499,8 @@ export type Database = {
           specific_audience?: string | null
           status?: string
           theme?: string | null
+          title_source?: string | null
+          title_updated_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -510,6 +516,7 @@ export type Database = {
           content_source?: string
           created_at?: string
           desired_style?: string | null
+          display_title?: string | null
           event_date?: string | null
           event_time?: string | null
           formality_level?: string | null
@@ -532,6 +539,8 @@ export type Database = {
           specific_audience?: string | null
           status?: string
           theme?: string | null
+          title_source?: string | null
+          title_updated_at?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -698,6 +707,7 @@ export type Database = {
           suggested_time: string | null
           timezone: string | null
           title: string | null
+          title_override: boolean
           updated_at: string
           user_id: string
         }
@@ -728,6 +738,7 @@ export type Database = {
           suggested_time?: string | null
           timezone?: string | null
           title?: string | null
+          title_override?: boolean
           updated_at?: string
           user_id: string
         }
@@ -758,6 +769,7 @@ export type Database = {
           suggested_time?: string | null
           timezone?: string | null
           title?: string | null
+          title_override?: boolean
           updated_at?: string
           user_id?: string
         }

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { LayoutGrid, List, Archive, Trash2, Copy, Pencil, Heart } from "lucide-react";
+import { LayoutGrid, List, Archive, Trash2, Pencil, Heart, Edit3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,10 +15,12 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical } from "lucide-react";
 import { FORMAT_LABELS, OBJECTIVE_LABELS } from "@/lib/promptBuilder";
+import { getProjectDisplayTitle } from "@/lib/displayTitle";
+import { RenameTitleDialog } from "@/components/rename-title-dialog";
 
 export const Route = createFileRoute("/_authenticated/app/library")({
   head: () => ({ meta: [{ title: "Biblioteca — Cria Aí" }] }),
@@ -34,6 +36,22 @@ const STATUSES = [
   { value: "archived", label: "Arquivado" },
 ];
 
+interface LibProject {
+  id: string;
+  internal_title: string | null;
+  display_title: string | null;
+  theme: string | null;
+  main_message: string | null;
+  status: string;
+  objective: string | null;
+  selected_formats: string[] | null;
+  brand_id: string | null;
+  is_favorite: boolean;
+  updated_at: string;
+  brands: { name: string; logo_url: string | null } | null;
+}
+
+
 function LibraryPage() {
   const qc = useQueryClient();
   const [view, setView] = useState<"grid" | "table">("grid");
@@ -42,6 +60,7 @@ function LibraryPage() {
   const [brandId, setBrandId] = useState<string>("all");
   const [objective, setObjective] = useState<string>("all");
   const [format, setFormat] = useState<string>("all");
+  const [renaming, setRenaming] = useState<LibProject | null>(null);
 
   const { data: brands } = useQuery({
     queryKey: ["brands-light"],
@@ -56,16 +75,19 @@ function LibraryPage() {
     queryFn: async () => {
       let q = supabase
         .from("content_projects")
-        .select("id, internal_title, status, objective, selected_formats, brand_id, is_favorite, updated_at, brands(name, logo_url)")
+        .select("id, internal_title, display_title, theme, main_message, status, objective, selected_formats, brand_id, is_favorite, updated_at, brands(name, logo_url)")
         .order("updated_at", { ascending: false });
       if (status !== "all") q = q.eq("status", status);
       if (brandId !== "all") q = q.eq("brand_id", brandId);
       if (objective !== "all") q = q.eq("objective", objective);
       if (format !== "all") q = q.contains("selected_formats", [format]);
-      if (search.trim()) q = q.ilike("internal_title", `%${search.trim()}%`);
+      if (search.trim()) {
+        const term = `%${search.trim()}%`;
+        q = q.or(`display_title.ilike.${term},internal_title.ilike.${term},theme.ilike.${term}`);
+      }
       const { data, error } = await q;
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as LibProject[];
     },
   });
 
@@ -139,29 +161,37 @@ function LibraryPage() {
         <Card className="border-dashed"><CardContent className="p-10 text-center text-sm text-muted-foreground">Nenhum projeto encontrado.</CardContent></Card>
       ) : view === "grid" ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((p) => (
-            <Card key={p.id} className="border-border/60">
-              <CardContent className="p-4">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs text-muted-foreground">{p.brands?.name ?? "Sem marca"}</p>
-                    <Link to="/app/content/$projectId/result" params={{ projectId: p.id }} className="line-clamp-2 font-semibold hover:underline">
-                      {p.internal_title || "Sem título"}
-                    </Link>
+          {items.map((p) => {
+            const display = getProjectDisplayTitle(p);
+            return (
+              <Card key={p.id} className="border-border/60">
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs text-muted-foreground">{p.brands?.name ?? "Sem marca"}</p>
+                      <Link
+                        to="/app/content/$projectId/result"
+                        params={{ projectId: p.id }}
+                        title={display}
+                        className="line-clamp-2 break-words font-semibold hover:underline"
+                      >
+                        {display}
+                      </Link>
+                    </div>
+                    <ProjectMenu id={p.id} status={p.status} onStatus={(s) => updateStatus.mutate({ id: p.id, status: s })} onDelete={() => del.mutate(p.id)} onRename={() => setRenaming(p)} />
                   </div>
-                  <ProjectMenu id={p.id} status={p.status} onStatus={(s) => updateStatus.mutate({ id: p.id, status: s })} onDelete={() => del.mutate(p.id)} />
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                  <Badge variant="secondary">{statusLabel(p.status)}</Badge>
-                  {p.objective && <Badge variant="outline">{OBJECTIVE_LABELS[p.objective] ?? p.objective}</Badge>}
-                  {p.is_favorite && <Heart className="h-3.5 w-3.5 fill-primary text-primary" />}
-                </div>
-                {p.selected_formats?.length > 0 && (
-                  <p className="mt-2 truncate text-xs text-muted-foreground">{p.selected_formats.map((f) => FORMAT_LABELS[f] ?? f).join(" · ")}</p>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <Badge variant="secondary">{statusLabel(p.status)}</Badge>
+                    {p.objective && <Badge variant="outline">{OBJECTIVE_LABELS[p.objective] ?? p.objective}</Badge>}
+                    {p.is_favorite && <Heart className="h-3.5 w-3.5 fill-primary text-primary" />}
+                  </div>
+                  {p.selected_formats && p.selected_formats.length > 0 && (
+                    <p className="mt-2 truncate text-xs text-muted-foreground">{p.selected_formats.map((f: string) => FORMAT_LABELS[f] ?? f).join(" · ")}</p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <Card>
@@ -170,19 +200,33 @@ function LibraryPage() {
               <TableRow><TableHead>Título</TableHead><TableHead>Marca</TableHead><TableHead>Status</TableHead><TableHead>Objetivo</TableHead><TableHead className="w-10" /></TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="max-w-[260px]"><Link to="/app/content/$projectId/result" params={{ projectId: p.id }} className="font-medium hover:underline">{p.internal_title || "Sem título"}</Link></TableCell>
-                  <TableCell>{p.brands?.name ?? "—"}</TableCell>
-                  <TableCell><Badge variant="secondary">{statusLabel(p.status)}</Badge></TableCell>
-                  <TableCell>{OBJECTIVE_LABELS[p.objective ?? ""] ?? "—"}</TableCell>
-                  <TableCell><ProjectMenu id={p.id} status={p.status} onStatus={(s) => updateStatus.mutate({ id: p.id, status: s })} onDelete={() => del.mutate(p.id)} /></TableCell>
-                </TableRow>
-              ))}
+              {items.map((p) => {
+                const display = getProjectDisplayTitle(p);
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell className="max-w-[320px]">
+                      <Link to="/app/content/$projectId/result" params={{ projectId: p.id }} title={display} className="line-clamp-2 break-words font-medium hover:underline">
+                        {display}
+                      </Link>
+                    </TableCell>
+                    <TableCell>{p.brands?.name ?? "—"}</TableCell>
+                    <TableCell><Badge variant="secondary">{statusLabel(p.status)}</Badge></TableCell>
+                    <TableCell>{OBJECTIVE_LABELS[p.objective ?? ""] ?? "—"}</TableCell>
+                    <TableCell><ProjectMenu id={p.id} status={p.status} onStatus={(s) => updateStatus.mutate({ id: p.id, status: s })} onDelete={() => del.mutate(p.id)} onRename={() => setRenaming(p)} /></TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </Card>
       )}
+
+      <RenameTitleDialog
+        open={!!renaming}
+        onOpenChange={(v) => !v && setRenaming(null)}
+        projectId={renaming?.id ?? ""}
+        project={renaming}
+      />
     </div>
   );
 }
@@ -191,12 +235,14 @@ function statusLabel(s: string) {
   return ({ draft: "Rascunho", review: "Em revisão", approved: "Aprovado", published: "Publicado", archived: "Arquivado" } as Record<string, string>)[s] ?? s;
 }
 
-function ProjectMenu({ id, status, onStatus, onDelete }: { id: string; status: string; onStatus: (s: string) => void; onDelete: () => void }) {
+function ProjectMenu({ id, status, onStatus, onDelete, onRename }: { id: string; status: string; onStatus: (s: string) => void; onDelete: () => void; onRename: () => void }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem asChild><Link to="/app/content/$projectId/result" params={{ projectId: id }}><Pencil className="mr-2 h-4 w-4" />Abrir</Link></DropdownMenuItem>
+        <DropdownMenuItem onClick={onRename}><Edit3 className="mr-2 h-4 w-4" />Renomear</DropdownMenuItem>
+        <DropdownMenuSeparator />
         {status !== "approved" && <DropdownMenuItem onClick={() => onStatus("approved")}>Marcar aprovado</DropdownMenuItem>}
         {status !== "published" && <DropdownMenuItem onClick={() => onStatus("published")}>Marcar publicado</DropdownMenuItem>}
         {status !== "archived" && <DropdownMenuItem onClick={() => onStatus("archived")}><Archive className="mr-2 h-4 w-4" />Arquivar</DropdownMenuItem>}

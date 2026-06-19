@@ -1,16 +1,36 @@
 // Funções de acesso ao calendário editorial.
 import { supabase } from "@/integrations/supabase/client";
 import type { ScheduleItem, ScheduleStatus, ApprovalStatus, ChannelKind } from "./calendar";
+import { getProjectDisplayTitle } from "./displayTitle";
 
 export interface ScheduleItemWithRels extends ScheduleItem {
   brands?: { id: string; name: string; logo_url: string | null } | null;
-  content_projects?: { id: string; internal_title: string | null; status: string } | null;
+  content_projects?: {
+    id: string;
+    internal_title: string | null;
+    display_title?: string | null;
+    theme?: string | null;
+    main_message?: string | null;
+    status: string;
+  } | null;
   publication_schedule_outputs?: Array<{
     id: string;
     output_id: string;
     display_order: number;
     content_outputs?: { id: string; title: string; output_type: string } | null;
   }>;
+}
+
+/** Resolve o melhor título visível para um item do calendário. */
+export function getScheduleItemTitle(item: ScheduleItemWithRels | null | undefined): string {
+  if (!item) return "Conteúdo sem título";
+  if (item.title_override && item.title && item.title.trim()) return item.title.trim();
+  if (item.content_projects) {
+    const fromProject = getProjectDisplayTitle(item.content_projects);
+    if (fromProject && fromProject !== "Conteúdo sem título") return fromProject;
+  }
+  if (item.title && item.title.trim()) return item.title.trim();
+  return "Publicação sem título";
 }
 
 export interface ScheduleFilters {
@@ -26,7 +46,7 @@ export interface ScheduleFilters {
 const REL_SELECT = `
   *,
   brands ( id, name, logo_url ),
-  content_projects ( id, internal_title, status ),
+  content_projects ( id, internal_title, display_title, theme, main_message, status ),
   publication_schedule_outputs (
     id, output_id, display_order,
     content_outputs ( id, title, output_type )
@@ -66,6 +86,7 @@ export interface UpsertScheduleInput {
   channel?: ChannelKind | null;
   format?: string | null;
   title?: string | null;
+  title_override?: boolean | null;
   description?: string | null;
   suggested_date?: string | null;
   suggested_time?: string | null;
@@ -77,7 +98,7 @@ export interface UpsertScheduleInput {
   client_notes?: string | null;
   internal_notes?: string | null;
   assigned_to?: string | null;
-  outputs?: string[]; // ids de content_outputs vinculados
+  outputs?: string[];
   checklist?: Record<string, boolean>;
 }
 
