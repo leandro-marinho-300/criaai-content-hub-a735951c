@@ -67,6 +67,7 @@ type State = {
   formality_level: string;
   restrictions: string;
   notes: string;
+  develop: DevelopState;
 };
 
 const DEFAULT_STATE: State = {
