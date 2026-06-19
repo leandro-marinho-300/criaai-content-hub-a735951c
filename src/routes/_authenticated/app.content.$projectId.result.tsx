@@ -290,11 +290,14 @@ function PieceCard({
 
   const save = useMutation({
     mutationFn: async () => {
+      // ao salvar manualmente, consideramos a copy revisada pelo usuário
+      const updated: Piece = { ...draft, qualityStatus: "approved", qualityIssues: undefined };
       const { error } = await supabase
         .from("content_outputs")
-        .update({ edited_content: JSON.stringify(draft) })
+        .update({ edited_content: JSON.stringify(updated) })
         .eq("id", row.id);
       if (error) throw error;
+      setDraft(updated);
     },
     onSuccess: () => {
       toast.success("Peça salva.");
