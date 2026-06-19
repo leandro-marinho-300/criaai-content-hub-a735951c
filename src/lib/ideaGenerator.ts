@@ -1,50 +1,52 @@
+// Cria Aí — Gerador determinístico de ideias.
+// Reestruturado para que Objetivo governe o resultado (CTA, selo, ângulo)
+// e a Abordagem decida COMO o assunto é desenvolvido.
+
 import type { Tables } from "@/integrations/supabase/types";
+import {
+  type IdeaApproach,
+  type IdeaFocus,
+  type IdeaFormat,
+  type IdeaObjective,
+  type IdeaTone,
+  IDEA_APPROACH_LABELS,
+  IDEA_FORMAT_LABELS,
+  IDEA_OBJECTIVE_LABELS,
+  OBJECTIVE_PILLAR,
+} from "./ideaTaxonomy";
+import {
+  evaluateCompatibility,
+  type CompatibilityLevel,
+} from "./ideaCompatibility";
+import {
+  approachIsSafe,
+  getBrandIdeaSources,
+  type BrandIdeaSources,
+} from "./brandIdeaSources";
+
+export {
+  IDEA_OBJECTIVE_LABELS,
+  IDEA_FORMAT_LABELS,
+  IDEA_FOCUS_LABELS,
+  IDEA_TONE_LABELS,
+  IDEA_APPROACH_LABELS,
+} from "./ideaTaxonomy";
+
+export type {
+  IdeaObjective,
+  IdeaFocus,
+  IdeaFormat,
+  IdeaTone,
+  IdeaApproach,
+} from "./ideaTaxonomy";
 
 export type Brand = Tables<"brands">;
 
-export type IdeaTemplateKey =
-  | "duvida_frequente"
-  | "erro_comum"
-  | "passo_a_passo"
-  | "lista"
-  | "beneficio"
-  | "bastidores"
-  | "diferencial"
-  | "mito_ou_verdade"
-  | "antes_de_contratar"
-  | "checklist"
-  | "historia_marca"
-  | "produto_servico"
-  | "data_importante"
-  | "relacionamento"
-  | "prova_social"
-  | "conteudo_local"
-  | "institucional"
-  | "comercial"
-  | "reaproveitamento"
-  | "sazonal";
-
-export type IdeaObjective =
-  | "qualquer"
-  | "informar" | "educar" | "vender"
-  | "divulgar_produto" | "divulgar_servico"
-  | "gerar_contatos" | "relacionamento" | "bastidores"
-  | "autoridade" | "duvida" | "evento"
-  | "prestacao_contas" | "institucional";
-
-export type IdeaFormat =
-  | "auto" | "post" | "carrossel" | "story" | "status_whatsapp" | "reel" | "comunicado";
-
-export type IdeaFocus =
-  | "qualquer" | "produto" | "servico" | "duvida" | "beneficio"
-  | "bastidores" | "historia" | "prova_social" | "orientacao_pratica"
-  | "campanha" | "data_relevante";
-
-export type IdeaTone =
-  | "marca" | "educativo" | "comercial" | "institucional"
-  | "acolhedor" | "urgente" | "inspirador" | "descontraido";
-
-export type NoveltyBadge = "Ideia nova" | "Variação de conteúdo" | "Reaproveitamento" | "Tema recorrente";
+export type NoveltyBadge =
+  | "Ideia nova"
+  | "Variação de conteúdo"
+  | "Reaproveitamento"
+  | "Tema recorrente";
 
 export interface Idea {
   id: string;
@@ -53,6 +55,7 @@ export interface Idea {
   content_pillar: string;
   objective: string;
   recommended_format: string;
+  approach: string;
   angle: string;
   target_audience: string;
   audience_problem: string;
@@ -65,113 +68,394 @@ export interface Idea {
   source_elements: string[];
   novelty_score: number;
   novelty_badge: NoveltyBadge;
-  template_key: IdeaTemplateKey;
+  template_key: string;
+  compatibility_level: CompatibilityLevel;
+  compatibility_reason: string;
+  applied_fallback_level: number;
   created_at: string;
 }
 
 export interface IdeaGenInput {
   brand: Brand;
   objective?: IdeaObjective;
-  format?: IdeaFormat;
   focus?: IdeaFocus;
+  approach?: IdeaApproach;
+  format?: IdeaFormat;
   tone?: IdeaTone;
   quantity: number;
-  /** títulos / temas de conteúdos anteriores para variar */
-  history?: Array<{ theme?: string | null; objective?: string | null; formats?: string[] | null; cta?: string | null; template_key?: string | null }>;
-  /** Sementes a evitar (ex.: sugestões já mostradas na mesma sessão). */
+  history?: Array<{
+    theme?: string | null;
+    objective?: string | null;
+    formats?: string[] | null;
+    cta?: string | null;
+    template_key?: string | null;
+  }>;
   excludeTitles?: string[];
-  /** Seed determinístico para reprodução. */
+  /** Quando true, permite degradar para abordagem auto ou foco automático. */
+  allowFallback?: boolean;
   seed?: number;
 }
 
-// Mapas de exibição
-export const IDEA_OBJECTIVE_LABELS: Record<IdeaObjective, string> = {
-  qualquer: "Qualquer objetivo",
-  informar: "Informar",
-  educar: "Educar",
-  vender: "Vender",
-  divulgar_produto: "Divulgar produto",
-  divulgar_servico: "Divulgar serviço",
-  gerar_contatos: "Gerar contatos",
-  relacionamento: "Criar relacionamento",
-  bastidores: "Mostrar bastidores",
-  autoridade: "Fortalecer autoridade",
-  duvida: "Responder dúvida frequente",
-  evento: "Divulgar evento",
-  prestacao_contas: "Prestação de contas",
-  institucional: "Campanha institucional",
-};
-
-export const IDEA_FORMAT_LABELS: Record<IdeaFormat, string> = {
-  auto: "Sugerir automaticamente",
-  post: "Post Feed",
-  carrossel: "Carrossel",
-  story: "Stories",
-  status_whatsapp: "Status WhatsApp",
-  reel: "Reel",
-  comunicado: "Comunicado",
-};
-
-export const IDEA_FOCUS_LABELS: Record<IdeaFocus, string> = {
-  qualquer: "Qualquer tema",
-  produto: "Produto",
-  servico: "Serviço",
-  duvida: "Dúvida do público",
-  beneficio: "Benefício",
-  bastidores: "Bastidores",
-  historia: "História da marca",
-  prova_social: "Prova social",
-  orientacao_pratica: "Orientação prática",
-  campanha: "Campanha",
-  data_relevante: "Data relevante",
-};
-
-export const IDEA_TONE_LABELS: Record<IdeaTone, string> = {
-  marca: "Seguir o tom da marca",
-  educativo: "Educativo",
-  comercial: "Comercial",
-  institucional: "Institucional",
-  acolhedor: "Acolhedor",
-  urgente: "Urgente",
-  inspirador: "Inspirador",
-  descontraido: "Descontraído",
-};
-
-// --------------------- Utilidades internas ---------------------
-
-function splitList(value: string | null | undefined): string[] {
-  if (!value) return [];
-  return value
-    .split(/[;\n\r]+/g)
-    .map((s) => s.trim())
-    .filter(Boolean);
+export interface GenerationResult {
+  ideas: Idea[];
+  requested: number;
+  /** quantos níveis de fallback foram aplicados (0 = nenhum). */
+  appliedFallbackLevel: number;
+  partial: boolean;
+  /** explicações para a UI. */
+  notes: string[];
+  /** Diagnóstico das fontes consultadas. */
+  sources: BrandIdeaSources;
 }
 
-function pickFirstSentence(text: string | null | undefined): string {
+// =================== CTA RESOLVER ===================
+
+const CTA_POOL: Record<IdeaObjective, string[]> = {
+  qualquer: ["Acompanhe nossos conteúdos", "Salve este conteúdo", "Comente o que achou"],
+  informar: ["Confira os detalhes", "Salve esta informação", "Compartilhe com quem precisa"],
+  educar: [
+    "Salve esta dica",
+    "Compartilhe com quem precisa",
+    "Você já sabia?",
+    "Continue acompanhando",
+    "Qual ponto gera mais dúvida?",
+  ],
+  vender: [
+    "Peça seu orçamento",
+    "Consulte disponibilidade",
+    "Fale com a equipe",
+    "Conheça os detalhes",
+  ],
+  gerar_contatos: [
+    "Converse com a equipe",
+    "Envie uma mensagem",
+    "Solicite mais informações",
+    "Chame no WhatsApp para conversar",
+  ],
+  relacionamento: [
+    "Conte para a gente",
+    "Qual você escolheria?",
+    "Já viveu algo parecido?",
+    "Responda esta pergunta",
+  ],
+  autoridade: [
+    "Salve para consultar",
+    "Acompanhe os próximos conteúdos",
+    "Compartilhe se achou útil",
+  ],
+  inspirar: [
+    "Marque alguém que precisa ver isto",
+    "Compartilhe esta mensagem",
+    "Salve para relembrar",
+  ],
+};
+
+function resolveCta(args: { objective: IdeaObjective; brand: Brand; idx: number }): string {
+  const { objective, brand, idx } = args;
+  const pool = CTA_POOL[objective] ?? CTA_POOL.qualquer;
+  const brandCtas = (brand.calls_to_action ?? []).filter(Boolean) as string[];
+
+  // Em vender / gerar_contatos preferimos uma CTA da marca quando ela for compatível.
+  if ((objective === "vender" || objective === "gerar_contatos") && brandCtas.length > 0) {
+    return brandCtas[idx % brandCtas.length];
+  }
+  return pool[idx % pool.length];
+}
+
+// =================== TEMPLATES POR ABORDAGEM ===================
+
+type Built = {
+  title: string;
+  theme: string;
+  angle: string;
+  central_message: string;
+  hook: string;
+  required: string[];
+  template_key: string;
+};
+
+interface TemplateContext {
+  brand: Brand;
+  sources: BrandIdeaSources;
+  rand: () => number;
+}
+
+type ApproachBuilder = (ctx: TemplateContext) => Built | null;
+
+function firstSentence(text: string | null | undefined): string {
   if (!text) return "";
   const m = text.trim().split(/(?<=[.!?])\s+/)[0] ?? text.trim();
   return m.replace(/\s+/g, " ").trim();
 }
 
-// PRNG simples e determinístico (Mulberry32)
+function pick<T>(arr: T[], rand: () => number): T | undefined {
+  if (arr.length === 0) return undefined;
+  return arr[Math.floor(rand() * arr.length)];
+}
+
+function clean(s: string): string {
+  return s.replace(/[?.!]+$/g, "").trim();
+}
+
+const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
+  auto: () => null, // selecionado dinamicamente
+  beneficio: ({ sources, rand }) => {
+    const item = pick(sources.usableProducts, rand);
+    if (!item) return null;
+    return {
+      title: `Como ${item} facilita o seu dia`,
+      theme: item,
+      angle: "Apresentar benefícios reais — sem inventar resultado.",
+      central_message: `Mostrar como ${item} resolve uma necessidade já cadastrada do público.`,
+      hook: `${item}: pensado para quem busca praticidade.`,
+      required: [`Confirmar quais benefícios reais de ${item} podem ser comunicados.`],
+      template_key: "beneficio",
+    };
+  },
+  duvida: ({ sources, rand }) => {
+    const q = pick(sources.usableQuestions, rand) ?? pick(sources.usableDifficulties, rand);
+    if (!q) return null;
+    const c = clean(q).toLowerCase();
+    return {
+      title: `Você sabe ${c}?`,
+      theme: q,
+      angle: "Esclarecer uma dúvida real do público sem inventar dados.",
+      central_message: `Responder objetivamente: ${q}.`,
+      hook: `Tem gente que ainda tem dúvida sobre isso: ${c}.`,
+      required: ["Confirmar a resposta correta com a marca antes de publicar."],
+      template_key: "duvida",
+    };
+  },
+  bastidores: ({ brand, sources, rand }) => {
+    const item = pick(sources.usableProducts, rand) ?? brand.name;
+    return {
+      title: `O que acontece por trás de ${item}`,
+      theme: `Bastidores de ${item}`,
+      angle: "Mostrar processo e cuidado, criando aproximação.",
+      central_message: `Apresentar o processo real por trás de ${item}.`,
+      hook: `Tem muita coisa que você não vê acontecendo por trás de ${String(item).toLowerCase()}.`,
+      required: ["Confirmar quais imagens ou vídeos reais de bastidores estão disponíveis."],
+      template_key: "bastidores",
+    };
+  },
+  historia_marca: ({ brand, sources }) => {
+    const desc = firstSentence(sources.usableHistory[0] ?? brand.description);
+    if (!desc) return null;
+    return {
+      title: `Por que a ${brand.name} existe`,
+      theme: "História e propósito",
+      angle: "Conectar pela história — sem inventar fatos.",
+      central_message: desc,
+      hook: `Tudo começou com uma decisão simples aqui na ${brand.name}.`,
+      required: ["Confirmar fatos históricos com a marca antes da publicação."],
+      template_key: "historia_marca",
+    };
+  },
+  prova_social: ({ sources, rand }) => {
+    const t = pick(sources.usableTestimonials, rand);
+    if (!t) return null;
+    return {
+      title: `Quem viveu, conta: ${clean(t).slice(0, 60)}`,
+      theme: "Prova social",
+      angle: "Apresentar depoimento autorizado — sem inventar.",
+      central_message: t,
+      hook: `Olha o que um cliente real contou:`,
+      required: [
+        "Confirmar a autorização escrita do depoimento.",
+        "Nunca alterar nome, foto ou conteúdo do cliente.",
+      ],
+      template_key: "prova_social",
+    };
+  },
+  orientacao_pratica: ({ sources, rand }) => {
+    const need =
+      pick(sources.usableNeeds, rand) ??
+      pick(sources.usableDifficulties, rand) ??
+      pick(sources.usableTopics, rand);
+    if (!need) return null;
+    const c = clean(need).toLowerCase();
+    return {
+      title: `Orientação prática: ${need}`,
+      theme: need,
+      angle: "Oferecer uma orientação curta e útil sobre o tema.",
+      central_message: `Apresentar uma orientação prática para ${c}.`,
+      hook: `Anota aí uma orientação que ajuda bastante: ${c}.`,
+      required: ["Validar a orientação com a marca antes de publicar."],
+      template_key: "orientacao_pratica",
+    };
+  },
+  erro_comum: ({ sources, rand }) => {
+    const dif = pick(sources.usableDifficulties, rand) ?? pick(sources.usableNeeds, rand);
+    if (!dif) return null;
+    const c = clean(dif).toLowerCase();
+    return {
+      title: `Um erro comum ao lidar com ${c}`,
+      theme: dif,
+      angle: "Mostrar o erro comum e a forma correta de agir.",
+      central_message: `Apresentar o erro habitual relacionado a “${dif}” e o caminho adequado.`,
+      hook: `Você provavelmente já cometeu este erro: ${c}.`,
+      required: ["Validar com a marca a forma correta de orientar o público."],
+      template_key: "erro_comum",
+    };
+  },
+  checklist: ({ sources, rand }) => {
+    const need = pick(sources.usableNeeds, rand) ?? pick(sources.usableTopics, rand);
+    if (!need) return null;
+    return {
+      title: `Checklist: ${need}`,
+      theme: need,
+      angle: "Lista verificável para o público — sem promessas.",
+      central_message: `Oferecer um checklist prático sobre ${need}.`,
+      hook: `Salve este checklist sobre ${String(need).toLowerCase()}.`,
+      required: ["Validar os itens do checklist com a marca."],
+      template_key: "checklist",
+    };
+  },
+  passo_a_passo: ({ sources, rand }) => {
+    const need = pick(sources.usableNeeds, rand) ?? pick(sources.usableProducts, rand);
+    if (!need) return null;
+    const c = clean(need).toLowerCase();
+    return {
+      title: `Como ${c} em poucos passos`,
+      theme: need,
+      angle: "Quebrar uma orientação prática em passos curtos.",
+      central_message: `Orientar o público em passos sobre: ${need}.`,
+      hook: `Salve este passo a passo: ${c}.`,
+      required: ["Confirmar com a marca os passos reais a serem recomendados."],
+      template_key: "passo_a_passo",
+    };
+  },
+  comparacao: ({ sources, rand }) => {
+    const a = pick(sources.usableProducts, rand) ?? pick(sources.usableTopics, rand);
+    if (!a) return null;
+    return {
+      title: `Antes e depois com ${a}`,
+      theme: a,
+      angle: "Comparar dois cenários reais — sem exagero.",
+      central_message: `Mostrar a diferença prática que ${a} oferece.`,
+      hook: `A diferença aparece logo nos primeiros dias com ${String(a).toLowerCase()}.`,
+      required: ["Confirmar dados e imagens reais de antes/depois antes de publicar."],
+      template_key: "comparacao",
+    };
+  },
+  mito_verdade: ({ sources, rand, brand }) => {
+    const topic = pick(sources.usableTopics, rand) ?? pick(sources.usableQuestions, rand) ?? brand.segment ?? "";
+    if (!topic) return null;
+    return {
+      title: `Mito ou verdade: ${topic}?`,
+      theme: topic,
+      angle: "Esclarecer crenças comuns do público de forma direta.",
+      central_message: `Diferenciar mito de verdade em torno de “${topic}”.`,
+      hook: `Mito ou verdade? ${topic}.`,
+      required: ["Confirmar com a marca a resposta correta antes da publicação."],
+      template_key: "mito_verdade",
+    };
+  },
+  lista: ({ sources, rand }) => {
+    const focus = pick(sources.usableTopics, rand) ?? pick(sources.usableProducts, rand);
+    if (!focus) return null;
+    const c = clean(focus).toLowerCase();
+    return {
+      title: `5 pontos que você precisa observar sobre ${c}`,
+      theme: focus,
+      angle: "Lista curta com pontos críticos para o público.",
+      central_message: `Listar pontos relevantes sobre ${focus}.`,
+      hook: `5 pontos que poucos contam sobre ${c}.`,
+      required: ["Validar com a marca os pontos a serem citados."],
+      template_key: "lista",
+    };
+  },
+  antes_de_contratar: ({ sources, rand }) => {
+    const item = pick(sources.usableProducts, rand);
+    if (!item) return null;
+    return {
+      title: `O que saber antes de contratar ${item}`,
+      theme: item,
+      angle: "Reduzir dúvidas antes da decisão.",
+      central_message: `Ajudar o público a decidir de forma informada sobre ${item}.`,
+      hook: `Antes de fechar ${String(item).toLowerCase()}, vale considerar isto.`,
+      required: ["Confirmar com a marca os critérios reais a serem listados."],
+      template_key: "antes_de_contratar",
+    };
+  },
+  prestacao_contas: ({ brand, sources, rand }) => {
+    const topic = pick(sources.usableDifferentiators, rand) ?? firstSentence(brand.description);
+    if (!topic) return null;
+    return {
+      title: `O que ${brand.name} entregou recentemente`,
+      theme: "Prestação de contas",
+      angle: "Comunicar entregas reais, com transparência.",
+      central_message: `Mostrar de forma transparente o que ${brand.name} vem entregando.`,
+      hook: `Algumas entregas recentes que merecem ser contadas:`,
+      required: ["Listar somente entregas confirmadas pela marca."],
+      template_key: "prestacao_contas",
+    };
+  },
+  apresentacao_comercial: ({ sources, rand }) => {
+    const item = pick(sources.usableProducts, rand);
+    if (!item) return null;
+    return {
+      title: `Conheça ${item}`,
+      theme: item,
+      angle: "Apresentação direta — sem citar preço, desconto ou condição não cadastrada.",
+      central_message: `Explicar para quem é indicado ${item} e o que entrega de fato.`,
+      hook: `Esta é ${String(item).toLowerCase()} — pensada para quem busca o seguinte:`,
+      required: [`Confirmar características reais e fotografias disponíveis de ${item}.`],
+      template_key: "apresentacao_comercial",
+    };
+  },
+};
+
+// =================== ORDEM DE ABORDAGENS POR OBJETIVO ===================
+
+const APPROACH_ORDER_BY_OBJECTIVE: Record<IdeaObjective, IdeaApproach[]> = {
+  qualquer: [
+    "orientacao_pratica", "duvida", "beneficio", "bastidores", "historia_marca",
+    "lista", "checklist", "passo_a_passo", "comparacao", "mito_verdade",
+    "erro_comum", "antes_de_contratar", "apresentacao_comercial", "prestacao_contas", "prova_social",
+  ],
+  educar: [
+    "orientacao_pratica", "duvida", "checklist", "passo_a_passo", "erro_comum",
+    "mito_verdade", "lista", "comparacao", "bastidores", "historia_marca",
+    "beneficio", "antes_de_contratar", "prestacao_contas",
+  ],
+  vender: [
+    "beneficio", "apresentacao_comercial", "antes_de_contratar", "prova_social",
+    "comparacao", "checklist", "lista", "duvida", "orientacao_pratica", "bastidores",
+  ],
+  gerar_contatos: [
+    "antes_de_contratar", "beneficio", "duvida", "prova_social", "apresentacao_comercial",
+    "orientacao_pratica", "checklist", "comparacao", "bastidores",
+  ],
+  relacionamento: [
+    "bastidores", "historia_marca", "duvida", "prestacao_contas", "prova_social",
+    "lista", "mito_verdade", "comparacao", "erro_comum",
+  ],
+  autoridade: [
+    "orientacao_pratica", "duvida", "erro_comum", "comparacao", "historia_marca",
+    "mito_verdade", "checklist", "passo_a_passo", "lista",
+  ],
+  informar: [
+    "historia_marca", "prestacao_contas", "lista", "orientacao_pratica", "comparacao",
+    "duvida", "checklist", "passo_a_passo", "bastidores",
+  ],
+  inspirar: [
+    "historia_marca", "bastidores", "prova_social", "prestacao_contas",
+    "orientacao_pratica", "duvida", "comparacao",
+  ],
+};
+
+// =================== UTILITÁRIOS ===================
+
 function mulberry32(seed: number) {
   let a = seed >>> 0;
   return function () {
-    a = (a + 0x6D2B79F5) >>> 0;
+    a = (a + 0x6d2b79f5) >>> 0;
     let t = a;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-function shuffle<T>(arr: T[], rand: () => number): T[] {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
 }
 
 function hashStr(s: string): number {
@@ -183,530 +467,163 @@ function hashStr(s: string): number {
   return h >>> 0;
 }
 
-function uniqueOrFallback(values: string[], fallback: string): string {
-  for (const v of values) {
-    if (v && v.trim()) return v.trim();
-  }
-  return fallback;
-}
+// =================== GERAÇÃO ===================
 
-// --------------------- Modelos editoriais ---------------------
-
-type TemplateContext = {
+interface AttemptArgs {
   brand: Brand;
-  products: string[];
-  services: string[];
-  faqs: string[];
-  dates: string[];
-  allowed: string[];
-  ctas: string[];
+  sources: BrandIdeaSources;
+  objective: IdeaObjective;
+  focus: IdeaFocus;
+  approachOrder: IdeaApproach[];
+  format: IdeaFormat;
+  tone: IdeaTone;
+  quantity: number;
+  excludeTitles: Set<string>;
+  recentThemes: Set<string>;
+  recentTemplates: Map<string, number>;
   rand: () => number;
-};
-
-type TemplateOutput = Omit<Idea, "id" | "created_at" | "novelty_score" | "novelty_badge">;
-
-type Template = {
-  key: IdeaTemplateKey;
-  label: string;
-  pillar: string;
-  defaultObjective: string;
-  defaultFormat: string;
-  /** retorna null quando a marca não tem dados suficientes para gerar a ideia com segurança */
-  build: (ctx: TemplateContext) => TemplateOutput | null;
-};
-
-const TEMPLATES: Template[] = [
-  {
-    key: "duvida_frequente",
-    label: "Dúvida frequente",
-    pillar: "Educativo",
-    defaultObjective: "Responder dúvida frequente",
-    defaultFormat: "carrossel",
-    build: (ctx) => {
-      const q = pickFirstSentence(uniqueOrFallback(ctx.faqs, "")) || (ctx.allowed[0] ?? "");
-      if (!q) return null;
-      return baseIdea(ctx, {
-        title: `Você sabe ${q.toLowerCase().replace(/[?.!]+$/g, "")}?`,
-        theme: q,
-        angle: "Esclarecer uma dúvida real do público sem inventar dados.",
-        central_message: `Responder objetivamente: ${q}`,
-        hook: `Tem gente que ainda tem dúvida sobre isso: ${q.toLowerCase()}`,
-        cta: uniqueOrFallback(ctx.ctas, "Chame no direct e tire suas dúvidas."),
-        required: ["Confirmar a resposta correta com a marca antes de publicar."],
-      });
-    },
-  },
-  {
-    key: "erro_comum",
-    label: "Erro comum",
-    pillar: "Educativo",
-    defaultObjective: "Educar",
-    defaultFormat: "carrossel",
-    build: (ctx) => {
-      const dif = pickFirstSentence(ctx.brand.audience_difficulties) || (ctx.allowed[0] ?? "");
-      if (!dif) return null;
-      return baseIdea(ctx, {
-        title: `Um erro comum ao lidar com ${dif.toLowerCase()}`,
-        theme: dif,
-        angle: "Mostrar o erro comum e a forma correta de agir.",
-        central_message: `Apresentar o erro habitual relacionado a “${dif}” e a solução adequada.`,
-        hook: `Você provavelmente já cometeu este erro: ${dif.toLowerCase()}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Comente se já passou por isso."),
-        required: ["Validar com a marca a forma correta de orientar o público."],
-      });
-    },
-  },
-  {
-    key: "passo_a_passo",
-    label: "Passo a passo",
-    pillar: "Educativo",
-    defaultObjective: "Educar",
-    defaultFormat: "carrossel",
-    build: (ctx) => {
-      const need = pickFirstSentence(ctx.brand.audience_needs) || (ctx.services[0] ?? ctx.products[0] ?? "");
-      if (!need) return null;
-      return baseIdea(ctx, {
-        title: `Como ${need.toLowerCase()} em poucos passos`,
-        theme: need,
-        angle: "Quebrar uma orientação prática em passos curtos.",
-        central_message: `Orientar o público em passos sobre: ${need}.`,
-        hook: `Salve este passo a passo: ${need.toLowerCase()}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Salve para consultar depois."),
-        required: ["Confirmar com a marca os passos reais a serem recomendados."],
-      });
-    },
-  },
-  {
-    key: "lista",
-    label: "Lista de pontos",
-    pillar: "Educativo",
-    defaultObjective: "Informar",
-    defaultFormat: "carrossel",
-    build: (ctx) => {
-      const focus = ctx.allowed[0] ?? ctx.services[0] ?? ctx.products[0] ?? "";
-      if (!focus) return null;
-      const n = 5;
-      return baseIdea(ctx, {
-        title: `${n} pontos que você precisa observar antes de ${focus.toLowerCase()}`,
-        theme: focus,
-        angle: "Lista curta com pontos críticos para o público.",
-        central_message: `Listar pontos relevantes sobre ${focus}.`,
-        hook: `${n} pontos que poucos contam sobre ${focus.toLowerCase()}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Comente qual desses faz mais sentido para você."),
-        required: ["Validar com a marca os pontos a serem citados."],
-      });
-    },
-  },
-  {
-    key: "beneficio",
-    label: "Benefício",
-    pillar: "Comercial",
-    defaultObjective: "Vender",
-    defaultFormat: "post",
-    build: (ctx) => {
-      const item = ctx.products[0] ?? ctx.services[0];
-      if (!item) return null;
-      return baseIdea(ctx, {
-        title: `Como ${item} ajuda no dia a dia`,
-        theme: item,
-        angle: "Apresentar benefícios reais — sem inventar resultados.",
-        central_message: `Mostrar como ${item} resolve uma necessidade já cadastrada do público.`,
-        hook: `${item}: pensado para facilitar sua rotina.`,
-        cta: uniqueOrFallback(ctx.ctas, "Fale com a gente para conhecer."),
-        required: [`Confirmar quais benefícios reais de ${item} podem ser comunicados.`],
-      });
-    },
-  },
-  {
-    key: "bastidores",
-    label: "Bastidores",
-    pillar: "Bastidores",
-    defaultObjective: "Mostrar bastidores",
-    defaultFormat: "reel",
-    build: (ctx) => {
-      const item = ctx.products[0] ?? ctx.services[0] ?? ctx.brand.name;
-      return baseIdea(ctx, {
-        title: `O que acontece por trás de ${item}`,
-        theme: `Bastidores de ${item}`,
-        angle: "Mostrar processo e cuidado, criando aproximação.",
-        central_message: `Apresentar o processo real por trás de ${item}.`,
-        hook: `Tem muita coisa que você não vê acontecendo por trás de ${item.toLowerCase()}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Conta nos comentários: você imaginava esse processo?"),
-        required: ["Confirmar quais imagens/vídeos reais de bastidores estão disponíveis."],
-      });
-    },
-  },
-  {
-    key: "diferencial",
-    label: "Diferencial",
-    pillar: "Institucional",
-    defaultObjective: "Fortalecer autoridade",
-    defaultFormat: "carrossel",
-    build: (ctx) => {
-      const dif = pickFirstSentence(ctx.brand.differentiators);
-      if (!dif) return null;
-      return baseIdea(ctx, {
-        title: `O que torna ${ctx.brand.name} diferente`,
-        theme: "Diferenciais da marca",
-        angle: "Comunicar diferenciais já cadastrados — sem exagerar.",
-        central_message: dif,
-        hook: `Tem um detalhe que mudou tudo aqui na ${ctx.brand.name}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Conheça mais sobre a gente."),
-        required: ["Validar quais diferenciais podem ser destacados publicamente."],
-      });
-    },
-  },
-  {
-    key: "mito_ou_verdade",
-    label: "Mito ou verdade",
-    pillar: "Educativo",
-    defaultObjective: "Educar",
-    defaultFormat: "post",
-    build: (ctx) => {
-      const topic = ctx.allowed[1] ?? ctx.allowed[0] ?? ctx.brand.segment ?? "";
-      if (!topic) return null;
-      return baseIdea(ctx, {
-        title: `Mito ou verdade: ${topic}?`,
-        theme: topic,
-        angle: "Esclarecer crenças comuns do público de forma direta.",
-        central_message: `Diferenciar mito de verdade em torno de “${topic}”.`,
-        hook: `Mito ou verdade? ${topic}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Comente o que você achava sobre isso."),
-        required: ["Confirmar com a marca a resposta correta antes da publicação."],
-      });
-    },
-  },
-  {
-    key: "antes_de_contratar",
-    label: "Antes de contratar",
-    pillar: "Comercial",
-    defaultObjective: "Gerar contatos",
-    defaultFormat: "carrossel",
-    build: (ctx) => {
-      const item = ctx.services[0] ?? ctx.products[0];
-      if (!item) return null;
-      return baseIdea(ctx, {
-        title: `O que saber antes de contratar ${item}`,
-        theme: item,
-        angle: "Reduzir dúvidas antes da compra/contratação.",
-        central_message: `Ajudar o público a tomar uma decisão informada sobre ${item}.`,
-        hook: `Antes de contratar ${item.toLowerCase()}, vale considerar isto.`,
-        cta: uniqueOrFallback(ctx.ctas, "Solicite uma conversa para entender se faz sentido para você."),
-        required: ["Confirmar com a marca os critérios reais a serem listados."],
-      });
-    },
-  },
-  {
-    key: "checklist",
-    label: "Checklist",
-    pillar: "Educativo",
-    defaultObjective: "Educar",
-    defaultFormat: "carrossel",
-    build: (ctx) => {
-      const need = pickFirstSentence(ctx.brand.audience_needs) || (ctx.allowed[0] ?? "");
-      if (!need) return null;
-      return baseIdea(ctx, {
-        title: `Checklist: ${need}`,
-        theme: need,
-        angle: "Lista verificável para o público — sem promessas.",
-        central_message: `Oferecer um checklist prático para ${need}.`,
-        hook: `Salve este checklist sobre ${need.toLowerCase()}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Salve para usar depois."),
-        required: ["Validar os itens do checklist com a marca."],
-      });
-    },
-  },
-  {
-    key: "historia_marca",
-    label: "História da marca",
-    pillar: "Institucional",
-    defaultObjective: "Campanha institucional",
-    defaultFormat: "reel",
-    build: (ctx) => {
-      const desc = pickFirstSentence(ctx.brand.description);
-      if (!desc) return null;
-      return baseIdea(ctx, {
-        title: `Por que a ${ctx.brand.name} existe`,
-        theme: "História e propósito",
-        angle: "Conectar pela história — sem inventar fatos.",
-        central_message: desc,
-        hook: `Tudo começou com uma decisão simples aqui na ${ctx.brand.name}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Acompanhe nossa história."),
-        required: ["Confirmar fatos históricos com a marca antes da publicação."],
-      });
-    },
-  },
-  {
-    key: "produto_servico",
-    label: "Produto/serviço",
-    pillar: "Comercial",
-    defaultObjective: "Divulgar produto",
-    defaultFormat: "carrossel",
-    build: (ctx) => {
-      const item = ctx.products[0] ?? ctx.services[0];
-      if (!item) return null;
-      return baseIdea(ctx, {
-        title: `Conheça ${item}`,
-        theme: item,
-        angle: "Apresentação direta para quem ainda não conhece.",
-        central_message: `Explicar para quem é indicado ${item} e o que entrega de fato.`,
-        hook: `Esta é ${item.toLowerCase()} — e ela foi pensada para quem busca o seguinte:`,
-        cta: uniqueOrFallback(ctx.ctas, "Chame no WhatsApp para conhecer."),
-        required: [`Confirmar características reais e fotografias disponíveis de ${item}.`],
-      });
-    },
-  },
-  {
-    key: "data_importante",
-    label: "Data importante",
-    pillar: "Sazonal",
-    defaultObjective: "Campanha institucional",
-    defaultFormat: "post",
-    build: (ctx) => {
-      const date = ctx.dates[0];
-      if (!date) return null;
-      return baseIdea(ctx, {
-        title: `Conteúdo para: ${date}`,
-        theme: date,
-        angle: "Aproveitar uma data já cadastrada pela marca.",
-        central_message: `Marcar a data “${date}” com uma mensagem coerente com a marca.`,
-        hook: `Hoje é uma data importante por aqui: ${date}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Marque alguém que precisa ver isto."),
-        required: ["Confirmar com a marca o tom e a mensagem oficial para a data."],
-      });
-    },
-  },
-  {
-    key: "relacionamento",
-    label: "Relacionamento",
-    pillar: "Relacionamento",
-    defaultObjective: "Criar relacionamento",
-    defaultFormat: "story",
-    build: (ctx) => {
-      const topic = ctx.allowed[0] ?? ctx.brand.segment ?? "";
-      if (!topic) return null;
-      return baseIdea(ctx, {
-        title: `Enquete: ${topic}`,
-        theme: topic,
-        angle: "Convidar o público a interagir — sem cobrança comercial.",
-        central_message: `Abrir uma conversa em torno de ${topic}.`,
-        hook: `Queremos saber sua opinião sobre ${topic.toLowerCase()}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Responda a enquete no story."),
-        required: ["Definir as opções da enquete com a marca."],
-      });
-    },
-  },
-  {
-    key: "conteudo_local",
-    label: "Conteúdo local",
-    pillar: "Relacionamento",
-    defaultObjective: "Criar relacionamento",
-    defaultFormat: "story",
-    build: (ctx) => {
-      const region = ctx.brand.service_region;
-      if (!region) return null;
-      return baseIdea(ctx, {
-        title: `Quem é de ${region} vai entender`,
-        theme: `Região de ${region}`,
-        angle: "Falar de algo específico da região de atendimento.",
-        central_message: `Conversar com quem está em ${region}, criando identificação local.`,
-        hook: `Aqui em ${region} tem uma particularidade que merece destaque.`,
-        cta: uniqueOrFallback(ctx.ctas, "Marca quem é da região!"),
-        required: ["Confirmar qual aspecto local pode ser citado sem inventar dados."],
-      });
-    },
-  },
-  {
-    key: "institucional",
-    label: "Institucional",
-    pillar: "Institucional",
-    defaultObjective: "Campanha institucional",
-    defaultFormat: "post",
-    build: (ctx) => {
-      const dif = pickFirstSentence(ctx.brand.differentiators) || pickFirstSentence(ctx.brand.description);
-      if (!dif) return null;
-      return baseIdea(ctx, {
-        title: `Como a ${ctx.brand.name} pensa o que faz`,
-        theme: "Valores e modo de trabalho",
-        angle: "Compartilhar valores com base em informações cadastradas.",
-        central_message: dif,
-        hook: `Existe uma forma específica de fazer aqui na ${ctx.brand.name}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Conheça quem está por trás da marca."),
-        required: ["Validar os valores que podem ser publicamente comunicados."],
-      });
-    },
-  },
-  {
-    key: "comercial",
-    label: "Conteúdo comercial",
-    pillar: "Comercial",
-    defaultObjective: "Vender",
-    defaultFormat: "post",
-    build: (ctx) => {
-      const item = ctx.products[0] ?? ctx.services[0];
-      if (!item) return null;
-      return baseIdea(ctx, {
-        title: `Convite para conhecer ${item}`,
-        theme: item,
-        angle: "Chamada comercial — sem citar preço, desconto ou condição não cadastrada.",
-        central_message: `Convidar o público a conhecer ${item} e abrir conversa.`,
-        hook: `Se você anda buscando ${item.toLowerCase()}, esta mensagem é para você.`,
-        cta: uniqueOrFallback(ctx.ctas, "Chame no WhatsApp para conversar."),
-        required: ["Confirmar com a marca se há alguma condição ativa a ser comunicada — não inventar preço."],
-      });
-    },
-  },
-  {
-    key: "reaproveitamento",
-    label: "Reaproveitamento",
-    pillar: "Educativo",
-    defaultObjective: "Informar",
-    defaultFormat: "story",
-    build: (ctx) => {
-      const focus = ctx.allowed[0] ?? ctx.services[0] ?? ctx.products[0];
-      if (!focus) return null;
-      return baseIdea(ctx, {
-        title: `Transformar um conteúdo já feito em ${focus}`,
-        theme: focus,
-        angle: "Aproveitar conteúdo anterior em novo formato.",
-        central_message: `Reapresentar um conteúdo já produzido em formato diferente, abordando ${focus}.`,
-        hook: `Tem um conteúdo nosso anterior que merece ser revisto:`,
-        cta: uniqueOrFallback(ctx.ctas, "Confira o conteúdo completo no feed."),
-        required: ["Selecionar o conteúdo de referência a ser reaproveitado."],
-      });
-    },
-  },
-  {
-    key: "prova_social",
-    label: "Prova social",
-    pillar: "Comercial",
-    defaultObjective: "Vender",
-    defaultFormat: "post",
-    build: (ctx) => {
-      // Não inventa depoimentos — só sugere estrutura
-      return baseIdea(ctx, {
-        title: "Estrutura para depoimento de cliente",
-        theme: "Prova social",
-        angle: "Apresentar depoimento autorizado — sem inventar.",
-        central_message: "Apresentar depoimento real, com autorização do cliente.",
-        hook: "Quem já viveu, conta:",
-        cta: uniqueOrFallback(ctx.ctas, "Quer ser nosso próximo depoimento? Chame no direct."),
-        required: [
-          "Selecionar um depoimento real autorizado por escrito.",
-          "Nunca inventar nome, foto ou conteúdo de cliente.",
-        ],
-      });
-    },
-  },
-  {
-    key: "sazonal",
-    label: "Sazonal",
-    pillar: "Sazonal",
-    defaultObjective: "Campanha institucional",
-    defaultFormat: "story",
-    build: (ctx) => {
-      const date = ctx.dates[1] ?? ctx.dates[0];
-      if (!date) return null;
-      return baseIdea(ctx, {
-        title: `Conteúdo sazonal: ${date}`,
-        theme: date,
-        angle: "Uso editorial de data sazonal cadastrada na marca.",
-        central_message: `Aproveitar a data ${date} para uma mensagem oportuna.`,
-        hook: `Está chegando ${date}.`,
-        cta: uniqueOrFallback(ctx.ctas, "Marque alguém que vai gostar disto."),
-        required: ["Confirmar a data e a forma como a marca quer aparecer."],
-      });
-    },
-  },
-];
-
-function baseIdea(
-  ctx: TemplateContext,
-  parts: {
-    title: string;
-    theme: string;
-    angle: string;
-    central_message: string;
-    hook: string;
-    cta: string;
-    required: string[];
-  },
-): TemplateOutput {
-  const audience = ctx.brand.audience ?? "Público da marca";
-  const problem = pickFirstSentence(ctx.brand.audience_difficulties) || pickFirstSentence(ctx.brand.audience_needs) || "";
-  return {
-    title: parts.title,
-    theme: parts.theme,
-    content_pillar: "Educativo",
-    objective: "Informar",
-    recommended_format: "post",
-    angle: parts.angle,
-    target_audience: audience,
-    audience_problem: problem,
-    central_message: parts.central_message,
-    hook: parts.hook,
-    suggested_cta: parts.cta,
-    required_information: parts.required,
-    visual_direction: ctx.brand.visual_style || "",
-    reason_to_publish: parts.angle,
-    source_elements: [],
-    template_key: "duvida_frequente",
-  };
+  seedBase: number;
+  fallbackLevel: number;
 }
 
-// --------------------- Geração ---------------------
-
-export function generateIdeas(input: IdeaGenInput): Idea[] {
-  const { brand, quantity } = input;
-  const seedBase = input.seed ?? hashStr(brand.id + (input.objective ?? "") + (input.format ?? "") + (input.focus ?? "") + (input.tone ?? ""));
-  const rand = mulberry32(seedBase);
-
-  const ctx: TemplateContext = {
-    brand,
-    products: splitList(brand.products_services),
-    services: splitList(brand.products_services),
-    faqs: splitList(brand.frequently_asked_questions),
-    dates: splitList(brand.important_dates),
-    allowed: (brand.allowed_topics ?? []).filter(Boolean) as string[],
-    ctas: (brand.calls_to_action ?? []).filter(Boolean) as string[],
-    rand,
-  };
-
-  // Filtragem por foco/objetivo
-  let pool = TEMPLATES.slice();
-  if (input.focus && input.focus !== "qualquer") {
-    const focusMap: Partial<Record<IdeaFocus, IdeaTemplateKey[]>> = {
-      produto: ["produto_servico", "beneficio", "comercial"],
-      servico: ["produto_servico", "antes_de_contratar", "comercial"],
-      duvida: ["duvida_frequente", "mito_ou_verdade", "erro_comum"],
-      beneficio: ["beneficio", "produto_servico"],
-      bastidores: ["bastidores"],
-      historia: ["historia_marca", "institucional"],
-      prova_social: ["prova_social"],
-      orientacao_pratica: ["passo_a_passo", "checklist", "lista"],
-      campanha: ["institucional", "comercial"],
-      data_relevante: ["data_importante", "sazonal"],
-    };
-    const keys = focusMap[input.focus];
-    if (keys?.length) pool = pool.filter((t) => keys.includes(t.key));
-  }
-  if (input.objective && input.objective !== "qualquer") {
-    // sem corte agressivo: só prioriza
-    pool = pool.sort((a, b) => {
-      const oa = a.defaultObjective.toLowerCase();
-      const ob = b.defaultObjective.toLowerCase();
-      const oTarget = (IDEA_OBJECTIVE_LABELS[input.objective!] ?? "").toLowerCase();
-      const sa = oa.includes(oTarget) ? -1 : 0;
-      const sb = ob.includes(oTarget) ? -1 : 0;
-      return sa - sb;
-    });
-  }
-
-  // Embaralhamento determinístico
-  pool = shuffle(pool, rand);
-
+function attempt(args: AttemptArgs): Idea[] {
   const ideas: Idea[] = [];
-  const usedTitles = new Set((input.excludeTitles ?? []).map((t) => t.toLowerCase()));
+  let counter = 0;
+  for (let pass = 0; pass < 3 && ideas.length < args.quantity; pass++) {
+    for (const approach of args.approachOrder) {
+      if (ideas.length >= args.quantity) break;
+      const safety = approachIsSafe(approach, args.sources);
+      if (!safety.ok) continue;
+      const builder = BUILDERS[approach];
+      const built = builder({ brand: args.brand, sources: args.sources, rand: args.rand });
+      if (!built) continue;
+      const titleKey = built.title.toLowerCase();
+      if (args.excludeTitles.has(titleKey)) continue;
+      // Não excluir o tema inteiro: apenas evitar o título idêntico.
+      const compat = evaluateCompatibility({
+        objective: args.objective,
+        focus: args.focus,
+        approach,
+        format: args.format,
+      });
+      if (compat.level === "incompatible") continue;
+
+      const recommended_format =
+        args.format !== "auto" ? IDEA_FORMAT_LABELS[args.format] : suggestFormat(approach);
+
+      let score = 0;
+      if (!args.recentThemes.has(built.theme.toLowerCase())) score += 3; else score -= 2;
+      const tplCount = args.recentTemplates.get(built.template_key) ?? 0;
+      if (tplCount === 0) score += 2; else if (tplCount >= 2) score -= 2;
+      const badge: NoveltyBadge =
+        score >= 4 ? "Ideia nova" :
+        score >= 1 ? "Variação de conteúdo" :
+        score >= -2 ? "Reaproveitamento" : "Tema recorrente";
+
+      const idea: Idea = {
+        id: `idea_${args.seedBase}_${args.fallbackLevel}_${counter++}`,
+        title: built.title,
+        theme: built.theme,
+        content_pillar: OBJECTIVE_PILLAR[args.objective],
+        objective: IDEA_OBJECTIVE_LABELS[args.objective],
+        recommended_format,
+        approach: IDEA_APPROACH_LABELS[approach],
+        angle: built.angle,
+        target_audience: args.brand.audience ?? "Público da marca",
+        audience_problem: firstSentence(args.brand.audience_difficulties) || firstSentence(args.brand.audience_needs) || "",
+        central_message: built.central_message,
+        hook: built.hook,
+        suggested_cta: resolveCta({ objective: args.objective, brand: args.brand, idx: counter }),
+        required_information: built.required,
+        visual_direction: args.brand.visual_style || "",
+        reason_to_publish: built.angle,
+        source_elements: args.sources.availableSources,
+        novelty_score: score,
+        novelty_badge: badge,
+        template_key: built.template_key,
+        compatibility_level: compat.level,
+        compatibility_reason: compat.reason,
+        applied_fallback_level: args.fallbackLevel,
+        created_at: new Date().toISOString(),
+      };
+
+      args.excludeTitles.add(titleKey);
+      ideas.push(idea);
+    }
+  }
+  return ideas;
+}
+
+function suggestFormat(approach: IdeaApproach): string {
+  switch (approach) {
+    case "bastidores":
+    case "historia_marca":
+      return IDEA_FORMAT_LABELS.reel;
+    case "checklist":
+    case "passo_a_passo":
+    case "lista":
+    case "duvida":
+    case "erro_comum":
+    case "antes_de_contratar":
+    case "comparacao":
+      return IDEA_FORMAT_LABELS.carrossel;
+    case "prova_social":
+    case "beneficio":
+    case "apresentacao_comercial":
+    case "mito_verdade":
+      return IDEA_FORMAT_LABELS.post;
+    case "prestacao_contas":
+      return IDEA_FORMAT_LABELS.comunicado;
+    default:
+      return IDEA_FORMAT_LABELS.post;
+  }
+}
+
+function buildApproachOrder(args: {
+  objective: IdeaObjective;
+  focus: IdeaFocus;
+  format: IdeaFormat;
+  approach: IdeaApproach;
+}): IdeaApproach[] {
+  if (args.approach !== "auto") {
+    // se houver abordagem explícita, ela vem primeiro; variações vêm depois.
+    const rest = APPROACH_ORDER_BY_OBJECTIVE[args.objective].filter((a) => a !== args.approach);
+    return [args.approach, ...rest];
+  }
+  const order = APPROACH_ORDER_BY_OBJECTIVE[args.objective];
+  // reordena pela compatibilidade exata (objetivo+foco+formato).
+  const ranked = order
+    .map((approach) => ({
+      approach,
+      level: evaluateCompatibility({
+        objective: args.objective,
+        focus: args.focus,
+        approach,
+        format: args.format,
+      }).level,
+    }))
+    .sort((a, b) => rankLevel(b.level) - rankLevel(a.level))
+    .map((x) => x.approach);
+  return ranked;
+}
+
+function rankLevel(l: CompatibilityLevel): number {
+  return l === "recommended" ? 3 : l === "possible" ? 2 : l === "weak" ? 1 : 0;
+}
+
+export function generateIdeasWithMeta(input: IdeaGenInput): GenerationResult {
+  const brand = input.brand;
+  const objective = input.objective ?? "qualquer";
+  const focus = input.focus ?? "qualquer";
+  const approach = input.approach ?? "auto";
+  const format = input.format ?? "auto";
+  const tone = input.tone ?? "marca";
+  const allowFallback = input.allowFallback !== false;
+
+  const sources = getBrandIdeaSources(brand);
+  const seedBase = input.seed ?? hashStr(brand.id + objective + focus + approach + format + tone);
+  const rand = mulberry32(seedBase);
+  const excludeTitles = new Set((input.excludeTitles ?? []).map((t) => t.toLowerCase()));
   const recentThemes = new Set(
     (input.history ?? []).slice(0, 10).map((h) => (h.theme ?? "").toLowerCase()).filter(Boolean),
   );
@@ -715,78 +632,87 @@ export function generateIdeas(input: IdeaGenInput): Idea[] {
     if (h.template_key) recentTemplates.set(h.template_key, (recentTemplates.get(h.template_key) ?? 0) + 1);
   }
 
-  let cursor = 0;
-  let safety = 0;
-  while (ideas.length < quantity && safety < pool.length * 3) {
-    safety++;
-    const tpl = pool[cursor % pool.length];
-    cursor++;
-    const built = tpl.build(ctx);
-    if (!built) continue;
-    if (usedTitles.has(built.title.toLowerCase())) continue;
+  const notes: string[] = [];
 
-    const recommended_format =
-      input.format && input.format !== "auto" ? IDEA_FORMAT_LABELS[input.format] : labelFor(tpl.defaultFormat);
-    const objective =
-      input.objective && input.objective !== "qualquer" ? IDEA_OBJECTIVE_LABELS[input.objective] : tpl.defaultObjective;
+  // NÍVEL 1: exato
+  let order = buildApproachOrder({ objective, focus, format, approach });
+  let ideas = attempt({
+    brand, sources, objective, focus, approachOrder: order, format, tone,
+    quantity: input.quantity, excludeTitles, recentThemes, recentTemplates, rand, seedBase,
+    fallbackLevel: 0,
+  });
 
-    let score = 0;
-    if (!recentThemes.has(built.theme.toLowerCase())) score += 3; else score -= 4;
-    if (!recentTemplates.has(tpl.key)) score += 2; else score -= 2;
-    if ((recentTemplates.get(tpl.key) ?? 0) >= 2) score -= 3;
-
-    const badge: NoveltyBadge =
-      score >= 4 ? "Ideia nova" :
-      score >= 1 ? "Variação de conteúdo" :
-      score >= -2 ? "Reaproveitamento" : "Tema recorrente";
-
-    const idea: Idea = {
-      ...built,
-      template_key: tpl.key,
-      content_pillar: tpl.pillar,
-      objective,
-      recommended_format,
-      id: `idea_${seedBase}_${cursor}`,
-      created_at: new Date().toISOString(),
-      novelty_score: score,
-      novelty_badge: badge,
-      source_elements: collectSources(brand),
-    };
-
-    usedTitles.add(idea.title.toLowerCase());
-    ideas.push(idea);
+  // NÍVEL 2: relaxar abordagem (caso usuário tenha escolhido uma específica)
+  if (ideas.length < input.quantity && allowFallback && approach !== "auto") {
+    const extraOrder = APPROACH_ORDER_BY_OBJECTIVE[objective].filter((a) => a !== approach);
+    const more = attempt({
+      brand, sources, objective, focus, approachOrder: extraOrder, format, tone,
+      quantity: input.quantity - ideas.length,
+      excludeTitles, recentThemes, recentTemplates, rand, seedBase, fallbackLevel: 1,
+    });
+    if (more.length > 0) {
+      notes.push(
+        `Não encontramos ideias suficientes com a abordagem “${IDEA_APPROACH_LABELS[approach]}”. Incluímos variações compatíveis.`,
+      );
+      ideas = ideas.concat(more);
+    }
   }
 
-  return ideas;
-}
+  // NÍVEL 3: foco automático
+  if (ideas.length < input.quantity && allowFallback && focus !== "qualquer") {
+    const more = attempt({
+      brand, sources, objective, focus: "qualquer",
+      approachOrder: APPROACH_ORDER_BY_OBJECTIVE[objective], format, tone,
+      quantity: input.quantity - ideas.length,
+      excludeTitles, recentThemes, recentTemplates, rand, seedBase, fallbackLevel: 2,
+    });
+    if (more.length > 0) {
+      notes.push("Ampliamos o foco para complementar as ideias.");
+      ideas = ideas.concat(more);
+    }
+  }
 
-function labelFor(formatKey: string): string {
-  const map: Record<string, string> = {
-    post: "Post Feed",
-    carrossel: "Carrossel",
-    story: "Stories",
-    sequencia_stories: "Sequência de Stories",
-    status_whatsapp: "Status WhatsApp",
-    reel: "Reel",
-    comunicado: "Comunicado",
+  // NÍVEL 4: usar pilares / assuntos permitidos sem restrição de formato
+  if (ideas.length < input.quantity && allowFallback && format !== "auto") {
+    const more = attempt({
+      brand, sources, objective, focus: "qualquer",
+      approachOrder: APPROACH_ORDER_BY_OBJECTIVE[objective], format: "auto", tone,
+      quantity: input.quantity - ideas.length,
+      excludeTitles, recentThemes, recentTemplates, rand, seedBase, fallbackLevel: 3,
+    });
+    if (more.length > 0) {
+      notes.push("Sugerimos o formato automaticamente para completar as ideias.");
+      ideas = ideas.concat(more);
+    }
+  }
+
+  const partial = ideas.length < input.quantity;
+  if (partial && ideas.length > 0) {
+    notes.unshift(`Encontramos ${ideas.length} ideias seguras com essa combinação.`);
+  }
+
+  return {
+    ideas,
+    requested: input.quantity,
+    appliedFallbackLevel: ideas.reduce((m, i) => Math.max(m, i.applied_fallback_level), 0),
+    partial,
+    notes,
+    sources,
   };
-  return map[formatKey] ?? "Post Feed";
 }
 
-function collectSources(brand: Brand): string[] {
-  const out: string[] = [];
-  if (brand.products_services) out.push("Produtos/serviços cadastrados");
-  if (brand.audience) out.push("Público");
-  if (brand.audience_difficulties) out.push("Dificuldades do público");
-  if (brand.tone_of_voice) out.push("Tom de voz");
-  if (brand.frequently_asked_questions) out.push("Dúvidas frequentes");
-  if (brand.important_dates) out.push("Datas importantes");
-  if (brand.differentiators) out.push("Diferenciais");
-  return out;
+/** Compat: retorna apenas a lista. */
+export function generateIdeas(input: IdeaGenInput): Idea[] {
+  return generateIdeasWithMeta(input).ideas;
 }
 
-/** Retorna uma única ideia rápida (para o atalho do dashboard). */
 export function quickIdea(brand: Brand, excludeTitles: string[] = []): Idea | null {
-  const list = generateIdeas({ brand, quantity: 1, excludeTitles, seed: Date.now() & 0xffffffff });
-  return list[0] ?? null;
+  const r = generateIdeasWithMeta({
+    brand,
+    quantity: 1,
+    excludeTitles,
+    seed: Date.now() & 0xffffffff,
+    allowFallback: true,
+  });
+  return r.ideas[0] ?? null;
 }

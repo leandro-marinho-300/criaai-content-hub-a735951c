@@ -193,9 +193,13 @@ export type Database = {
       content_ideas: {
         Row: {
           angle: string | null
+          applied_fallback_level: number
+          approach: string | null
           audience_problem: string | null
           brand_id: string | null
           central_message: string | null
+          compatibility_level: string | null
+          compatibility_reason: string | null
           content_pillar: string | null
           converted_project_id: string | null
           created_at: string
@@ -221,9 +225,13 @@ export type Database = {
         }
         Insert: {
           angle?: string | null
+          applied_fallback_level?: number
+          approach?: string | null
           audience_problem?: string | null
           brand_id?: string | null
           central_message?: string | null
+          compatibility_level?: string | null
+          compatibility_reason?: string | null
           content_pillar?: string | null
           converted_project_id?: string | null
           created_at?: string
@@ -249,9 +257,13 @@ export type Database = {
         }
         Update: {
           angle?: string | null
+          applied_fallback_level?: number
+          approach?: string | null
           audience_problem?: string | null
           brand_id?: string | null
           central_message?: string | null
+          compatibility_level?: string | null
+          compatibility_reason?: string | null
           content_pillar?: string | null
           converted_project_id?: string | null
           created_at?: string
