@@ -38,6 +38,8 @@ import { fetchAssetsForProject, type PieceAsset } from "@/lib/pieceAssets";
 import { useAuth } from "@/hooks/use-auth";
 import { FileImage } from "lucide-react";
 import { AddToCalendarDialog } from "@/components/calendar/add-to-calendar-dialog";
+import { getProjectDisplayTitle } from "@/lib/displayTitle";
+import { RenameTitleDialog } from "@/components/rename-title-dialog";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
@@ -50,6 +52,7 @@ function ResultPage() {
   const { projectId } = Route.useParams();
   const qc = useQueryClient();
   const [addToCalOpen, setAddToCalOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
 
 
   const { user } = useAuth();
@@ -148,10 +151,10 @@ function ResultPage() {
         <Button asChild variant="ghost" size="sm" className="-ml-2">
           <Link to="/app/library"><ArrowLeft className="mr-2 h-4 w-4" />Biblioteca</Link>
         </Button>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:gap-4">
           <div className="min-w-0">
             <div className="mb-2 flex flex-wrap gap-2">
-              <Badge variant="outline">{project.brands?.name ?? "Sem marca"}</Badge>
+              <Badge variant="outline" className="break-words">{project.brands?.name ?? "Sem marca"}</Badge>
               <Badge variant={(project as unknown as { content_source?: string }).content_source === "external_chatgpt" ? "default" : "secondary"}>
                 Fonte da copy: {
                   (project as unknown as { content_source?: string }).content_source === "external_chatgpt"
@@ -162,13 +165,30 @@ function ResultPage() {
                 }
               </Badge>
             </div>
-            <h1 className="truncate text-2xl font-bold">{project.internal_title || "Pacote de produção"}</h1>
-            <p className="text-sm text-muted-foreground">
+            <div className="flex items-start gap-2">
+              <h1
+                className="line-clamp-2 min-w-0 break-words text-xl font-bold leading-tight sm:text-2xl"
+                title={getProjectDisplayTitle(project)}
+              >
+                {getProjectDisplayTitle(project)}
+              </h1>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={() => setRenameOpen(true)}
+                aria-label="Editar título"
+                title="Editar título"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
               {pieces.length} peça{pieces.length === 1 ? "" : "s"} gerada{pieces.length === 1 ? "" : "s"} ·
               ordem sugerida de publicação abaixo.
             </p>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => toggleFavorite.mutate()} aria-label="Favoritar">
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => toggleFavorite.mutate()} aria-label="Favoritar">
             <Heart className={`h-5 w-5 ${project.is_favorite ? "fill-primary text-primary" : ""}`} />
           </Button>
         </div>
@@ -306,6 +326,7 @@ function ResultPage() {
         </section>
       )}
       <AddToCalendarDialog open={addToCalOpen} onOpenChange={setAddToCalOpen} projectId={projectId} />
+      <RenameTitleDialog open={renameOpen} onOpenChange={setRenameOpen} projectId={projectId} project={project} />
     </div>
   );
 }
