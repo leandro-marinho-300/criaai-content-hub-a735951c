@@ -5,43 +5,52 @@
 // colar em uma ferramenta de IA (ex.: ChatGPT) e produzir a arte final.
 
 import type { Tables } from "@/integrations/supabase/types";
+import { composeCopy, variationByAngle, ALL_ANGLES, type ComposedCopy, type CopyAngle } from "./copyComposer";
+import { checkCopyQuality, pickBestCopy, type QualityIssue } from "./copyQuality";
 
 export type Brand = Tables<"brands">;
 export type Project = Tables<"content_projects">;
 
 export type GenerationMode = "safe" | "fast";
+export type { CopyAngle } from "./copyComposer";
+export { ALL_ANGLES, variationByAngle } from "./copyComposer";
 
 // -------- tipos públicos --------
 
 export interface Piece {
-  /** ordem da peça dentro do pacote (1-based) */
   index: number;
-  /** chave estável de formato (post, sequencia_stories, ...) */
   formatKey: string;
-  /** papel da peça dentro do conjunto (capa, gancho, cta, ...) */
   role: string;
-  /** nome legível: "Story 1 — Gancho" */
   name: string;
-  /** rótulo de formato com proporção: "Story 9:16" */
   formatLabel: string;
-  /** objetivo da peça em uma frase */
   objective: string;
-  /** texto principal sugerido para a arte */
+  /** ângulo de comunicação aplicado à peça */
+  communicationAngle: CopyAngle;
+  /** promessa principal sintetizada */
+  mainPromise: string;
+  /** dor principal sintetizada */
+  mainProblem: string;
+  /** benefício principal sintetizado */
+  mainBenefit: string;
+  /** texto principal já reescrito (NÃO é bullet cru) */
   mainText: string;
-  /** texto de apoio sugerido */
+  /** texto de apoio já reescrito */
   supportText: string;
-  /** CTA da peça (pode ser vazio quando não se aplica) */
+  /** bullets curtos quando aplicável */
+  bullets: string[];
+  /** CTA da peça */
   cta: string;
-  /** legenda completa para postar (quando aplicável) */
   caption?: string;
-  /** hashtags (quando aplicável) */
   hashtags?: string[];
-  /** observações de produção */
   productionNotes: string[];
-  /** prompt operacional pronto para colar em uma IA */
   readyPrompt: string;
-  /** alerta de informações parciais */
   warning?: string;
+  /** problemas de qualidade detectados pelo validador (se houver) */
+  qualityIssues?: QualityIssue[];
+  /** alternativas de headline pré-polidas */
+  headlineOptions: string[];
+  /** alternativas de texto de apoio pré-polidas */
+  supportTextOptions: string[];
 }
 
 export interface CampaignSummary {
@@ -142,20 +151,7 @@ const list = (v: string[] | null | undefined, sep = ", "): string =>
 const txt = (v: string | null | undefined, fallback = ""): string =>
   blank(v) ? fallback : String(v).trim();
 
-const shorten = (s: string, max: number): string => {
-  const t = (s ?? "").trim();
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max);
-  const lastSpace = cut.lastIndexOf(" ");
-  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[.,;:!?]+$/, "") + "…";
-};
-
-const firstSentence = (s: string): string => {
-  const t = (s ?? "").trim();
-  if (!t) return "";
-  const m = t.match(/^[^.!?\n]+[.!?]?/);
-  return (m ? m[0] : t).trim();
-};
+// (helpers shorten/firstSentence removidos — síntese de copy agora é feita no copyComposer)
 
 const slug = (s: string): string =>
   (s ?? "")
@@ -250,111 +246,136 @@ const ROLE_TEMPLATES: Record<string, RoleTemplate[]> = {
   ],
 };
 
-// -------- derivação de textos por papel --------
+
+// -------- derivação SEMÂNTICA dos textos por papel --------
+// Em vez de reaproveitar trechos do briefing, lemos da estrutura
+// já SINTETIZADA pelo composer e escolhemos a melhor opção via
+// pickBestCopy (com validação de qualidade).
 
 interface DerivedTexts {
   mainText: string;
   supportText: string;
   cta: string;
+  bullets: string[];
+  qualityIssues: QualityIssue[];
 }
 
-function deriveTexts(role: string, project: Project): DerivedTexts {
-  const theme = txt(project.theme);
-  const main = txt(project.main_message);
-  const problem = txt(project.audience_problem);
-  const audience = txt(project.specific_audience);
-  const product = txt(project.mandatory_information);
-  const mandatory = txt(project.mandatory_information);
-  const cta = txt(project.call_to_action);
-  const contact = txt(project.contact_information);
+function deriveTexts(role: string, composed: ComposedCopy, brand: Brand, project: Project): DerivedTexts {
+  const prohibited = arr(brand.prohibited_words);
+  const headlines = composed.headline_options;
+  const supports = composed.support_text_options;
+  const ctaLine = composed.cta_line;
+  const bullets = composed.bullet_options;
 
-  const firstMain = firstSentence(main) || theme;
+  const headOpts = {
+    prohibited,
+    isHeadline: true as const,
+    minLen: 8,
+    maxLen: 90,
+  };
+  const paraOpts = {
+    prohibited,
+    minLen: 30,
+    maxLen: 320,
+  };
+
+  const bestHeadline = pickBestCopy(headlines, headOpts);
+  const bestSupport = pickBestCopy(supports, paraOpts);
+  const altHeadline = pickBestCopy(headlines.slice(1).concat(headlines), headOpts);
+
+  let mainText = "";
+  let supportText = "";
+  let cta = "";
+  let useBullets: string[] = [];
+  const issues: QualityIssue[] = [];
 
   switch (role) {
     case "gancho":
     case "capa":
-      return {
-        mainText: shorten(firstMain || theme, 60),
-        supportText: shorten(problem || audience || product, 90),
-        cta: "",
-      };
+      mainText = bestHeadline.text;
+      supportText = composed.main_problem !== "[PREENCHER]" ? composed.main_problem : "";
+      break;
     case "contexto":
-      return {
-        mainText: shorten(problem || audience || theme, 80),
-        supportText: shorten(audience || product, 90),
-        cta: "",
-      };
+      mainText = composed.main_problem !== "[PREENCHER]" ? composed.main_problem : bestHeadline.text;
+      supportText = bestSupport.text;
+      break;
     case "beneficio":
+      mainText = composed.key_promise;
+      supportText = composed.main_benefit !== "[PREENCHER]" ? composed.main_benefit : bestSupport.text;
+      useBullets = bullets.slice(0, 3);
+      break;
     case "desenvolvimento1":
-      return {
-        mainText: shorten(firstMain, 80),
-        supportText: shorten(product || problem, 110),
-        cta: "",
-      };
+      mainText = altHeadline.text || bestHeadline.text;
+      supportText = composed.main_benefit !== "[PREENCHER]" ? composed.main_benefit : bestSupport.text;
+      useBullets = bullets.slice(0, 3);
+      break;
     case "desenvolvimento2":
-      return {
-        mainText: shorten(product || main, 90),
-        supportText: shorten(mandatory || problem, 110),
-        cta: "",
-      };
+      mainText = composed.trust_angle;
+      supportText = composed.support_text_options[1] ?? bestSupport.text;
+      useBullets = bullets.slice(0, 4);
+      break;
     case "orientacao":
-      return {
-        mainText: "Como aproveitar agora:",
-        supportText: shorten(cta || mandatory || product, 110),
-        cta: "",
-      };
+      mainText = "Como aproveitar agora";
+      supportText = bestSupport.text;
+      useBullets = bullets.slice(0, 3);
+      break;
     case "prova":
-      return {
-        mainText: shorten(mandatory || product || "Por que confiar", 80),
-        supportText: shorten(product || main, 110),
-        cta: "",
-      };
+      mainText = composed.trust_angle;
+      supportText = composed.main_benefit !== "[PREENCHER]" ? composed.main_benefit : bestSupport.text;
+      break;
     case "fechamento":
-      return {
-        mainText: shorten(firstMain, 60),
-        supportText: shorten(audience || product, 90),
-        cta: "",
-      };
+      mainText = composed.key_promise;
+      supportText = bestSupport.text;
+      break;
     case "cta":
-      return {
-        mainText: shorten(cta || firstMain, 60),
-        supportText: shorten(contact || mandatory, 110),
-        cta: cta,
-      };
+      mainText = ctaLine;
+      supportText = composed.trust_angle;
+      cta = ctaLine;
+      break;
     case "reforco":
-      return {
-        mainText: shorten(cta || firstMain, 50),
-        supportText: shorten(contact, 90),
-        cta: cta,
-      };
+      mainText = ctaLine;
+      supportText = composed.support_text_options[1] ?? composed.trust_angle;
+      cta = ctaLine;
+      break;
     case "principal":
-      return {
-        mainText: shorten(firstMain, 70),
-        supportText: shorten(cta || product, 110),
-        cta: cta,
-      };
+      mainText = bestHeadline.text;
+      supportText = bestSupport.text;
+      cta = ctaLine;
+      useBullets = bullets.slice(0, 3);
+      break;
     case "roteiro":
-      return {
-        mainText: shorten(firstMain, 90),
-        supportText: shorten(product || problem, 140),
-        cta: cta,
-      };
+      mainText = bestHeadline.text;
+      supportText = bestSupport.text;
+      cta = ctaLine;
+      break;
     case "legenda":
-      return {
-        mainText: shorten(firstMain, 90),
-        supportText: shorten(product || audience, 140),
-        cta: cta,
-      };
+      mainText = bestHeadline.text;
+      supportText = bestSupport.text;
+      cta = ctaLine;
+      break;
     case "unico":
     case "apresentacao":
     default:
-      return {
-        mainText: shorten(firstMain, 80),
-        supportText: shorten(problem || audience || product, 110),
-        cta: cta,
-      };
+      mainText = bestHeadline.text;
+      supportText = bestSupport.text;
+      cta = ctaLine;
+      useBullets = bullets.slice(0, 3);
+      break;
   }
+
+  // valida texto final
+  if (mainText && mainText !== "[PREENCHER]") {
+    const q = checkCopyQuality(mainText, { ...headOpts, isHeadline: true });
+    if (!q.passed) issues.push(...q.issues.map((i) => ({ ...i, message: `Texto principal: ${i.message}` })));
+  }
+  if (supportText && supportText !== "[PREENCHER]") {
+    const q = checkCopyQuality(supportText, paraOpts);
+    if (!q.passed) issues.push(...q.issues.map((i) => ({ ...i, message: `Texto de apoio: ${i.message}` })));
+  }
+  void project;
+  return { mainText, supportText, cta, bullets: useBullets, qualityIssues: issues };
 }
+
 
 // -------- legenda / hashtags --------
 
@@ -458,8 +479,16 @@ function buildReadyPrompt(args: {
 
   const block: string[] = [head, ""];
   block.push(`Objetivo da peça: ${piece.objective}.`);
-  if (piece.mainText) block.push(`Texto principal da arte: "${piece.mainText}"`);
-  if (piece.supportText) block.push(`Texto de apoio: "${piece.supportText}"`);
+  block.push(`Ângulo da comunicação: ${piece.communicationAngle}.`);
+  if (piece.mainPromise && piece.mainPromise !== "[PREENCHER]") block.push(`Promessa principal: ${piece.mainPromise}`);
+  if (piece.mainProblem && piece.mainProblem !== "[PREENCHER]") block.push(`Dor principal: ${piece.mainProblem}`);
+  if (piece.mainBenefit && piece.mainBenefit !== "[PREENCHER]") block.push(`Benefício principal: ${piece.mainBenefit}`);
+  if (piece.mainText) block.push(`Texto principal da arte (USAR EXATAMENTE): "${piece.mainText}"`);
+  if (piece.supportText) block.push(`Texto de apoio (USAR EXATAMENTE): "${piece.supportText}"`);
+  if (piece.bullets && piece.bullets.length) {
+    block.push("Destaques de apoio (usar como bullets curtos):");
+    piece.bullets.forEach((b) => block.push(`  • ${b}`));
+  }
   if (piece.cta) block.push(`CTA: "${piece.cta}"`);
   block.push(`Direção visual: ${visualDirection}.`);
   if (identityBits) block.push(`Identidade da marca: ${identityBits}.`);
@@ -526,6 +555,16 @@ export function buildPieces(args: BuildArgs): Piece[] {
   const effectiveMode: GenerationMode =
     (mode ?? (project.generation_mode as GenerationMode) ?? "safe") as GenerationMode;
 
+  // ⬇️ Síntese de copy: roda UMA vez por projeto e alimenta todas as peças.
+  const composed: ComposedCopy = composeCopy({ brand, project });
+  const obj = (project.objective ?? "").toLowerCase();
+  const angle: CopyAngle = obj.includes("vender") || obj.includes("contato")
+    ? "comercial"
+    : obj.includes("comunicado") || obj.includes("informar")
+      ? "institucional"
+      : "acolhedor";
+  void ALL_ANGLES; void variationByAngle;
+
   const formats = unique(arr(project.selected_formats));
   const pieces: Piece[] = [];
   let index = 0;
@@ -534,7 +573,7 @@ export function buildPieces(args: BuildArgs): Piece[] {
     const templates = ROLE_TEMPLATES[formatKey] ?? ROLE_TEMPLATES.outro;
     for (const tmpl of templates) {
       index += 1;
-      const derived = deriveTexts(tmpl.role, project);
+      const derived = deriveTexts(tmpl.role, composed, brand, project);
       const fmtLabel = formatLabel(formatKey);
       const productionNotes = buildProductionNotes(tmpl.role, brand, project);
 
@@ -545,10 +584,18 @@ export function buildPieces(args: BuildArgs): Piece[] {
         name: tmpl.name,
         formatLabel: fmtLabel,
         objective: tmpl.objective,
+        communicationAngle: angle,
+        mainPromise: composed.key_promise,
+        mainProblem: composed.main_problem,
+        mainBenefit: composed.main_benefit,
         mainText: derived.mainText,
         supportText: derived.supportText,
+        bullets: derived.bullets,
         cta: derived.cta,
         productionNotes,
+        qualityIssues: derived.qualityIssues.length ? derived.qualityIssues : undefined,
+        headlineOptions: composed.headline_options,
+        supportTextOptions: composed.support_text_options,
       };
 
       const readyPrompt = buildReadyPrompt({ piece: base, brand, project, mode: effectiveMode, productionNotes });
@@ -600,14 +647,24 @@ function pieceToReadableText(p: Piece): string {
   lines.push(`Formato: ${p.formatLabel}`);
   lines.push(`Objetivo: ${p.objective}`);
   lines.push("");
+  lines.push("");
+  lines.push(`Ângulo: ${p.communicationAngle}`);
+  if (p.mainPromise && p.mainPromise !== "[PREENCHER]") lines.push(`Promessa: ${p.mainPromise}`);
+  if (p.mainProblem && p.mainProblem !== "[PREENCHER]") lines.push(`Dor: ${p.mainProblem}`);
+  if (p.mainBenefit && p.mainBenefit !== "[PREENCHER]") lines.push(`Benefício: ${p.mainBenefit}`);
   if (p.mainText) lines.push(`Texto principal: ${p.mainText}`);
   if (p.supportText) lines.push(`Texto de apoio: ${p.supportText}`);
+  if (p.bullets && p.bullets.length) lines.push(`Bullets: ${p.bullets.map((b) => `• ${b}`).join("  ")}`);
   if (p.cta) lines.push(`CTA: ${p.cta}`);
   if (p.caption) { lines.push("", "Legenda:"); lines.push(p.caption); }
   if (p.hashtags && p.hashtags.length) { lines.push("", `Hashtags: ${p.hashtags.join(" ")}`); }
   if (p.productionNotes.length) {
     lines.push("", "Observações de produção:");
     p.productionNotes.forEach((n) => lines.push(`- ${n}`));
+  }
+  if (p.qualityIssues && p.qualityIssues.length) {
+    lines.push("", "⚠ Necessita revisão de copy:");
+    p.qualityIssues.forEach((q) => lines.push(`- ${q.message}`));
   }
   lines.push("", "Prompt pronto para colar em uma IA:");
   lines.push(p.readyPrompt);

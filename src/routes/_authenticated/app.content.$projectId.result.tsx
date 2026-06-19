@@ -20,6 +20,7 @@ import {
   Star,
   PenSquare,
   AlertTriangle,
+  Shuffle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -267,6 +268,25 @@ function PieceCard({
   const [expanded, setExpanded] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Piece>(piece);
+  const [variationIdx, setVariationIdx] = useState(0);
+
+  const cycleVariation = () => {
+    const heads = piece.headlineOptions ?? [];
+    const supports = piece.supportTextOptions ?? [];
+    if (heads.length <= 1 && supports.length <= 1) {
+      toast.info("Sem variações alternativas disponíveis. Enriqueça o briefing para gerar mais opções.");
+      return;
+    }
+    const next = variationIdx + 1;
+    const newMain = heads.length ? heads[next % heads.length] : draft.mainText;
+    const newSupport = supports.length ? supports[next % Math.max(supports.length, 1)] : draft.supportText;
+    const newPrompt = draft.readyPrompt
+      .replace(`"${draft.mainText}"`, `"${newMain}"`)
+      .replace(`"${draft.supportText}"`, `"${newSupport}"`);
+    setDraft({ ...draft, mainText: newMain, supportText: newSupport, readyPrompt: newPrompt });
+    setVariationIdx(next);
+    toast.success(`Variação ${next} aplicada — revise antes de salvar.`);
+  };
 
   const save = useMutation({
     mutationFn: async () => {
@@ -350,9 +370,28 @@ function PieceCard({
             <span>{piece.warning}</span>
           </div>
         )}
+        {piece.qualityIssues && piece.qualityIssues.length > 0 && (
+          <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-900 dark:text-amber-200">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <AlertTriangle className="h-3.5 w-3.5" />Necessita revisão de copy
+            </p>
+            <ul className="ml-5 list-disc space-y-0.5">
+              {piece.qualityIssues.map((q, i) => <li key={i}>{q.message}</li>)}
+            </ul>
+            <p className="mt-1 text-[11px] opacity-80">Use "Gerar variação de copy" ou edite o texto manualmente.</p>
+          </div>
+        )}
 
         {expanded && (
           <div className="mt-4 space-y-4">
+            {/* Estrutura semântica (síntese) */}
+            <div className="grid gap-2 rounded-md border border-border/50 bg-muted/30 p-3 text-xs">
+              <SemRow label="Ângulo" value={draft.communicationAngle} />
+              {draft.mainPromise && draft.mainPromise !== "[PREENCHER]" && <SemRow label="Promessa" value={draft.mainPromise} />}
+              {draft.mainProblem && draft.mainProblem !== "[PREENCHER]" && <SemRow label="Dor principal" value={draft.mainProblem} />}
+              {draft.mainBenefit && draft.mainBenefit !== "[PREENCHER]" && <SemRow label="Benefício principal" value={draft.mainBenefit} />}
+            </div>
+
             {/* Conteúdo textual */}
             <div className="grid gap-3">
               <PieceField
@@ -365,8 +404,17 @@ function PieceCard({
                 label="Texto de apoio"
                 value={draft.supportText}
                 editing={editing}
+                multiline
                 onChange={(v) => setDraft({ ...draft, supportText: v })}
               />
+              {draft.bullets && draft.bullets.length > 0 && (
+                <div>
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Destaques</span>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm">
+                    {draft.bullets.map((b, i) => <li key={i}>{b}</li>)}
+                  </ul>
+                </div>
+              )}
               <PieceField
                 label="CTA"
                 value={draft.cta}
@@ -439,6 +487,9 @@ function PieceCard({
             {/* Ações */}
             <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
               <CopyButton text={allOfPiece} label="Copiar tudo" variant="outline" size="sm" />
+              <Button size="sm" variant="outline" onClick={cycleVariation}>
+                <Shuffle className="mr-2 h-3.5 w-3.5" />Gerar variação de copy
+              </Button>
               {!editing ? (
                 <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
                   <Pencil className="mr-2 h-3.5 w-3.5" />Editar conteúdo
@@ -498,6 +549,16 @@ function PieceField({
     </div>
   );
 }
+
+function SemRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[120px_minmax(0,1fr)] items-baseline gap-2">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-xs leading-snug">{value}</span>
+    </div>
+  );
+}
+
 
 // ============ FALLBACK PARA BLOCOS LEGADOS (projetos antigos) ============
 
