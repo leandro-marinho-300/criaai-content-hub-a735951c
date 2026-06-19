@@ -305,6 +305,7 @@ function ResultPage() {
           </details>
         </section>
       )}
+      <AddToCalendarDialog open={addToCalOpen} onOpenChange={setAddToCalOpen} projectId={projectId} />
     </div>
   );
 }
