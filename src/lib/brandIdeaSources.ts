@@ -122,28 +122,31 @@ export function getBrandIdeaSources(brand: Brand | null | undefined): BrandIdeaS
       missingSources: [],
     };
 
+    const checks: Array<[string, boolean]> = [
+      [HAS_PRODUCTS, productsList.length > 0],
+      [HAS_PRIORITY, priorityList.length > 0],
+      [HAS_DESC, splitList(b.description).length > 0],
+      [HAS_DIFF, sources.usableDifferentiators.length > 0],
+      [HAS_FAQ, sources.usableQuestions.length > 0],
+      [HAS_DATES, sources.usableDates.length > 0],
+      [HAS_DIFFIC, sources.usableDifficulties.length > 0],
+      [HAS_NEEDS, sources.usableNeeds.length > 0],
+      [HAS_VALUES, sources.usableValues.length > 0],
+      [HAS_TOPICS, sources.usableTopics.length > 0],
+      [HAS_CTAS, sources.ctas.length > 0],
+      [HAS_TESTIMONIALS, usableTestimonials.length > 0],
+    ];
 
-  const checks: Array<[string, boolean]> = [
-    [HAS_PRODUCTS, productsList.length > 0],
-    [HAS_PRIORITY, priorityList.length > 0],
-    [HAS_DESC, !!brand.description?.trim()],
-    [HAS_DIFF, sources.usableDifferentiators.length > 0],
-    [HAS_FAQ, sources.usableQuestions.length > 0],
-    [HAS_DATES, sources.usableDates.length > 0],
-    [HAS_DIFFIC, sources.usableDifficulties.length > 0],
-    [HAS_NEEDS, sources.usableNeeds.length > 0],
-    [HAS_VALUES, sources.usableValues.length > 0],
-    [HAS_TOPICS, sources.usableTopics.length > 0],
-    [HAS_CTAS, sources.ctas.length > 0],
-    [HAS_TESTIMONIALS, usableTestimonials.length > 0],
-  ];
+    for (const [label, has] of checks) {
+      if (has) sources.availableSources.push(label);
+      else sources.missingSources.push(label);
+    }
 
-  for (const [label, has] of checks) {
-    if (has) sources.availableSources.push(label);
-    else sources.missingSources.push(label);
+    return sources;
+  } catch (err) {
+    console.error("[brandIdeaSources] normalização falhou", err);
+    return { ...EMPTY_SOURCES };
   }
-
-  return sources;
 }
 
 /** A marca tem dado mínimo para gerar qualquer ideia? (apenas bloqueia se TUDO estiver vazio.) */
