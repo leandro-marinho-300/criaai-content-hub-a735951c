@@ -183,14 +183,14 @@ function CalendarPage() {
           </CardContent>
         </Card>
       ) : view === "month" ? (
-        <CalendarMonth cursor={cursor} items={filteredItems} colorBy={colorBy} onSelect={setDrawerItem} onDropOnDay={handleDropOnDay} />
+        <CalendarMonth cursor={cursor} items={filteredItems} colorBy={colorBy} onSelect={(it) => setDrawerItemId(it.id)} onDropOnDay={handleDropOnDay} />
       ) : view === "week" ? (
-        <CalendarWeek cursor={cursor} items={filteredItems} colorBy={colorBy} onSelect={setDrawerItem} onDropOnSlot={handleDropOnSlot} />
+        <CalendarWeek cursor={cursor} items={filteredItems} colorBy={colorBy} onSelect={(it) => setDrawerItemId(it.id)} onDropOnSlot={handleDropOnSlot} />
       ) : (
-        <CalendarAgenda items={filteredItems} colorBy={colorBy} onSelect={setDrawerItem} />
+        <CalendarAgenda items={filteredItems} colorBy={colorBy} onSelect={(it) => setDrawerItemId(it.id)} />
       )}
 
-      <ScheduleDrawer item={drawerItem} open={!!drawerItem} onOpenChange={(v) => !v && setDrawerItem(null)} />
+      <ScheduleDrawer scheduleItemId={drawerItemId} open={!!drawerItemId} onOpenChange={(v) => !v && setDrawerItemId(null)} />
       <ScheduleFormDialog open={newOpen} onOpenChange={setNewOpen} initialDate={newInitial.date ?? null} initialProjectId={newInitial.projectId ?? null} />
       {resched && (
         <RescheduleDialog
