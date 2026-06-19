@@ -603,8 +603,20 @@ export function buildPieces(args: BuildArgs): Piece[] {
 
       const piece: Piece = { ...base, readyPrompt };
 
-      if (ROLES_WITH_CAPTION.has(tmpl.role)) {
+      // Gating de legenda/hashtags por regras do formato + token do usuário
+      const fmtRule = FORMAT_RULES[formatKey];
+      const captionAllowedByFormat = fmtRule ? fmtRule.defaultCaption !== "none" : false;
+      const hashtagsAllowedByFormat = fmtRule ? fmtRule.hashtags : false;
+      const captionMode = extractCaptionMode(arr(project.selected_outputs), "none");
+      const wantsHashtags = arr(project.selected_outputs).includes("hashtags");
+
+      if (ROLES_WITH_CAPTION.has(tmpl.role) && captionAllowedByFormat && captionMode !== "none") {
         piece.caption = buildCaption(brand, project, { mainText: derived.mainText, cta: derived.cta, objective: tmpl.objective });
+        if (captionMode === "short") {
+          piece.caption = piece.caption.split("\n").slice(0, 2).join("\n");
+        }
+      }
+      if (hashtagsAllowedByFormat && wantsHashtags) {
         piece.hashtags = buildHashtags(brand, project);
       }
 
