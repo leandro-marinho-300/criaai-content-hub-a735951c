@@ -5,43 +5,52 @@
 // colar em uma ferramenta de IA (ex.: ChatGPT) e produzir a arte final.
 
 import type { Tables } from "@/integrations/supabase/types";
+import { composeCopy, variationByAngle, ALL_ANGLES, type ComposedCopy, type CopyAngle } from "./copyComposer";
+import { checkCopyQuality, pickBestCopy, type QualityIssue } from "./copyQuality";
 
 export type Brand = Tables<"brands">;
 export type Project = Tables<"content_projects">;
 
 export type GenerationMode = "safe" | "fast";
+export type { CopyAngle } from "./copyComposer";
+export { ALL_ANGLES, variationByAngle } from "./copyComposer";
 
 // -------- tipos públicos --------
 
 export interface Piece {
-  /** ordem da peça dentro do pacote (1-based) */
   index: number;
-  /** chave estável de formato (post, sequencia_stories, ...) */
   formatKey: string;
-  /** papel da peça dentro do conjunto (capa, gancho, cta, ...) */
   role: string;
-  /** nome legível: "Story 1 — Gancho" */
   name: string;
-  /** rótulo de formato com proporção: "Story 9:16" */
   formatLabel: string;
-  /** objetivo da peça em uma frase */
   objective: string;
-  /** texto principal sugerido para a arte */
+  /** ângulo de comunicação aplicado à peça */
+  communicationAngle: CopyAngle;
+  /** promessa principal sintetizada */
+  mainPromise: string;
+  /** dor principal sintetizada */
+  mainProblem: string;
+  /** benefício principal sintetizado */
+  mainBenefit: string;
+  /** texto principal já reescrito (NÃO é bullet cru) */
   mainText: string;
-  /** texto de apoio sugerido */
+  /** texto de apoio já reescrito */
   supportText: string;
-  /** CTA da peça (pode ser vazio quando não se aplica) */
+  /** bullets curtos quando aplicável */
+  bullets: string[];
+  /** CTA da peça */
   cta: string;
-  /** legenda completa para postar (quando aplicável) */
   caption?: string;
-  /** hashtags (quando aplicável) */
   hashtags?: string[];
-  /** observações de produção */
   productionNotes: string[];
-  /** prompt operacional pronto para colar em uma IA */
   readyPrompt: string;
-  /** alerta de informações parciais */
   warning?: string;
+  /** problemas de qualidade detectados pelo validador (se houver) */
+  qualityIssues?: QualityIssue[];
+  /** alternativas de headline pré-polidas */
+  headlineOptions: string[];
+  /** alternativas de texto de apoio pré-polidas */
+  supportTextOptions: string[];
 }
 
 export interface CampaignSummary {
