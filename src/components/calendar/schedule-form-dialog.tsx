@@ -14,6 +14,7 @@ import { APPROVAL_LABELS, APPROVAL_STATUSES, CHANNEL_LABELS, CHANNELS, SCHEDULE_
 import { upsertScheduleItem } from "@/lib/scheduleQueries";
 import { FORMAT_LABELS } from "@/lib/promptBuilder";
 import { derivePublicationUnits } from "@/lib/publicationUnits";
+import { getProjectDisplayTitle } from "@/lib/displayTitle";
 
 interface Props {
   open: boolean;
