@@ -625,6 +625,18 @@ function PieceCard({
                 </Button>
               )}
             </div>
+
+            {/* Arte final anexada (usada no PDF para o cliente) */}
+            {userId && (
+              <PieceAssetUploader
+                userId={userId}
+                projectId={row.project_id}
+                outputId={row.id}
+                assets={assets}
+                multiple={piece.formatKey === "carrossel"}
+                onChange={onAssetsChanged}
+              />
+            )}
           </div>
         )}
       </CardContent>
