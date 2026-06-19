@@ -170,8 +170,7 @@ function ContentWizard() {
       if (!changed) for (const id of after) if (!before.has(id)) { changed = true; break; }
       if (!changed && s.caption_mode === resolved.captionMode) return s;
       if (changed && typeof window !== "undefined") {
-        // notificação discreta
-        import("sonner").then(({ toast }) => toast("Entregas atualizadas de acordo com os formatos selecionados.", { duration: 2500 }));
+        toast("Entregas atualizadas de acordo com os formatos selecionados.", { duration: 2500 });
       }
       return { ...s, selected_outputs: resolved.selectedOutputs, caption_mode: resolved.captionMode };
     });
