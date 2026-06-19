@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Wand2, Library, FileText, Settings, LogOut, Moon, Sun, Sparkles, Lightbulb } from "lucide-react";
+import { LayoutDashboard, Briefcase, Wand2, Library, FileText, Settings, LogOut, Moon, Sun, Sparkles, Lightbulb, CalendarCheck } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -22,6 +22,7 @@ const items = [
   { title: "Minhas Marcas", url: "/app/brands", icon: Briefcase },
   { title: "Laboratório de Ideias", url: "/app/ideas", icon: Lightbulb },
   { title: "Novo Conteúdo", url: "/app/content/new", icon: Wand2 },
+  { title: "Calendário", url: "/app/calendar", icon: CalendarCheck },
   { title: "Biblioteca", url: "/app/library", icon: Library },
   { title: "Modelos", url: "/app/templates", icon: FileText },
   { title: "Configurações", url: "/app/settings", icon: Settings },

@@ -21,6 +21,7 @@ import {
   PenSquare,
   AlertTriangle,
   Shuffle,
+  CalendarCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +37,7 @@ import { PieceAssetUploader } from "@/components/piece-asset-uploader";
 import { fetchAssetsForProject, type PieceAsset } from "@/lib/pieceAssets";
 import { useAuth } from "@/hooks/use-auth";
 import { FileImage } from "lucide-react";
+import { AddToCalendarDialog } from "@/components/calendar/add-to-calendar-dialog";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
@@ -47,6 +49,8 @@ type Output = Tables<"content_outputs">;
 function ResultPage() {
   const { projectId } = Route.useParams();
   const qc = useQueryClient();
+  const [addToCalOpen, setAddToCalOpen] = useState(false);
+
 
   const { user } = useAuth();
   const { data, isLoading } = useQuery({
@@ -189,6 +193,9 @@ function ResultPage() {
                   <FileImage className="mr-2 h-4 w-4" />Gerar PDF para o cliente
                 </Link>
               </Button>
+              <Button variant="default" size="sm" onClick={() => setAddToCalOpen(true)}>
+                <CalendarCheck className="mr-2 h-4 w-4" />Adicionar ao calendário
+              </Button>
               <CopyButton text={fullExport} label="Copiar pacote completo" variant="outline" />
               <Button variant="outline" size="sm" onClick={exportTxt}>
                 <Download className="mr-2 h-4 w-4" />Exportar TXT
@@ -298,6 +305,7 @@ function ResultPage() {
           </details>
         </section>
       )}
+      <AddToCalendarDialog open={addToCalOpen} onOpenChange={setAddToCalOpen} projectId={projectId} />
     </div>
   );
 }

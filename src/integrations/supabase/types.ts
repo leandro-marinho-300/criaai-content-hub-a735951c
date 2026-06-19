@@ -86,6 +86,7 @@ export type Database = {
           priority_services: string[]
           products_services: string | null
           prohibited_words: string[]
+          publication_preferences: Json
           recommended_words: string[]
           secondary_color: string | null
           segment: string | null
@@ -129,6 +130,7 @@ export type Database = {
           priority_services?: string[]
           products_services?: string | null
           prohibited_words?: string[]
+          publication_preferences?: Json
           recommended_words?: string[]
           secondary_color?: string | null
           segment?: string | null
@@ -172,6 +174,7 @@ export type Database = {
           priority_services?: string[]
           products_services?: string | null
           prohibited_words?: string[]
+          publication_preferences?: Json
           recommended_words?: string[]
           secondary_color?: string | null
           segment?: string | null
@@ -614,23 +617,86 @@ export type Database = {
         }
         Relationships: []
       }
+      publication_schedule_history: {
+        Row: {
+          action_type: string
+          created_at: string
+          id: string
+          new_date: string | null
+          new_status: string | null
+          new_time: string | null
+          notes: string | null
+          old_date: string | null
+          old_status: string | null
+          old_time: string | null
+          schedule_item_id: string
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          id?: string
+          new_date?: string | null
+          new_status?: string | null
+          new_time?: string | null
+          notes?: string | null
+          old_date?: string | null
+          old_status?: string | null
+          old_time?: string | null
+          schedule_item_id: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          id?: string
+          new_date?: string | null
+          new_status?: string | null
+          new_time?: string | null
+          notes?: string | null
+          old_date?: string | null
+          old_status?: string | null
+          old_time?: string | null
+          schedule_item_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publication_schedule_history_schedule_item_id_fkey"
+            columns: ["schedule_item_id"]
+            isOneToOne: false
+            referencedRelation: "publication_schedule_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       publication_schedule_items: {
         Row: {
           approval_status: string | null
           approved_at: string | null
           approved_by: string | null
+          assigned_to: string | null
           brand_id: string | null
+          cancelled_at: string | null
           channel: string | null
+          checklist: Json
           client_notes: string | null
           confirmed_date: string | null
           confirmed_time: string | null
           created_at: string
+          description: string | null
+          format: string | null
           id: string
+          internal_notes: string | null
           project_id: string
+          publication_notes: string | null
           publication_unit: string
+          publication_url: string | null
+          published_at: string | null
           schedule_status: string
           suggested_date: string | null
           suggested_time: string | null
+          timezone: string | null
           title: string | null
           updated_at: string
           user_id: string
@@ -639,18 +705,28 @@ export type Database = {
           approval_status?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          assigned_to?: string | null
           brand_id?: string | null
+          cancelled_at?: string | null
           channel?: string | null
+          checklist?: Json
           client_notes?: string | null
           confirmed_date?: string | null
           confirmed_time?: string | null
           created_at?: string
+          description?: string | null
+          format?: string | null
           id?: string
+          internal_notes?: string | null
           project_id: string
+          publication_notes?: string | null
           publication_unit: string
+          publication_url?: string | null
+          published_at?: string | null
           schedule_status?: string
           suggested_date?: string | null
           suggested_time?: string | null
+          timezone?: string | null
           title?: string | null
           updated_at?: string
           user_id: string
@@ -659,18 +735,28 @@ export type Database = {
           approval_status?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          assigned_to?: string | null
           brand_id?: string | null
+          cancelled_at?: string | null
           channel?: string | null
+          checklist?: Json
           client_notes?: string | null
           confirmed_date?: string | null
           confirmed_time?: string | null
           created_at?: string
+          description?: string | null
+          format?: string | null
           id?: string
+          internal_notes?: string | null
           project_id?: string
+          publication_notes?: string | null
           publication_unit?: string
+          publication_url?: string | null
+          published_at?: string | null
           schedule_status?: string
           suggested_date?: string | null
           suggested_time?: string | null
+          timezone?: string | null
           title?: string | null
           updated_at?: string
           user_id?: string
@@ -688,6 +774,48 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "content_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publication_schedule_outputs: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          output_id: string
+          schedule_item_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          output_id: string
+          schedule_item_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          output_id?: string
+          schedule_item_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publication_schedule_outputs_output_id_fkey"
+            columns: ["output_id"]
+            isOneToOne: false
+            referencedRelation: "content_outputs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_schedule_outputs_schedule_item_id_fkey"
+            columns: ["schedule_item_id"]
+            isOneToOne: false
+            referencedRelation: "publication_schedule_items"
             referencedColumns: ["id"]
           },
         ]
