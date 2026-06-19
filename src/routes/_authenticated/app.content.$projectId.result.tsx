@@ -271,13 +271,21 @@ function statusLabel(s: string) {
 // ============ PIECE CARD ============
 
 function PieceCard({
-  row, piece, onCopyAndOpen,
-}: { row: Output; piece: Piece; onCopyAndOpen: (text: string) => void }) {
+  row, piece, brand, project, allPieces, onCopyAndOpen,
+}: {
+  row: Output; piece: Piece;
+  brand: Tables<"brands"> | null;
+  project: Tables<"content_projects">;
+  allPieces: Piece[];
+  onCopyAndOpen: (text: string) => void;
+}) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Piece>(piece);
   const [variationIdx, setVariationIdx] = useState(0);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustFocus, setAdjustFocus] = useState<"mainText" | "supportText" | "cta" | "bullets" | undefined>(undefined);
 
   const cycleVariation = () => {
     const heads = piece.headlineOptions ?? [];
