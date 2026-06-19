@@ -587,8 +587,37 @@ function PieceCard({
           </div>
         )}
       </CardContent>
+      {brand && (
+        <AdjustPieceDialog
+          open={adjustOpen}
+          onOpenChange={setAdjustOpen}
+          piece={draft}
+          brand={brand}
+          project={project}
+          otherPieces={allPieces}
+          initialFocus={adjustFocus}
+          prohibited={Array.isArray(brand.prohibited_words) ? brand.prohibited_words.filter(Boolean) : []}
+          onSave={async (updated) => {
+            const { error } = await supabase
+              .from("content_outputs")
+              .update({ edited_content: JSON.stringify(updated) })
+              .eq("id", row.id);
+            if (error) throw error;
+            setDraft(updated);
+            qc.invalidateQueries({ queryKey: ["project-result", row.project_id] });
+          }}
+        />
+      )}
     </Card>
   );
+}
+
+function focusFromIssue(code: string): "mainText" | "supportText" | "cta" | "bullets" | undefined {
+  // heurística simples para destacar o campo provavelmente problemático
+  if (/headline|too_short|no_verb|missing_subject/.test(code)) return "mainText";
+  if (/raw_list|too_long|too_many_semicolons|placeholder|empty|incomplete/.test(code)) return "supportText";
+  if (/cta/i.test(code)) return "cta";
+  return "supportText";
 }
 
 function PieceField({
