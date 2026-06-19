@@ -370,9 +370,28 @@ function PieceCard({
             <span>{piece.warning}</span>
           </div>
         )}
+        {piece.qualityIssues && piece.qualityIssues.length > 0 && (
+          <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-900 dark:text-amber-200">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <AlertTriangle className="h-3.5 w-3.5" />Necessita revisão de copy
+            </p>
+            <ul className="ml-5 list-disc space-y-0.5">
+              {piece.qualityIssues.map((q, i) => <li key={i}>{q.message}</li>)}
+            </ul>
+            <p className="mt-1 text-[11px] opacity-80">Use "Gerar variação de copy" ou edite o texto manualmente.</p>
+          </div>
+        )}
 
         {expanded && (
           <div className="mt-4 space-y-4">
+            {/* Estrutura semântica (síntese) */}
+            <div className="grid gap-2 rounded-md border border-border/50 bg-muted/30 p-3 text-xs">
+              <SemRow label="Ângulo" value={draft.communicationAngle} />
+              {draft.mainPromise && draft.mainPromise !== "[PREENCHER]" && <SemRow label="Promessa" value={draft.mainPromise} />}
+              {draft.mainProblem && draft.mainProblem !== "[PREENCHER]" && <SemRow label="Dor principal" value={draft.mainProblem} />}
+              {draft.mainBenefit && draft.mainBenefit !== "[PREENCHER]" && <SemRow label="Benefício principal" value={draft.mainBenefit} />}
+            </div>
+
             {/* Conteúdo textual */}
             <div className="grid gap-3">
               <PieceField
@@ -385,8 +404,17 @@ function PieceCard({
                 label="Texto de apoio"
                 value={draft.supportText}
                 editing={editing}
+                multiline
                 onChange={(v) => setDraft({ ...draft, supportText: v })}
               />
+              {draft.bullets && draft.bullets.length > 0 && (
+                <div>
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Destaques</span>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm">
+                    {draft.bullets.map((b, i) => <li key={i}>{b}</li>)}
+                  </ul>
+                </div>
+              )}
               <PieceField
                 label="CTA"
                 value={draft.cta}
