@@ -47,7 +47,9 @@ export function buildExternalCampaignPrompt(args: BuildExternalPromptArgs): stri
   const formats = arr(project.selected_formats).map((f) => FORMAT_LABELS[f] ?? f);
   const objective = project.objective ? OBJECTIVE_LABELS[project.objective] ?? project.objective : "—";
 
-  const differentiatorsAvailable = arr(brand.differentiators);
+  const differentiatorsAvailable = txt(brand.differentiators)
+    ? txt(brand.differentiators).split(/[\n;•]/).map((s) => s.trim()).filter(Boolean)
+    : [];
   const differentiatorsChosen = arr(selectedDifferentiators);
   const avoid = Array.from(
     new Set([
