@@ -46,7 +46,7 @@ export function UndatedPanel({ onPick }: Props) {
               >
                 <CardContent className="space-y-1.5 p-3">
                   <p className="text-xs text-muted-foreground">{p.brand_name ?? "Sem marca"}</p>
-                  <p className="truncate text-sm font-medium">{p.internal_title ?? "Sem título"}</p>
+                  <p className="line-clamp-2 break-words text-sm font-medium" title={p.internal_title ?? ""}>{p.internal_title?.trim() || "Conteúdo sem título"}</p>
                   <div className="flex flex-wrap gap-1">
                     {(p.selected_formats ?? []).slice(0, 3).map((f) => (
                       <Badge key={f} variant="outline" className="text-[10px] font-normal">
