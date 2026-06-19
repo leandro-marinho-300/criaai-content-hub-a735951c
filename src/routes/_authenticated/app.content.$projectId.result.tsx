@@ -409,10 +409,20 @@ function PieceCard({
             </p>
             {piece.qualityIssues && piece.qualityIssues.length > 0 && (
               <ul className="ml-5 mt-1 list-disc space-y-0.5">
-                {piece.qualityIssues.map((q, i) => <li key={i}>{q.message}</li>)}
+                {piece.qualityIssues.map((q, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      className="underline-offset-2 hover:underline"
+                      onClick={() => { setAdjustFocus(focusFromIssue(q.code)); setAdjustOpen(true); }}
+                    >
+                      {q.message}
+                    </button>
+                  </li>
+                ))}
               </ul>
             )}
-            <p className="mt-1 text-[11px] opacity-80">Edite o texto manualmente para liberar o prompt da página.</p>
+            <p className="mt-1 text-[11px] opacity-80">Clique em um aviso para abrir o editor com o campo destacado, ou use "Ajustar esta peça".</p>
           </div>
         )}
         {draft.qualityStatus !== "blocked" && piece.qualityIssues && piece.qualityIssues.length > 0 && (
@@ -421,9 +431,19 @@ function PieceCard({
               <AlertTriangle className="h-3.5 w-3.5" />Avisos de copy (não bloqueia o prompt)
             </p>
             <ul className="ml-5 list-disc space-y-0.5">
-              {piece.qualityIssues.map((q, i) => <li key={i}>{q.message}</li>)}
+              {piece.qualityIssues.map((q, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    className="underline-offset-2 hover:underline"
+                    onClick={() => { setAdjustFocus(focusFromIssue(q.code)); setAdjustOpen(true); }}
+                  >
+                    {q.message}
+                  </button>
+                </li>
+              ))}
             </ul>
-            <p className="mt-1 text-[11px] opacity-80">Use "Gerar variação de copy" ou edite o texto manualmente.</p>
+            <p className="mt-1 text-[11px] opacity-80">Clique no aviso para ajustar, ou use "Gerar variação de copy".</p>
           </div>
         )}
 
