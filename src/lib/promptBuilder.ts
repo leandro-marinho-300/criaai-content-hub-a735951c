@@ -7,6 +7,7 @@
 import type { Tables } from "@/integrations/supabase/types";
 import { composeCopy, variationByAngle, ALL_ANGLES, type ComposedCopy, type CopyAngle } from "./copyComposer";
 import { checkCopyQuality, pickBestCopy, type QualityIssue } from "./copyQuality";
+import { FORMAT_RULES, extractCaptionMode } from "./formatOutputRules";
 
 export type Brand = Tables<"brands">;
 export type Project = Tables<"content_projects">;
@@ -218,8 +219,9 @@ const ROLE_TEMPLATES: Record<string, RoleTemplate[]> = {
     { role: "cta", name: "Story 5 — CTA", objective: "incentivar a ação esperada" },
   ],
   status_whatsapp: [
-    { role: "principal", name: "Status WhatsApp — Mensagem", objective: "comunicar a oferta de forma direta e curta" },
-    { role: "reforco", name: "Status WhatsApp — Reforço", objective: "reforçar o CTA e gerar resposta" },
+    { role: "gancho", name: "Status WhatsApp 1 — Gancho", objective: "abrir com curiosidade ou impacto" },
+    { role: "principal", name: "Status WhatsApp 2 — Mensagem principal", objective: "comunicar a oferta de forma direta e curta" },
+    { role: "cta", name: "Status WhatsApp 3 — CTA", objective: "reforçar o CTA e gerar resposta imediata" },
   ],
   reel: [
     { role: "capa", name: "Reel — Capa", objective: "capa estática atrativa que represente o vídeo" },
@@ -602,8 +604,20 @@ export function buildPieces(args: BuildArgs): Piece[] {
 
       const piece: Piece = { ...base, readyPrompt };
 
-      if (ROLES_WITH_CAPTION.has(tmpl.role)) {
+      // Gating de legenda/hashtags por regras do formato + token do usuário
+      const fmtRule = FORMAT_RULES[formatKey];
+      const captionAllowedByFormat = fmtRule ? fmtRule.defaultCaption !== "none" : false;
+      const hashtagsAllowedByFormat = fmtRule ? fmtRule.hashtags : false;
+      const captionMode = extractCaptionMode(arr(project.selected_outputs), "none");
+      const wantsHashtags = arr(project.selected_outputs).includes("hashtags");
+
+      if (ROLES_WITH_CAPTION.has(tmpl.role) && captionAllowedByFormat && captionMode !== "none") {
         piece.caption = buildCaption(brand, project, { mainText: derived.mainText, cta: derived.cta, objective: tmpl.objective });
+        if (captionMode === "short") {
+          piece.caption = piece.caption.split("\n").slice(0, 2).join("\n");
+        }
+      }
+      if (hashtagsAllowedByFormat && wantsHashtags) {
         piece.hashtags = buildHashtags(brand, project);
       }
 
