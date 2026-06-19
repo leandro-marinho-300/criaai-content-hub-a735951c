@@ -44,6 +44,7 @@ export async function uploadPieceAsset(params: {
   outputId: string;
   file: File;
   displayOrder?: number;
+  includeInClientPdf?: boolean;
 }): Promise<PieceAsset> {
   const { userId, projectId, outputId, file } = params;
   const err = validateFile(file);
@@ -69,6 +70,7 @@ export async function uploadPieceAsset(params: {
       image_width: dims.width || null,
       image_height: dims.height || null,
       display_order: params.displayOrder ?? 0,
+      include_in_client_pdf: params.includeInClientPdf ?? true,
     })
     .select()
     .single();
@@ -103,6 +105,21 @@ export async function fetchAssetsForProject(projectId: string): Promise<PieceAss
 
 export async function toggleApproval(id: string, approved: boolean): Promise<void> {
   const { error } = await supabase.from("content_piece_assets").update({ is_approved: approved }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function toggleIncludeInPdf(id: string, include: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("content_piece_assets")
+    .update({ include_in_client_pdf: include })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateAssetOrder(id: string, displayOrder: number, outputId?: string): Promise<void> {
+  const patch: Record<string, unknown> = { display_order: displayOrder };
+  if (outputId) patch.output_id = outputId;
+  const { error } = await supabase.from("content_piece_assets").update(patch).eq("id", id);
   if (error) throw error;
 }
 
