@@ -187,6 +187,108 @@ export type Database = {
         }
         Relationships: []
       }
+      content_ideas: {
+        Row: {
+          angle: string | null
+          audience_problem: string | null
+          brand_id: string | null
+          central_message: string | null
+          content_pillar: string | null
+          converted_project_id: string | null
+          created_at: string
+          hook: string | null
+          id: string
+          novelty_badge: string | null
+          novelty_score: number
+          objective: string | null
+          reason_to_publish: string | null
+          recommended_format: string | null
+          required_information: string[]
+          source_elements: string[]
+          source_type: string
+          status: string
+          suggested_cta: string | null
+          target_audience: string | null
+          template_key: string | null
+          theme: string | null
+          title: string
+          updated_at: string
+          user_id: string
+          visual_direction: string | null
+        }
+        Insert: {
+          angle?: string | null
+          audience_problem?: string | null
+          brand_id?: string | null
+          central_message?: string | null
+          content_pillar?: string | null
+          converted_project_id?: string | null
+          created_at?: string
+          hook?: string | null
+          id?: string
+          novelty_badge?: string | null
+          novelty_score?: number
+          objective?: string | null
+          reason_to_publish?: string | null
+          recommended_format?: string | null
+          required_information?: string[]
+          source_elements?: string[]
+          source_type?: string
+          status?: string
+          suggested_cta?: string | null
+          target_audience?: string | null
+          template_key?: string | null
+          theme?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+          visual_direction?: string | null
+        }
+        Update: {
+          angle?: string | null
+          audience_problem?: string | null
+          brand_id?: string | null
+          central_message?: string | null
+          content_pillar?: string | null
+          converted_project_id?: string | null
+          created_at?: string
+          hook?: string | null
+          id?: string
+          novelty_badge?: string | null
+          novelty_score?: number
+          objective?: string | null
+          reason_to_publish?: string | null
+          recommended_format?: string | null
+          required_information?: string[]
+          source_elements?: string[]
+          source_type?: string
+          status?: string
+          suggested_cta?: string | null
+          target_audience?: string | null
+          template_key?: string | null
+          theme?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+          visual_direction?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_ideas_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_ideas_converted_project_id_fkey"
+            columns: ["converted_project_id"]
+            isOneToOne: false
+            referencedRelation: "content_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_outputs: {
         Row: {
           created_at: string
