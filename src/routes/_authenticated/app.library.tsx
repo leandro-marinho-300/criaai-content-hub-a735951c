@@ -44,6 +44,7 @@ function LibraryPage() {
   const [brandId, setBrandId] = useState<string>("all");
   const [objective, setObjective] = useState<string>("all");
   const [format, setFormat] = useState<string>("all");
+  const [renaming, setRenaming] = useState<LibProject | null>(null);
 
   const { data: brands } = useQuery({
     queryKey: ["brands-light"],
@@ -58,16 +59,19 @@ function LibraryPage() {
     queryFn: async () => {
       let q = supabase
         .from("content_projects")
-        .select("id, internal_title, status, objective, selected_formats, brand_id, is_favorite, updated_at, brands(name, logo_url)")
+        .select("id, internal_title, display_title, theme, main_message, status, objective, selected_formats, brand_id, is_favorite, updated_at, brands(name, logo_url)")
         .order("updated_at", { ascending: false });
       if (status !== "all") q = q.eq("status", status);
       if (brandId !== "all") q = q.eq("brand_id", brandId);
       if (objective !== "all") q = q.eq("objective", objective);
       if (format !== "all") q = q.contains("selected_formats", [format]);
-      if (search.trim()) q = q.ilike("internal_title", `%${search.trim()}%`);
+      if (search.trim()) {
+        const term = `%${search.trim()}%`;
+        q = q.or(`display_title.ilike.${term},internal_title.ilike.${term},theme.ilike.${term}`);
+      }
       const { data, error } = await q;
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as LibProject[];
     },
   });
 
