@@ -268,6 +268,25 @@ function PieceCard({
   const [expanded, setExpanded] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Piece>(piece);
+  const [variationIdx, setVariationIdx] = useState(0);
+
+  const cycleVariation = () => {
+    const heads = piece.headlineOptions ?? [];
+    const supports = piece.supportTextOptions ?? [];
+    if (heads.length <= 1 && supports.length <= 1) {
+      toast.info("Sem variações alternativas disponíveis. Enriqueça o briefing para gerar mais opções.");
+      return;
+    }
+    const next = variationIdx + 1;
+    const newMain = heads.length ? heads[next % heads.length] : draft.mainText;
+    const newSupport = supports.length ? supports[next % Math.max(supports.length, 1)] : draft.supportText;
+    const newPrompt = draft.readyPrompt
+      .replace(`"${draft.mainText}"`, `"${newMain}"`)
+      .replace(`"${draft.supportText}"`, `"${newSupport}"`);
+    setDraft({ ...draft, mainText: newMain, supportText: newSupport, readyPrompt: newPrompt });
+    setVariationIdx(next);
+    toast.success(`Variação ${next} aplicada — revise antes de salvar.`);
+  };
 
   const save = useMutation({
     mutationFn: async () => {
