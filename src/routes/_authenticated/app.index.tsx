@@ -21,7 +21,10 @@ import {
   Sparkles,
   RefreshCw,
   ArrowRight,
+  CalendarCheck,
 } from "lucide-react";
+import { listScheduleItems } from "@/lib/scheduleQueries";
+import { effectiveDate, effectiveTime, formatDateBR, STATUS_LABELS, computeIsOverdue, type ScheduleStatus } from "@/lib/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
