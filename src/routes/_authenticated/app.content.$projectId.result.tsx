@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/copy-button";
 import { parsePiece, pieceToPlainText, type Piece } from "@/lib/promptBuilder";
 import type { Tables } from "@/integrations/supabase/types";
+import { AdjustPieceDialog } from "@/components/adjust-piece-dialog";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
