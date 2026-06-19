@@ -370,10 +370,23 @@ function PieceCard({
             <span>{piece.warning}</span>
           </div>
         )}
-        {piece.qualityIssues && piece.qualityIssues.length > 0 && (
+        {draft.qualityStatus === "blocked" && (
+          <div className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <AlertTriangle className="h-3.5 w-3.5" />Esta copy precisa ser revisada antes da produção
+            </p>
+            {piece.qualityIssues && piece.qualityIssues.length > 0 && (
+              <ul className="ml-5 mt-1 list-disc space-y-0.5">
+                {piece.qualityIssues.map((q, i) => <li key={i}>{q.message}</li>)}
+              </ul>
+            )}
+            <p className="mt-1 text-[11px] opacity-80">Edite o texto manualmente para liberar o prompt da página.</p>
+          </div>
+        )}
+        {draft.qualityStatus !== "blocked" && piece.qualityIssues && piece.qualityIssues.length > 0 && (
           <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-900 dark:text-amber-200">
             <p className="flex items-center gap-1.5 font-semibold">
-              <AlertTriangle className="h-3.5 w-3.5" />Necessita revisão de copy
+              <AlertTriangle className="h-3.5 w-3.5" />Avisos de copy (não bloqueia o prompt)
             </p>
             <ul className="ml-5 list-disc space-y-0.5">
               {piece.qualityIssues.map((q, i) => <li key={i}>{q.message}</li>)}
