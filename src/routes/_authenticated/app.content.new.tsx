@@ -530,21 +530,136 @@ function StepBriefing({ state, set, errors }: { state: State; set: <K extends ke
   );
 }
 
-function StepOutputs({ values, onToggle }: { values: string[]; onToggle: (v: string) => void }) {
+function StepOutputs({
+  formats,
+  values,
+  captionMode,
+  onToggle,
+  onCaptionChange,
+}: {
+  formats: string[];
+  values: string[];
+  captionMode: CaptionMode;
+  onToggle: (v: string) => void;
+  onCaptionChange: (m: CaptionMode) => void;
+}) {
+  const resolved = useMemo(() => resolveOutputsFromFormats(formats, values, captionMode), [formats, values, captionMode]);
+  const { requiredOutputs, recommendedOutputs, optionalOutputs, appliesTo, hashtagsApplicable } = resolved;
+
+  if (!formats.length) {
+    return <p className="text-sm text-muted-foreground">Selecione ao menos um formato na etapa anterior para ver as entregas aplicáveis.</p>;
+  }
+
+  const isSelected = (id: string) => values.includes(id);
+  const captionAllowed = resolved.captionMode !== "none" || formats.some((f) => f === "post" || f === "carrossel" || f === "reel");
+
   return (
-    <div className="space-y-3">
-      <div>
-        <Label className="text-base">O que o prompt deve solicitar à IA?</Label>
-        <p className="mt-1 text-sm text-muted-foreground">Selecione quais conteúdos a IA deverá produzir quando você executar o prompt.</p>
+    <div className="space-y-5">
+      <div className="space-y-2">
+        <Label className="text-base">Entregas da campanha</Label>
+        <p className="text-sm text-muted-foreground">
+          Com base nos formatos escolhidos, o Cria Aí selecionou automaticamente os materiais necessários. Você pode ajustar os complementos opcionais.
+        </p>
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <span className="text-xs text-muted-foreground">Formatos escolhidos:</span>
+          {formats.map((f) => <Badge key={f} variant="secondary">{FORMAT_LABELS[f] ?? f}</Badge>)}
+        </div>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {Object.keys(OUTPUT_LABELS).map((k) => (
-          <label key={k} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm ${values.includes(k) ? "border-primary bg-primary/5" : "border-border/60"}`}>
-            <Checkbox checked={values.includes(k)} onCheckedChange={() => onToggle(k)} />
-            {REQUEST_LABELS[k] ?? OUTPUT_LABELS[k]}
-          </label>
-        ))}
-      </div>
+
+      {/* A. Incluído automaticamente */}
+      <section className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Badge variant="default">A</Badge>
+          <Label className="text-sm">Incluído automaticamente</Label>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {requiredOutputs.map((id) => (
+            <div key={id} className="flex items-start gap-3 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm opacity-100">
+              <Checkbox checked disabled className="mt-0.5" />
+              <div className="min-w-0">
+                <p className="font-medium">{OUTPUT_CATALOG[id]?.label ?? id}</p>
+                <p className="text-xs text-muted-foreground">Obrigatório por: {appliesToLabel(id, appliesTo, "required") || "formato selecionado"}</p>
+              </div>
+            </div>
+          ))}
+          {!requiredOutputs.length && <p className="text-xs text-muted-foreground">Nenhuma entrega obrigatória para os formatos selecionados.</p>}
+        </div>
+      </section>
+
+      {/* B. Recomendado */}
+      {recommendedOutputs.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">B</Badge>
+            <Label className="text-sm">Recomendado</Label>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {recommendedOutputs.map((id) => (
+              <label key={id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${isSelected(id) ? "border-primary bg-primary/5" : "border-border/60"}`}>
+                <Checkbox checked={isSelected(id)} onCheckedChange={() => onToggle(id)} className="mt-0.5" />
+                <div className="min-w-0">
+                  <p className="font-medium">{OUTPUT_CATALOG[id]?.label ?? id}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Recomendado para: {appliesToLabel(id, appliesTo, "recommended") || "formato selecionado"}
+                    {OUTPUT_CATALOG[id]?.help ? ` · ${OUTPUT_CATALOG[id]?.help}` : ""}
+                  </p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* C. Opcionais */}
+      {optionalOutputs.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">C</Badge>
+            <Label className="text-sm">Complementos opcionais</Label>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {optionalOutputs.map((id) => (
+              <label key={id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${isSelected(id) ? "border-primary bg-primary/5" : "border-border/60"}`}>
+                <Checkbox checked={isSelected(id)} onCheckedChange={() => onToggle(id)} className="mt-0.5" />
+                <div className="min-w-0">
+                  <p className="font-medium">{OUTPUT_CATALOG[id]?.label ?? id}</p>
+                  <p className="text-xs text-muted-foreground">Aplica-se a: {appliesToLabel(id, appliesTo, "optional") || "formato selecionado"}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Legenda selector */}
+      {captionAllowed && (
+        <section className="space-y-2 rounded-lg border border-border/60 bg-card/60 p-3">
+          <Label className="text-sm">Legenda</Label>
+          <Select value={captionMode} onValueChange={(v) => onCaptionChange(v as CaptionMode)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Não gerar</SelectItem>
+              <SelectItem value="short">Curta</SelectItem>
+              <SelectItem value="full">Completa</SelectItem>
+              <SelectItem value="both">Gerar duas variações</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            A legenda será gerada apenas para formatos compatíveis (Feed, Carrossel, Reel).
+            {formats.some((f) => ["story", "sequencia_stories", "status_whatsapp", "texto_grupo"].includes(f)) && " Formatos como Story, Status e Texto para grupo não recebem legenda."}
+          </p>
+        </section>
+      )}
+
+      {hashtagsApplicable && formats.some((f) => !["post", "carrossel", "reel"].includes(f)) && (
+        <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+          As hashtags serão aplicadas somente às publicações compatíveis (Feed, Carrossel, Reel).
+        </p>
+      )}
+
+      <p className="rounded-md border border-dashed border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        A revisão de qualidade será aplicada automaticamente a todas as peças.
+      </p>
     </div>
   );
 }
