@@ -7,6 +7,7 @@
 import type { Tables } from "@/integrations/supabase/types";
 import { composeCopy, variationByAngle, ALL_ANGLES, type ComposedCopy, type CopyAngle } from "./copyComposer";
 import { checkCopyQuality, pickBestCopy, type QualityIssue } from "./copyQuality";
+import { FORMAT_RULES, extractCaptionMode } from "./formatOutputRules";
 
 export type Brand = Tables<"brands">;
 export type Project = Tables<"content_projects">;
