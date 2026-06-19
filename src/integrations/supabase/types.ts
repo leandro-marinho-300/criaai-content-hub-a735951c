@@ -361,6 +361,7 @@ export type Database = {
           id: string
           image_height: number | null
           image_width: number | null
+          include_in_client_pdf: boolean
           is_approved: boolean
           output_id: string
           project_id: string
@@ -377,6 +378,7 @@ export type Database = {
           id?: string
           image_height?: number | null
           image_width?: number | null
+          include_in_client_pdf?: boolean
           is_approved?: boolean
           output_id: string
           project_id: string
@@ -393,6 +395,7 @@ export type Database = {
           id?: string
           image_height?: number | null
           image_width?: number | null
+          include_in_client_pdf?: boolean
           is_approved?: boolean
           output_id?: string
           project_id?: string
@@ -610,6 +613,84 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      publication_schedule_items: {
+        Row: {
+          approval_status: string | null
+          approved_at: string | null
+          approved_by: string | null
+          brand_id: string | null
+          channel: string | null
+          client_notes: string | null
+          confirmed_date: string | null
+          confirmed_time: string | null
+          created_at: string
+          id: string
+          project_id: string
+          publication_unit: string
+          schedule_status: string
+          suggested_date: string | null
+          suggested_time: string | null
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          brand_id?: string | null
+          channel?: string | null
+          client_notes?: string | null
+          confirmed_date?: string | null
+          confirmed_time?: string | null
+          created_at?: string
+          id?: string
+          project_id: string
+          publication_unit: string
+          schedule_status?: string
+          suggested_date?: string | null
+          suggested_time?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          brand_id?: string | null
+          channel?: string | null
+          client_notes?: string | null
+          confirmed_date?: string | null
+          confirmed_time?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string
+          publication_unit?: string
+          schedule_status?: string
+          suggested_date?: string | null
+          suggested_time?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publication_schedule_items_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_schedule_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "content_projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
