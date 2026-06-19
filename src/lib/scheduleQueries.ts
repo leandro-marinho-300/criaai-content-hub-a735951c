@@ -86,6 +86,7 @@ export interface UpsertScheduleInput {
   channel?: ChannelKind | null;
   format?: string | null;
   title?: string | null;
+  title_override?: boolean | null;
   description?: string | null;
   suggested_date?: string | null;
   suggested_time?: string | null;
@@ -97,7 +98,7 @@ export interface UpsertScheduleInput {
   client_notes?: string | null;
   internal_notes?: string | null;
   assigned_to?: string | null;
-  outputs?: string[]; // ids de content_outputs vinculados
+  outputs?: string[];
   checklist?: Record<string, boolean>;
 }
 

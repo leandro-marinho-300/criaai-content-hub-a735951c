@@ -48,7 +48,7 @@ function CalendarPage() {
   const [colorBy, setColorBy] = useState<"status" | "brand">(loadColorPref);
   const [cursor, setCursor] = useState(() => new Date());
   const [filters, setFilters] = useState<FiltersValue>({ brandId: "", channel: "", format: "", status: "", approval: "" });
-  const [drawerItem, setDrawerItem] = useState<ScheduleItemWithRels | null>(null);
+  const [drawerItemId, setDrawerItemId] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [newInitial, setNewInitial] = useState<{ date?: string | null; projectId?: string | null }>({});
   const [resched, setResched] = useState<{ item: ScheduleItemWithRels; date: string } | null>(null);
