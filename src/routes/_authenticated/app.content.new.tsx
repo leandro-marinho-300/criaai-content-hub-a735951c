@@ -322,6 +322,12 @@ function ContentWizard() {
         </div>
         <Progress value={((step + 1) / STEPS.length) * 100} />
 
+        {fromIdea && (
+          <p className="rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs">
+            Briefing iniciado a partir de uma ideia do Laboratório. Revise e complemente os dados factuais antes de gerar o prompt.
+          </p>
+        )}
+
         {state.selected_formats.length > 0 && (
           <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
             Você está preparando um prompt para criar {state.selected_formats.length === 1
