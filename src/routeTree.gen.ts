@@ -24,6 +24,7 @@ import { Route as AuthenticatedAppBrandsIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedAppContentNewRouteImport } from './routes/_authenticated/app.content.new'
 import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
 import { Route as AuthenticatedAppContentProjectIdResultRouteImport } from './routes/_authenticated/app.content.$projectId.result'
+import { Route as AuthenticatedAppContentProjectIdClientPdfRouteImport } from './routes/_authenticated/app.content.$projectId.client-pdf'
 import { Route as AuthenticatedAppBrandsBrandIdEditRouteImport } from './routes/_authenticated/app.brands.$brandId.edit'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -106,6 +107,12 @@ const AuthenticatedAppContentProjectIdResultRoute =
     path: '/content/$projectId/result',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppContentProjectIdClientPdfRoute =
+  AuthenticatedAppContentProjectIdClientPdfRouteImport.update({
+    id: '/content/$projectId/client-pdf',
+    path: '/content/$projectId/client-pdf',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppBrandsBrandIdEditRoute =
   AuthenticatedAppBrandsBrandIdEditRouteImport.update({
     id: '/brands/$brandId/edit',
@@ -128,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/app/content/new': typeof AuthenticatedAppContentNewRoute
   '/app/brands/': typeof AuthenticatedAppBrandsIndexRoute
   '/app/brands/$brandId/edit': typeof AuthenticatedAppBrandsBrandIdEditRoute
+  '/app/content/$projectId/client-pdf': typeof AuthenticatedAppContentProjectIdClientPdfRoute
   '/app/content/$projectId/result': typeof AuthenticatedAppContentProjectIdResultRoute
 }
 export interface FileRoutesByTo {
@@ -144,6 +152,7 @@ export interface FileRoutesByTo {
   '/app/content/new': typeof AuthenticatedAppContentNewRoute
   '/app/brands': typeof AuthenticatedAppBrandsIndexRoute
   '/app/brands/$brandId/edit': typeof AuthenticatedAppBrandsBrandIdEditRoute
+  '/app/content/$projectId/client-pdf': typeof AuthenticatedAppContentProjectIdClientPdfRoute
   '/app/content/$projectId/result': typeof AuthenticatedAppContentProjectIdResultRoute
 }
 export interface FileRoutesById {
@@ -163,6 +172,7 @@ export interface FileRoutesById {
   '/_authenticated/app/content/new': typeof AuthenticatedAppContentNewRoute
   '/_authenticated/app/brands/': typeof AuthenticatedAppBrandsIndexRoute
   '/_authenticated/app/brands/$brandId/edit': typeof AuthenticatedAppBrandsBrandIdEditRoute
+  '/_authenticated/app/content/$projectId/client-pdf': typeof AuthenticatedAppContentProjectIdClientPdfRoute
   '/_authenticated/app/content/$projectId/result': typeof AuthenticatedAppContentProjectIdResultRoute
 }
 export interface FileRouteTypes {
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/app/content/new'
     | '/app/brands/'
     | '/app/brands/$brandId/edit'
+    | '/app/content/$projectId/client-pdf'
     | '/app/content/$projectId/result'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -198,6 +209,7 @@ export interface FileRouteTypes {
     | '/app/content/new'
     | '/app/brands'
     | '/app/brands/$brandId/edit'
+    | '/app/content/$projectId/client-pdf'
     | '/app/content/$projectId/result'
   id:
     | '__root__'
@@ -216,6 +228,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/content/new'
     | '/_authenticated/app/brands/'
     | '/_authenticated/app/brands/$brandId/edit'
+    | '/_authenticated/app/content/$projectId/client-pdf'
     | '/_authenticated/app/content/$projectId/result'
   fileRoutesById: FileRoutesById
 }
@@ -334,6 +347,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppContentProjectIdResultRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/content/$projectId/client-pdf': {
+      id: '/_authenticated/app/content/$projectId/client-pdf'
+      path: '/content/$projectId/client-pdf'
+      fullPath: '/app/content/$projectId/client-pdf'
+      preLoaderRoute: typeof AuthenticatedAppContentProjectIdClientPdfRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/brands/$brandId/edit': {
       id: '/_authenticated/app/brands/$brandId/edit'
       path: '/brands/$brandId/edit'
@@ -354,6 +374,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppContentNewRoute: typeof AuthenticatedAppContentNewRoute
   AuthenticatedAppBrandsIndexRoute: typeof AuthenticatedAppBrandsIndexRoute
   AuthenticatedAppBrandsBrandIdEditRoute: typeof AuthenticatedAppBrandsBrandIdEditRoute
+  AuthenticatedAppContentProjectIdClientPdfRoute: typeof AuthenticatedAppContentProjectIdClientPdfRoute
   AuthenticatedAppContentProjectIdResultRoute: typeof AuthenticatedAppContentProjectIdResultRoute
 }
 
@@ -368,6 +389,8 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppBrandsIndexRoute: AuthenticatedAppBrandsIndexRoute,
   AuthenticatedAppBrandsBrandIdEditRoute:
     AuthenticatedAppBrandsBrandIdEditRoute,
+  AuthenticatedAppContentProjectIdClientPdfRoute:
+    AuthenticatedAppContentProjectIdClientPdfRoute,
   AuthenticatedAppContentProjectIdResultRoute:
     AuthenticatedAppContentProjectIdResultRoute,
 }
