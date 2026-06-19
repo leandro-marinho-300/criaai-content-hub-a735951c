@@ -550,6 +550,16 @@ function PieceField({
   );
 }
 
+function SemRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[120px_minmax(0,1fr)] items-baseline gap-2">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-xs leading-snug">{value}</span>
+    </div>
+  );
+}
+
+
 // ============ FALLBACK PARA BLOCOS LEGADOS (projetos antigos) ============
 
 function LegacyBlockCard({ block }: { block: Output }) {
