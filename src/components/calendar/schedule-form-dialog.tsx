@@ -84,6 +84,9 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
       const unit = units.find((x) => x.unitKey === unitKey);
       const finalProjectId = projectId;
       if (!finalProjectId) throw new Error("Selecione um projeto. Para publicações avulsas, crie o conteúdo antes.");
+      const finalTitle = title || unit?.title || "Publicação";
+      const defaultTitle = unit?.title ?? "";
+      const overrideFlag = !!title && title !== defaultTitle;
       return upsertScheduleItem({
         user_id: u.user.id,
         project_id: finalProjectId,
@@ -91,7 +94,8 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
         publication_unit: unit?.unitKey ?? `${finalProjectId}:manual:${Date.now()}`,
         format: format || unit?.format || null,
         channel: (channel || unit?.channelSuggestion || null) as ChannelKind | null,
-        title: title || unit?.title || "Publicação",
+        title: finalTitle,
+        title_override: overrideFlag,
         confirmed_date: date || null,
         confirmed_time: time || null,
         schedule_status: status,
