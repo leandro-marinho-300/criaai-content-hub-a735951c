@@ -22,7 +22,9 @@ import {
   AlertTriangle,
   Shuffle,
   CalendarCheck,
+  ShieldCheck,
 } from "lucide-react";
+import { SendForApprovalDialog } from "@/components/send-for-approval-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,6 +55,7 @@ function ResultPage() {
   const qc = useQueryClient();
   const [addToCalOpen, setAddToCalOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [approvalOpen, setApprovalOpen] = useState(false);
 
 
   const { user } = useAuth();
@@ -216,6 +219,9 @@ function ResultPage() {
               <Button variant="default" size="sm" onClick={() => setAddToCalOpen(true)}>
                 <CalendarCheck className="mr-2 h-4 w-4" />Adicionar ao calendário
               </Button>
+              <Button variant="default" size="sm" onClick={() => setApprovalOpen(true)}>
+                <ShieldCheck className="mr-2 h-4 w-4" />Enviar para aprovação
+              </Button>
               <CopyButton text={fullExport} label="Copiar pacote completo" variant="outline" />
               <Button variant="outline" size="sm" onClick={exportTxt}>
                 <Download className="mr-2 h-4 w-4" />Exportar TXT
@@ -327,6 +333,13 @@ function ResultPage() {
       )}
       <AddToCalendarDialog open={addToCalOpen} onOpenChange={setAddToCalOpen} projectId={projectId} />
       <RenameTitleDialog open={renameOpen} onOpenChange={setRenameOpen} projectId={projectId} project={project} />
+      <SendForApprovalDialog
+        open={approvalOpen}
+        onOpenChange={setApprovalOpen}
+        projectId={projectId}
+        brandId={project.brand_id}
+        defaultTitle={getProjectDisplayTitle(project)}
+      />
     </div>
   );
 }
