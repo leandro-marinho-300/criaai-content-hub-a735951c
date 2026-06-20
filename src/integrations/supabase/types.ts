@@ -190,6 +190,208 @@ export type Database = {
         }
         Relationships: []
       }
+      client_approval_events: {
+        Row: {
+          approval_id: string
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          user_id: string
+        }
+        Insert: {
+          approval_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          user_id: string
+        }
+        Update: {
+          approval_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_approval_events_approval_id_fkey"
+            columns: ["approval_id"]
+            isOneToOne: false
+            referencedRelation: "client_approvals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_approval_items: {
+        Row: {
+          approval_id: string
+          comment: string | null
+          created_at: string
+          decision: string
+          display_order: number
+          id: string
+          output_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approval_id: string
+          comment?: string | null
+          created_at?: string
+          decision?: string
+          display_order?: number
+          id?: string
+          output_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approval_id?: string
+          comment?: string | null
+          created_at?: string
+          decision?: string
+          display_order?: number
+          id?: string
+          output_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_approval_items_approval_id_fkey"
+            columns: ["approval_id"]
+            isOneToOne: false
+            referencedRelation: "client_approvals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_approval_items_output_id_fkey"
+            columns: ["output_id"]
+            isOneToOne: false
+            referencedRelation: "content_outputs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_approvals: {
+        Row: {
+          allow_multiple_responses: boolean
+          allow_piece_approval: boolean
+          allow_piece_comments: boolean
+          allow_schedule_changes: boolean
+          brand_id: string | null
+          client_company: string | null
+          client_email: string | null
+          client_name: string | null
+          client_role: string | null
+          created_at: string
+          decision: string | null
+          expires_at: string | null
+          first_viewed_at: string | null
+          general_comment: string | null
+          id: string
+          include_caption: boolean
+          include_hashtags: boolean
+          include_schedule: boolean
+          introduction_message: string | null
+          last_viewed_at: string | null
+          password_hash: string | null
+          project_id: string
+          requested_date: string | null
+          requested_time: string | null
+          revoked_at: string | null
+          schedule_decision: string | null
+          status: string
+          submitted_at: string | null
+          title: string
+          token_hash: string
+          updated_at: string
+          user_id: string
+          view_count: number
+        }
+        Insert: {
+          allow_multiple_responses?: boolean
+          allow_piece_approval?: boolean
+          allow_piece_comments?: boolean
+          allow_schedule_changes?: boolean
+          brand_id?: string | null
+          client_company?: string | null
+          client_email?: string | null
+          client_name?: string | null
+          client_role?: string | null
+          created_at?: string
+          decision?: string | null
+          expires_at?: string | null
+          first_viewed_at?: string | null
+          general_comment?: string | null
+          id?: string
+          include_caption?: boolean
+          include_hashtags?: boolean
+          include_schedule?: boolean
+          introduction_message?: string | null
+          last_viewed_at?: string | null
+          password_hash?: string | null
+          project_id: string
+          requested_date?: string | null
+          requested_time?: string | null
+          revoked_at?: string | null
+          schedule_decision?: string | null
+          status?: string
+          submitted_at?: string | null
+          title: string
+          token_hash: string
+          updated_at?: string
+          user_id: string
+          view_count?: number
+        }
+        Update: {
+          allow_multiple_responses?: boolean
+          allow_piece_approval?: boolean
+          allow_piece_comments?: boolean
+          allow_schedule_changes?: boolean
+          brand_id?: string | null
+          client_company?: string | null
+          client_email?: string | null
+          client_name?: string | null
+          client_role?: string | null
+          created_at?: string
+          decision?: string | null
+          expires_at?: string | null
+          first_viewed_at?: string | null
+          general_comment?: string | null
+          id?: string
+          include_caption?: boolean
+          include_hashtags?: boolean
+          include_schedule?: boolean
+          introduction_message?: string | null
+          last_viewed_at?: string | null
+          password_hash?: string | null
+          project_id?: string
+          requested_date?: string | null
+          requested_time?: string | null
+          revoked_at?: string | null
+          schedule_decision?: string | null
+          status?: string
+          submitted_at?: string | null
+          title?: string
+          token_hash?: string
+          updated_at?: string
+          user_id?: string
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_approvals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "content_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_ideas: {
         Row: {
           angle: string | null
