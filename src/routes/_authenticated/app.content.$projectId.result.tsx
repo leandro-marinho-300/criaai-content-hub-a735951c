@@ -333,6 +333,13 @@ function ResultPage() {
       )}
       <AddToCalendarDialog open={addToCalOpen} onOpenChange={setAddToCalOpen} projectId={projectId} />
       <RenameTitleDialog open={renameOpen} onOpenChange={setRenameOpen} projectId={projectId} project={project} />
+      <SendForApprovalDialog
+        open={approvalOpen}
+        onOpenChange={setApprovalOpen}
+        projectId={projectId}
+        brandId={project.brand_id}
+        defaultTitle={getProjectDisplayTitle(project)}
+      />
     </div>
   );
 }
