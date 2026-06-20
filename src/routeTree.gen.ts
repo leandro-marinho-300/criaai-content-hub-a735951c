@@ -14,6 +14,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApprovalTokenRouteImport } from './routes/approval.$token'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppTemplatesRouteImport } from './routes/_authenticated/app.templates'
@@ -22,6 +23,7 @@ import { Route as AuthenticatedAppLibraryRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppIdeasRouteImport } from './routes/_authenticated/app.ideas'
 import { Route as AuthenticatedAppCalendarRouteImport } from './routes/_authenticated/app.calendar'
 import { Route as AuthenticatedAppBrandsIndexRouteImport } from './routes/_authenticated/app.brands.index'
+import { Route as ApiPublicApprovalTokenRouteImport } from './routes/api/public/approval.$token'
 import { Route as AuthenticatedAppContentNewRouteImport } from './routes/_authenticated/app.content.new'
 import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
 import { Route as AuthenticatedAppContentProjectIdResultRouteImport } from './routes/_authenticated/app.content.$projectId.result'
@@ -50,6 +52,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApprovalTokenRoute = ApprovalTokenRouteImport.update({
+  id: '/approval/$token',
+  path: '/approval/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
@@ -96,6 +103,11 @@ const AuthenticatedAppBrandsIndexRoute =
     path: '/brands/',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const ApiPublicApprovalTokenRoute = ApiPublicApprovalTokenRouteImport.update({
+  id: '/api/public/approval/$token',
+  path: '/api/public/approval/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAppContentNewRoute =
   AuthenticatedAppContentNewRouteImport.update({
     id: '/content/new',
@@ -133,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
+  '/approval/$token': typeof ApprovalTokenRoute
   '/app/calendar': typeof AuthenticatedAppCalendarRoute
   '/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/app/library': typeof AuthenticatedAppLibraryRoute
@@ -141,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/app/content/new': typeof AuthenticatedAppContentNewRoute
+  '/api/public/approval/$token': typeof ApiPublicApprovalTokenRoute
   '/app/brands/': typeof AuthenticatedAppBrandsIndexRoute
   '/app/brands/$brandId/edit': typeof AuthenticatedAppBrandsBrandIdEditRoute
   '/app/content/$projectId/client-pdf': typeof AuthenticatedAppContentProjectIdClientPdfRoute
@@ -151,6 +165,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/approval/$token': typeof ApprovalTokenRoute
   '/app/calendar': typeof AuthenticatedAppCalendarRoute
   '/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/app/library': typeof AuthenticatedAppLibraryRoute
@@ -159,6 +174,7 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/app/content/new': typeof AuthenticatedAppContentNewRoute
+  '/api/public/approval/$token': typeof ApiPublicApprovalTokenRoute
   '/app/brands': typeof AuthenticatedAppBrandsIndexRoute
   '/app/brands/$brandId/edit': typeof AuthenticatedAppBrandsBrandIdEditRoute
   '/app/content/$projectId/client-pdf': typeof AuthenticatedAppContentProjectIdClientPdfRoute
@@ -172,6 +188,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/approval/$token': typeof ApprovalTokenRoute
   '/_authenticated/app/calendar': typeof AuthenticatedAppCalendarRoute
   '/_authenticated/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/_authenticated/app/library': typeof AuthenticatedAppLibraryRoute
@@ -180,6 +197,7 @@ export interface FileRoutesById {
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/_authenticated/app/content/new': typeof AuthenticatedAppContentNewRoute
+  '/api/public/approval/$token': typeof ApiPublicApprovalTokenRoute
   '/_authenticated/app/brands/': typeof AuthenticatedAppBrandsIndexRoute
   '/_authenticated/app/brands/$brandId/edit': typeof AuthenticatedAppBrandsBrandIdEditRoute
   '/_authenticated/app/content/$projectId/client-pdf': typeof AuthenticatedAppContentProjectIdClientPdfRoute
@@ -193,6 +211,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/sitemap.xml'
     | '/app'
+    | '/approval/$token'
     | '/app/calendar'
     | '/app/ideas'
     | '/app/library'
@@ -201,6 +220,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/brands/new'
     | '/app/content/new'
+    | '/api/public/approval/$token'
     | '/app/brands/'
     | '/app/brands/$brandId/edit'
     | '/app/content/$projectId/client-pdf'
@@ -211,6 +231,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/sitemap.xml'
+    | '/approval/$token'
     | '/app/calendar'
     | '/app/ideas'
     | '/app/library'
@@ -219,6 +240,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/brands/new'
     | '/app/content/new'
+    | '/api/public/approval/$token'
     | '/app/brands'
     | '/app/brands/$brandId/edit'
     | '/app/content/$projectId/client-pdf'
@@ -231,6 +253,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/sitemap.xml'
     | '/_authenticated/app'
+    | '/approval/$token'
     | '/_authenticated/app/calendar'
     | '/_authenticated/app/ideas'
     | '/_authenticated/app/library'
@@ -239,6 +262,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/'
     | '/_authenticated/app/brands/new'
     | '/_authenticated/app/content/new'
+    | '/api/public/approval/$token'
     | '/_authenticated/app/brands/'
     | '/_authenticated/app/brands/$brandId/edit'
     | '/_authenticated/app/content/$projectId/client-pdf'
@@ -251,6 +275,8 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApprovalTokenRoute: typeof ApprovalTokenRoute
+  ApiPublicApprovalTokenRoute: typeof ApiPublicApprovalTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -288,6 +314,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/approval/$token': {
+      id: '/approval/$token'
+      path: '/approval/$token'
+      fullPath: '/approval/$token'
+      preLoaderRoute: typeof ApprovalTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app': {
@@ -345,6 +378,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/brands/'
       preLoaderRoute: typeof AuthenticatedAppBrandsIndexRouteImport
       parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/api/public/approval/$token': {
+      id: '/api/public/approval/$token'
+      path: '/api/public/approval/$token'
+      fullPath: '/api/public/approval/$token'
+      preLoaderRoute: typeof ApiPublicApprovalTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app/content/new': {
       id: '/_authenticated/app/content/new'
@@ -437,6 +477,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApprovalTokenRoute: ApprovalTokenRoute,
+  ApiPublicApprovalTokenRoute: ApiPublicApprovalTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
