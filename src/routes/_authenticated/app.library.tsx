@@ -24,17 +24,22 @@ import { RenameTitleDialog } from "@/components/rename-title-dialog";
 
 export const Route = createFileRoute("/_authenticated/app/library")({
   head: () => ({ meta: [{ title: "Biblioteca — Cria Aí" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    status: typeof s.status === "string" ? (s.status as string) : undefined,
+  }),
   component: LibraryPage,
 });
 
 const STATUSES = [
   { value: "all", label: "Todos status" },
+  { value: "awaiting_approval", label: "Aguardando aprovação do cliente" },
   { value: "draft", label: "Rascunho" },
   { value: "review", label: "Aguardando revisão" },
   { value: "approved", label: "Aprovado" },
   { value: "published", label: "Publicado" },
   { value: "archived", label: "Arquivado" },
 ];
+
 
 interface LibProject {
   id: string;
