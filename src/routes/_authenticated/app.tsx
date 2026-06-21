@@ -1,12 +1,15 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { useApprovalNotifications } from "@/hooks/use-approval-notifications";
 
 export const Route = createFileRoute("/_authenticated/app")({
   component: AppLayout,
 });
 
 function AppLayout() {
+  useApprovalNotifications();
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
