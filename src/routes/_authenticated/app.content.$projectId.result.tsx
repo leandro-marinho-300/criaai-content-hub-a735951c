@@ -248,6 +248,13 @@ function ResultPage() {
         </div>
       </header>
 
+      {/* Aprovação do cliente */}
+      <ClientApprovalPanel
+        projectId={projectId}
+        onOpenSendDialog={() => setApprovalOpen(true)}
+        onOpenAddToCalendar={() => setAddToCalOpen(true)}
+      />
+
       {/* SEÇÃO 1 — RESUMO DA CAMPANHA */}
       {summaryRow && (
         <section className="space-y-2">
