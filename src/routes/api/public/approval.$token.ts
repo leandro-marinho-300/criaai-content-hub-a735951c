@@ -1,10 +1,14 @@
 // Rota pública para o Portal de Aprovação do Cliente.
-// GET: carrega dados autorizados a partir do token (registra visualização).
+// GET: valida token / senha / expiração; carrega dados; registra visualização.
 // POST: registra a resposta do cliente.
 // Não exige autenticação. Usa service role apenas após validar o token.
 import { createFileRoute } from "@tanstack/react-router";
 import { createHash } from "crypto";
 import { parsePiece } from "@/lib/promptBuilder";
+import { verifyApprovalPassword } from "@/lib/approvalToken";
+
+const MAX_PASSWORD_ATTEMPTS = 5;
+const LOCK_MINUTES = 15;
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -28,7 +32,10 @@ async function loadApproval(token: string) {
   return { supabaseAdmin, approval };
 }
 
-function approvalState(approval: { revoked_at: string | null; expires_at: string | null }): "ok" | "revoked" | "expired" {
+function approvalState(approval: {
+  revoked_at: string | null;
+  expires_at: string | null;
+}): "ok" | "revoked" | "expired" {
   if (approval.revoked_at) return "revoked";
   if (approval.expires_at && new Date(approval.expires_at).getTime() < Date.now()) return "expired";
   return "ok";
@@ -37,13 +44,55 @@ function approvalState(approval: { revoked_at: string | null; expires_at: string
 export const Route = createFileRoute("/api/public/approval/$token")({
   server: {
     handlers: {
-      GET: async ({ params }) => {
+      GET: async ({ params, request }) => {
         const token = params.token;
         if (!token || token.length < 16) return json({ error: "invalid" }, 404);
         const { supabaseAdmin, approval } = await loadApproval(token);
         if (!approval) return json({ error: "invalid" }, 404);
         const state = approvalState(approval);
         if (state !== "ok") return json({ state }, 200);
+
+        // Bloqueio temporário por tentativas
+        if (approval.locked_until && new Date(approval.locked_until).getTime() > Date.now()) {
+          return json({ state: "locked", lockedUntil: approval.locked_until }, 200);
+        }
+
+        // Verifica senha (se houver)
+        if (approval.password_hash) {
+          const provided = request.headers.get("x-approval-password") ?? "";
+          if (!provided) {
+            return json({ state: "password_required" }, 200);
+          }
+          const ok = await verifyApprovalPassword(provided, approval.password_hash);
+          if (!ok) {
+            const attempts = (approval.failed_attempts ?? 0) + 1;
+            const shouldLock = attempts >= MAX_PASSWORD_ATTEMPTS;
+            const lockedUntil = shouldLock
+              ? new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString()
+              : null;
+            await supabaseAdmin
+              .from("client_approvals")
+              .update({
+                failed_attempts: shouldLock ? 0 : attempts,
+                locked_until: lockedUntil,
+              })
+              .eq("id", approval.id);
+            return json(
+              {
+                state: shouldLock ? "locked" : "password_invalid",
+                attemptsLeft: shouldLock ? 0 : MAX_PASSWORD_ATTEMPTS - attempts,
+                lockedUntil,
+              },
+              200,
+            );
+          }
+          if ((approval.failed_attempts ?? 0) > 0) {
+            await supabaseAdmin
+              .from("client_approvals")
+              .update({ failed_attempts: 0, locked_until: null })
+              .eq("id", approval.id);
+          }
+        }
 
         // Registra visualização
         const now = new Date().toISOString();
@@ -128,6 +177,7 @@ export const Route = createFileRoute("/api/public/approval/$token")({
           allowPieceComments: approval.allow_piece_comments,
           includeCaption: approval.include_caption,
           includeHashtags: approval.include_hashtags,
+          expiresAt: approval.expires_at,
           approval: {
             id: approval.id,
             title: approval.title,
@@ -149,6 +199,14 @@ export const Route = createFileRoute("/api/public/approval/$token")({
         if (!approval) return json({ error: "invalid" }, 404);
         const state = approvalState(approval);
         if (state !== "ok") return json({ error: state }, 410);
+        if (approval.locked_until && new Date(approval.locked_until).getTime() > Date.now()) {
+          return json({ error: "locked" }, 423);
+        }
+        if (approval.password_hash) {
+          const provided = request.headers.get("x-approval-password") ?? "";
+          const ok = provided && (await verifyApprovalPassword(provided, approval.password_hash));
+          if (!ok) return json({ error: "password_required" }, 401);
+        }
         if (approval.submitted_at && !approval.allow_multiple_responses) {
           return json({ error: "already_responded" }, 409);
         }
@@ -201,7 +259,6 @@ export const Route = createFileRoute("/api/public/approval/$token")({
           })
           .eq("id", approval.id);
 
-        // Limpa itens antigos e regrava (suporta múltiplas respostas)
         if (approval.allow_piece_approval && Array.isArray(body.pieces)) {
           await supabaseAdmin.from("client_approval_items").delete().eq("approval_id", approval.id);
           const rows = body.pieces
@@ -228,7 +285,6 @@ export const Route = createFileRoute("/api/public/approval/$token")({
           metadata: { decision: body.decision, client_name: body.clientName },
         });
 
-        // Atualiza o status do projeto quando aprovado
         const projectStatusMap: Record<string, string> = {
           approved: "approved",
           approved_with_changes: "approved",

@@ -290,6 +290,7 @@ export type Database = {
           created_at: string
           decision: string | null
           expires_at: string | null
+          failed_attempts: number
           first_viewed_at: string | null
           general_comment: string | null
           id: string
@@ -298,6 +299,7 @@ export type Database = {
           include_schedule: boolean
           introduction_message: string | null
           last_viewed_at: string | null
+          locked_until: string | null
           password_hash: string | null
           project_id: string
           requested_date: string | null
@@ -325,6 +327,7 @@ export type Database = {
           created_at?: string
           decision?: string | null
           expires_at?: string | null
+          failed_attempts?: number
           first_viewed_at?: string | null
           general_comment?: string | null
           id?: string
@@ -333,6 +336,7 @@ export type Database = {
           include_schedule?: boolean
           introduction_message?: string | null
           last_viewed_at?: string | null
+          locked_until?: string | null
           password_hash?: string | null
           project_id: string
           requested_date?: string | null
@@ -360,6 +364,7 @@ export type Database = {
           created_at?: string
           decision?: string | null
           expires_at?: string | null
+          failed_attempts?: number
           first_viewed_at?: string | null
           general_comment?: string | null
           id?: string
@@ -368,6 +373,7 @@ export type Database = {
           include_schedule?: boolean
           introduction_message?: string | null
           last_viewed_at?: string | null
+          locked_until?: string | null
           password_hash?: string | null
           project_id?: string
           requested_date?: string | null

@@ -22,6 +22,7 @@ import {
   RefreshCw,
   ArrowRight,
   CalendarCheck,
+  ShieldCheck,
 } from "lucide-react";
 import { listScheduleItems, getScheduleItemTitle } from "@/lib/scheduleQueries";
 import { effectiveDate, effectiveTime, formatDateBR, STATUS_LABELS, computeIsOverdue, CHANNEL_LABELS, type ScheduleStatus, type ChannelKind } from "@/lib/calendar";
@@ -191,6 +192,10 @@ function Dashboard() {
           </Card>
         ))}
       </section>
+
+      <ClientApprovalsSection />
+
+
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -530,3 +535,75 @@ function QuickIdeaBlock() {
     </section>
   );
 }
+
+function ClientApprovalsSection() {
+  const { data } = useQuery({
+    queryKey: ["dashboard-approvals"],
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from("client_approvals")
+        .select("id, status, submitted_at, last_viewed_at, project_id, title, client_name, updated_at, content_projects(internal_title, display_title)")
+        .order("updated_at", { ascending: false })
+        .limit(50);
+      const list = rows ?? [];
+      const pending = list.filter((a) => a.status === "enviado_para_aprovacao" || a.status === "visualizado_pelo_cliente").length;
+      const approved = list.filter((a) => a.status === "aprovado" || a.status === "aprovado_com_ajustes").length;
+      const changes = list.filter((a) => a.status === "ajustes_solicitados" || a.status === "recusado").length;
+      const recent = list
+        .filter((a) => a.submitted_at)
+        .slice(0, 3);
+      return { pending, approved, changes, recent };
+    },
+  });
+
+  if (!data) return null;
+  const hasAny = data.pending + data.approved + data.changes > 0;
+  if (!hasAny) return null;
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2"><ShieldCheck className="h-4 w-4" />Aprovações do cliente</h2>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/app/library" search={{ status: "awaiting_approval" }}>Ver aguardando</Link>
+        </Button>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <MetricTile label="Aguardando" value={data.pending} highlight={data.pending > 0} />
+        <MetricTile label="Aprovadas" value={data.approved} />
+        <MetricTile label="Com ajustes / recusadas" value={data.changes} />
+      </div>
+      {data.recent.length > 0 && (
+        <div className="grid gap-2">
+          {data.recent.map((a) => {
+            const projectTitle =
+              a.content_projects?.display_title ?? a.content_projects?.internal_title ?? a.title;
+            const statusText: Record<string, string> = {
+              aprovado: "Aprovado",
+              aprovado_com_ajustes: "Aprovado com ajustes",
+              ajustes_solicitados: "Ajustes solicitados",
+              recusado: "Não aprovado",
+            };
+            return (
+              <Link
+                key={a.id}
+                to="/app/content/$projectId/result"
+                params={{ projectId: a.project_id }}
+                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border/60 bg-card p-3 transition-colors hover:border-primary/40"
+              >
+                <div className="min-w-0">
+                  <p className="line-clamp-2 break-words text-sm font-medium">{projectTitle}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {a.client_name ?? "Cliente"} · {a.submitted_at ? new Date(a.submitted_at).toLocaleDateString("pt-BR") : ""}
+                  </p>
+                </div>
+                <Badge variant="outline" className="shrink-0">{statusText[a.status] ?? a.status}</Badge>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
