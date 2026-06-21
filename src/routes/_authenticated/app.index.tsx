@@ -22,6 +22,7 @@ import {
   RefreshCw,
   ArrowRight,
   CalendarCheck,
+  ShieldCheck,
 } from "lucide-react";
 import { listScheduleItems, getScheduleItemTitle } from "@/lib/scheduleQueries";
 import { effectiveDate, effectiveTime, formatDateBR, STATUS_LABELS, computeIsOverdue, CHANNEL_LABELS, type ScheduleStatus, type ChannelKind } from "@/lib/calendar";
