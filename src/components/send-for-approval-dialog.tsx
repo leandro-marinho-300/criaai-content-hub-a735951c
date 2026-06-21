@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Copy, ExternalLink, Send, ShieldAlert } from "lucide-react";
+import { Copy, ExternalLink, Send, ShieldAlert, Lock, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,7 +12,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { generateApprovalToken, hashApprovalToken, approvalUrl } from "@/lib/approvalToken";
+import {
+  generateApprovalToken,
+  hashApprovalToken,
+  hashApprovalPassword,
+  approvalUrl,
+} from "@/lib/approvalToken";
 
 interface Props {
   open: boolean;
@@ -25,6 +30,15 @@ interface Props {
 const DEFAULT_MESSAGE =
   "Olá! Preparamos esta proposta de conteúdo para sua aprovação. Revise as peças, legenda e registre sua decisão.";
 
+const EXPIRATION_OPTIONS = [
+  { value: "never", label: "Sem expiração" },
+  { value: "1", label: "1 dia" },
+  { value: "3", label: "3 dias" },
+  { value: "7", label: "7 dias" },
+  { value: "14", label: "14 dias" },
+  { value: "30", label: "30 dias" },
+];
+
 export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, defaultTitle }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -33,14 +47,18 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
   const [includeCaption, setIncludeCaption] = useState(true);
   const [includeHashtags, setIncludeHashtags] = useState(true);
   const [allowPieceApproval, setAllowPieceApproval] = useState(true);
+  const [requirePassword, setRequirePassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const [expiresInDays, setExpiresInDays] = useState<string>("7");
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
+  const [createdPassword, setCreatedPassword] = useState<string | null>(null);
 
   const { data: existing } = useQuery({
     queryKey: ["approvals", projectId],
     queryFn: async () => {
       const { data } = await supabase
         .from("client_approvals")
-        .select("id, status, submitted_at, view_count, created_at, revoked_at")
+        .select("id, status, submitted_at, view_count, created_at, revoked_at, expires_at, password_hash")
         .eq("project_id", projectId)
         .order("created_at", { ascending: false });
       return data ?? [];
@@ -51,8 +69,18 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
   const create = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Sessão expirada.");
+      if (requirePassword && password.trim().length < 4) {
+        throw new Error("Senha deve ter ao menos 4 caracteres.");
+      }
       const token = generateApprovalToken();
       const tokenHash = await hashApprovalToken(token);
+      const passwordHash =
+        requirePassword && password.trim() ? await hashApprovalPassword(password.trim()) : null;
+      const expiresAt =
+        expiresInDays !== "never"
+          ? new Date(Date.now() + Number(expiresInDays) * 86_400_000).toISOString()
+          : null;
+
       const { error } = await supabase.from("client_approvals").insert({
         user_id: user.id,
         project_id: projectId,
@@ -64,15 +92,19 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
         include_hashtags: includeHashtags,
         allow_piece_approval: allowPieceApproval,
         allow_piece_comments: allowPieceApproval,
+        password_hash: passwordHash,
+        expires_at: expiresAt,
         status: "enviado_para_aprovacao",
       });
       if (error) throw error;
-      return approvalUrl(token);
+      return { url: approvalUrl(token), password: requirePassword ? password.trim() : null };
     },
-    onSuccess: (url) => {
+    onSuccess: ({ url, password }) => {
       setCreatedUrl(url);
+      setCreatedPassword(password);
       qc.invalidateQueries({ queryKey: ["approvals", projectId] });
       qc.invalidateQueries({ queryKey: ["approvals-panel", projectId] });
+      qc.invalidateQueries({ queryKey: ["dashboard-approvals"] });
       toast.success("Link de aprovação criado.");
     },
     onError: (e: Error) => toast.error(e.message ?? "Falha ao criar link."),
@@ -90,21 +122,30 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
       toast.success("Link revogado.");
       qc.invalidateQueries({ queryKey: ["approvals", projectId] });
       qc.invalidateQueries({ queryKey: ["approvals-panel", projectId] });
+      qc.invalidateQueries({ queryKey: ["dashboard-approvals"] });
     },
   });
 
-  const copy = async (url: string) => {
+  const copy = async (text: string, label = "Link") => {
     try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Link copiado.");
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copiado.`);
     } catch {
       toast.error("Não foi possível copiar.");
     }
   };
 
+  const closeAll = () => {
+    setCreatedUrl(null);
+    setCreatedPassword(null);
+    setPassword("");
+    setRequirePassword(false);
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) setCreatedUrl(null); onOpenChange(v); }}>
-      <DialogContent className="max-w-2xl">
+    <Dialog open={open} onOpenChange={(v) => { if (!v) closeAll(); else onOpenChange(v); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Enviar para aprovação</DialogTitle>
           <DialogDescription>
@@ -116,24 +157,42 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
           <div className="space-y-4">
             <div className="rounded-md border bg-muted/40 p-3">
               <Label className="text-xs uppercase text-muted-foreground">Link gerado</Label>
-              <div className="mt-1 flex gap-2">
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row">
                 <Input readOnly value={createdUrl} className="font-mono text-xs" />
-                <Button size="sm" variant="outline" onClick={() => copy(createdUrl)}>
-                  <Copy className="mr-1 h-4 w-4" />Copiar
-                </Button>
-                <Button size="sm" variant="outline" asChild>
-                  <a href={createdUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-1 h-4 w-4" />Abrir
-                  </a>
-                </Button>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => copy(createdUrl)}>
+                    <Copy className="mr-1 h-4 w-4" />Copiar
+                  </Button>
+                  <Button size="sm" variant="outline" asChild>
+                    <a href={createdUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="mr-1 h-4 w-4" />Abrir
+                    </a>
+                  </Button>
+                </div>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
                 <ShieldAlert className="mr-1 inline h-3 w-3" />
                 Este link só será exibido agora. Copie e envie ao cliente.
               </p>
             </div>
+            {createdPassword && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+                <Label className="text-xs uppercase text-amber-700 dark:text-amber-400">
+                  <Lock className="mr-1 inline h-3 w-3" />Senha definida
+                </Label>
+                <div className="mt-1 flex gap-2">
+                  <Input readOnly value={createdPassword} className="font-mono text-sm" />
+                  <Button size="sm" variant="outline" onClick={() => copy(createdPassword, "Senha")}>
+                    <Copy className="mr-1 h-4 w-4" />Copiar
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Envie a senha por um canal separado do link. Não conseguiremos exibi-la novamente.
+                </p>
+              </div>
+            )}
             <div className="flex justify-end">
-              <Button onClick={() => { setCreatedUrl(null); onOpenChange(false); }}>Concluir</Button>
+              <Button onClick={closeAll}>Concluir</Button>
             </div>
           </div>
         ) : (
@@ -146,6 +205,7 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
               <Label htmlFor="ap-msg">Mensagem de apresentação</Label>
               <Textarea id="ap-msg" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={1000} />
             </div>
+
             <div className="grid gap-3 rounded-md border p-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -170,17 +230,57 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
               </div>
             </div>
 
+            <div className="grid gap-3 rounded-md border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label htmlFor="ap-pw"><Lock className="mr-1 inline h-3 w-3" />Proteger com senha</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Cliente deverá digitar a senha para abrir o link.
+                  </p>
+                </div>
+                <Switch id="ap-pw" checked={requirePassword} onCheckedChange={setRequirePassword} />
+              </div>
+              {requirePassword && (
+                <Input
+                  type="text"
+                  placeholder="Defina uma senha (mín. 4 caracteres)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  maxLength={64}
+                  className="font-mono"
+                />
+              )}
+              <div>
+                <Label htmlFor="ap-exp"><Clock className="mr-1 inline h-3 w-3" />Expira em</Label>
+                <select
+                  id="ap-exp"
+                  value={expiresInDays}
+                  onChange={(e) => setExpiresInDays(e.target.value)}
+                  className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                >
+                  {EXPIRATION_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Após esse período o link deixa de funcionar automaticamente.
+                </p>
+              </div>
+            </div>
+
             {existing && existing.length > 0 && (
               <div className="rounded-md border p-3">
                 <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Links existentes</p>
                 <ul className="space-y-1.5 text-sm">
                   {existing.map((a) => (
-                    <li key={a.id} className="flex items-center gap-2">
+                    <li key={a.id} className="flex flex-wrap items-center gap-2">
                       <Badge variant={a.revoked_at ? "outline" : "secondary"} className="text-xs">
                         {a.status}
                       </Badge>
+                      {a.password_hash && <Lock className="h-3 w-3 text-muted-foreground" aria-label="Protegido por senha" />}
                       <span className="text-xs text-muted-foreground">
                         {new Date(a.created_at).toLocaleDateString("pt-BR")} · {a.view_count} visualização(ões)
+                        {a.expires_at && ` · expira ${new Date(a.expires_at).toLocaleDateString("pt-BR")}`}
                       </span>
                       {!a.revoked_at && a.status !== "link_revogado" && (
                         <Button size="sm" variant="ghost" className="ml-auto h-7 text-xs"
@@ -194,7 +294,7 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
               </div>
             )}
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
               <Button onClick={() => create.mutate()} disabled={create.isPending}>
                 <Send className="mr-2 h-4 w-4" />
