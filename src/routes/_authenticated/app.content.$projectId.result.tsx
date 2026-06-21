@@ -25,6 +25,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { SendForApprovalDialog } from "@/components/send-for-approval-dialog";
+import { ClientApprovalPanel } from "@/components/client-approval-panel";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -246,6 +247,13 @@ function ResultPage() {
           <Badge variant="secondary" className="ml-auto">Status: {statusLabel(project.status)}</Badge>
         </div>
       </header>
+
+      {/* Aprovação do cliente */}
+      <ClientApprovalPanel
+        projectId={projectId}
+        onOpenSendDialog={() => setApprovalOpen(true)}
+        onOpenAddToCalendar={() => setAddToCalOpen(true)}
+      />
 
       {/* SEÇÃO 1 — RESUMO DA CAMPANHA */}
       {summaryRow && (
