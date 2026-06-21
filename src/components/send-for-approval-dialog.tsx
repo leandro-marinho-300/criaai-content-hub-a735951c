@@ -72,6 +72,7 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
     onSuccess: (url) => {
       setCreatedUrl(url);
       qc.invalidateQueries({ queryKey: ["approvals", projectId] });
+      qc.invalidateQueries({ queryKey: ["approvals-panel", projectId] });
       toast.success("Link de aprovação criado.");
     },
     onError: (e: Error) => toast.error(e.message ?? "Falha ao criar link."),
