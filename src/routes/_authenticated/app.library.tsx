@@ -144,7 +144,7 @@ function LibraryPage() {
 
       <Card>
         <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
-          <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input placeholder="Buscar..." value={searchText} onChange={(e) => setSearch(e.target.value)} />
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
