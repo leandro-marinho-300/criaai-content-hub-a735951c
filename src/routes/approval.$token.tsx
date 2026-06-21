@@ -1,8 +1,8 @@
 // Portal público de aprovação do cliente.
 // Rota pública: não exige login. Consome /api/public/approval/$token.
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, AlertTriangle, MessageSquare, Send, ImageOff } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { CheckCircle2, AlertTriangle, MessageSquare, Send, ImageOff, Lock, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,17 +31,20 @@ interface PieceData {
 }
 
 interface Payload {
-  state: "ok" | "expired" | "revoked";
+  state: "ok" | "expired" | "revoked" | "password_required" | "password_invalid" | "locked";
   alreadyResponded: boolean;
   allowMultipleResponses: boolean;
   allowPieceApproval: boolean;
   allowPieceComments: boolean;
   includeCaption: boolean;
   includeHashtags: boolean;
+  expiresAt?: string | null;
   approval: { id: string; title: string; introductionMessage: string | null; decision: string | null; clientName: string | null; generalComment: string | null };
   brand: { name: string; logoUrl: string | null } | null;
   project: { title: string };
   pieces: PieceData[];
+  attemptsLeft?: number;
+  lockedUntil?: string | null;
 }
 
 function PortalPage() {
@@ -58,27 +61,71 @@ function PortalPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+  // Senha
+  const [needsPassword, setNeedsPassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null);
+  const [lockedUntil, setLockedUntil] = useState<string | null>(null);
+  const [submittingPassword, setSubmittingPassword] = useState(false);
+
+  const fetchData = useCallback(
+    async (pw?: string) => {
       try {
-        const res = await fetch(`/api/public/approval/${encodeURIComponent(token)}`);
-        if (res.status === 404) { if (!cancelled) { setError("invalid"); setLoading(false); } return; }
+        const res = await fetch(`/api/public/approval/${encodeURIComponent(token)}`, {
+          headers: pw ? { "x-approval-password": pw } : undefined,
+        });
+        if (res.status === 404) { setError("invalid"); setLoading(false); return; }
         const j = (await res.json()) as Payload;
-        if (cancelled) return;
+        if (j.state === "password_required") {
+          setNeedsPassword(true);
+          setPasswordError(null);
+          setLoading(false);
+          return;
+        }
+        if (j.state === "password_invalid") {
+          setNeedsPassword(true);
+          setAttemptsLeft(j.attemptsLeft ?? null);
+          setPasswordError("Senha incorreta. Tente novamente.");
+          setLoading(false);
+          return;
+        }
+        if (j.state === "locked") {
+          setNeedsPassword(false);
+          setLockedUntil(j.lockedUntil ?? null);
+          setError("locked");
+          setLoading(false);
+          return;
+        }
         if (j.state !== "ok") { setError(j.state); setLoading(false); return; }
+        setNeedsPassword(false);
         setData(j);
         setPieces(j.pieces);
-        if (j.alreadyResponded && !j.allowMultipleResponses) {
-          setSubmitted(true);
-        }
+        if (j.alreadyResponded && !j.allowMultipleResponses) setSubmitted(true);
         setLoading(false);
       } catch {
-        if (!cancelled) { setError("invalid"); setLoading(false); }
+        setError("invalid"); setLoading(false);
       }
-    })();
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => { if (!cancelled) await fetchData(); })();
     return () => { cancelled = true; };
-  }, [token]);
+  }, [fetchData]);
+
+  const submitPassword = async () => {
+    if (password.trim().length < 1) return;
+    setSubmittingPassword(true);
+    setLoading(true);
+    try {
+      await fetchData(password.trim());
+    } finally {
+      setSubmittingPassword(false);
+    }
+  };
 
   const updatePiece = (idx: number, patch: Partial<PieceData>) =>
     setPieces((prev) => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
@@ -109,7 +156,10 @@ function PortalPage() {
     try {
       const res = await fetch(`/api/public/approval/${encodeURIComponent(token)}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(password ? { "x-approval-password": password } : {}),
+        },
         body: JSON.stringify({
           clientName,
           clientEmail: clientEmail || undefined,
@@ -130,10 +180,57 @@ function PortalPage() {
     }
   }
 
-  if (loading) return <CenterMsg>Carregando…</CenterMsg>;
+  if (loading && !needsPassword) return <CenterMsg>Carregando…</CenterMsg>;
+
+  if (needsPassword) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-8">
+        <Card className="w-full max-w-md">
+          <CardContent className="space-y-4 p-6 sm:p-8">
+            <div className="text-center">
+              <Lock className="mx-auto h-8 w-8 text-primary" />
+              <h1 className="mt-2 text-lg font-semibold">Conteúdo protegido</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Digite a senha que recebeu junto com o link para acessar este material.
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="pw">Senha</Label>
+              <Input
+                id="pw"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") submitPassword(); }}
+                autoFocus
+              />
+              {passwordError && (
+                <p className="mt-1 text-xs text-destructive">
+                  {passwordError}
+                  {attemptsLeft !== null && ` (${attemptsLeft} tentativa(s) restante(s))`}
+                </p>
+              )}
+            </div>
+            <Button onClick={submitPassword} disabled={submittingPassword || !password.trim()} className="w-full">
+              {submittingPassword ? "Verificando…" : "Acessar"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (error === "invalid") return <CenterMsg icon={<AlertTriangle className="h-8 w-8 text-muted-foreground" />}>Não foi possível localizar esta aprovação.</CenterMsg>;
-  if (error === "expired") return <CenterMsg icon={<AlertTriangle className="h-8 w-8 text-amber-500" />}>Este link de aprovação expirou.</CenterMsg>;
+  if (error === "expired") return <CenterMsg icon={<Clock className="h-8 w-8 text-amber-500" />}>Este link de aprovação expirou.</CenterMsg>;
   if (error === "revoked") return <CenterMsg icon={<AlertTriangle className="h-8 w-8 text-destructive" />}>Este link não está mais disponível.</CenterMsg>;
+  if (error === "locked") {
+    const until = lockedUntil ? new Date(lockedUntil).toLocaleString("pt-BR") : null;
+    return (
+      <CenterMsg icon={<Lock className="h-8 w-8 text-destructive" />}>
+        Muitas tentativas de senha. Tente novamente {until ? `após ${until}` : "mais tarde"}.
+      </CenterMsg>
+    );
+  }
   if (!data) return null;
 
   if (submitted) {
@@ -156,24 +253,30 @@ function PortalPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30 pb-32">
+    <div className="min-h-screen bg-muted/30 pb-32 sm:pb-24">
       <header className="border-b bg-card">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-5">
+        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4 sm:py-5">
           {data.brand?.logoUrl ? (
             <img src={data.brand.logoUrl} alt="" className="h-10 w-10 rounded-md object-cover" />
           ) : (
             <div className="h-10 w-10 rounded-md bg-primary/10" />
           )}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-xs text-muted-foreground">{data.brand?.name ?? "Apresentação"}</p>
-            <h1 className="truncate text-lg font-semibold">{data.approval.title}</h1>
+            <h1 className="truncate text-base font-semibold sm:text-lg">{data.approval.title}</h1>
           </div>
+          {data.expiresAt && (
+            <Badge variant="outline" className="hidden shrink-0 gap-1 text-xs sm:inline-flex">
+              <Clock className="h-3 w-3" />
+              expira {new Date(data.expiresAt).toLocaleDateString("pt-BR")}
+            </Badge>
+          )}
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-6 px-4 py-6">
+      <main className="mx-auto max-w-3xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6">
         {data.approval.introductionMessage && (
-          <Card><CardContent className="p-5 text-sm leading-relaxed">{data.approval.introductionMessage}</CardContent></Card>
+          <Card><CardContent className="p-4 text-sm leading-relaxed sm:p-5">{data.approval.introductionMessage}</CardContent></Card>
         )}
 
         {pieces.length === 0 && (
@@ -184,14 +287,14 @@ function PortalPage() {
 
         {pieces.map((p, idx) => (
           <Card key={p.outputId} className="overflow-hidden">
-            <CardContent className="space-y-4 p-5">
+            <CardContent className="space-y-4 p-4 sm:p-5">
               <div className="flex items-center justify-between gap-2">
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">Peça {idx + 1} de {pieces.length}</p>
-                  <h2 className="font-semibold">{p.title}</h2>
+                  <h2 className="truncate font-semibold">{p.title}</h2>
                 </div>
                 {data.allowPieceApproval && (
-                  <Badge variant={p.decision === "approved" ? "default" : p.decision === "pending" ? "outline" : "secondary"}>
+                  <Badge variant={p.decision === "approved" ? "default" : p.decision === "pending" ? "outline" : "secondary"} className="shrink-0">
                     {pieceDecisionLabel(p.decision)}
                   </Badge>
                 )}
@@ -256,7 +359,7 @@ function PortalPage() {
 
         {pieces.length > 0 && (
           <Card>
-            <CardContent className="space-y-4 p-5">
+            <CardContent className="space-y-4 p-4 sm:p-5">
               <h2 className="font-semibold"><MessageSquare className="mr-1 inline h-4 w-4" />Sua decisão final</h2>
               <RadioGroup value={decision} onValueChange={(v) => setDecision(v as GeneralDecision)} className="grid gap-2">
                 <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer">
@@ -312,9 +415,9 @@ function PortalPage() {
       </main>
 
       {pieces.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-card/95 px-4 py-3 backdrop-blur">
-          <div className="mx-auto flex max-w-3xl items-center justify-end gap-2">
-            <Button onClick={submit} disabled={!canSubmit || submitting}>
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-card/95 px-3 py-3 backdrop-blur sm:px-4">
+          <div className="mx-auto flex max-w-3xl items-center justify-end">
+            <Button onClick={submit} disabled={!canSubmit || submitting} className="w-full sm:w-auto">
               <Send className="mr-2 h-4 w-4" />{submitting ? "Enviando…" : "Confirmar e enviar"}
             </Button>
           </div>
