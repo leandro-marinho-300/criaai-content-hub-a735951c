@@ -89,6 +89,7 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
     onSuccess: () => {
       toast.success("Link revogado.");
       qc.invalidateQueries({ queryKey: ["approvals", projectId] });
+      qc.invalidateQueries({ queryKey: ["approvals-panel", projectId] });
     },
   });
 
