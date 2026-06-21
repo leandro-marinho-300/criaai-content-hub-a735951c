@@ -193,6 +193,10 @@ function Dashboard() {
         ))}
       </section>
 
+      <ClientApprovalsSection />
+
+
+
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Atalhos rápidos</h2>
