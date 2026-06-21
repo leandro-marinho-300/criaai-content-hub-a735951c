@@ -25,6 +25,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { SendForApprovalDialog } from "@/components/send-for-approval-dialog";
+import { ClientApprovalPanel } from "@/components/client-approval-panel";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
