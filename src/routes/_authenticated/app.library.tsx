@@ -59,9 +59,10 @@ interface LibProject {
 
 function LibraryPage() {
   const qc = useQueryClient();
+  const search = Route.useSearch();
   const [view, setView] = useState<"grid" | "table">("grid");
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<string>("all");
+  const [searchText, setSearch] = useState("");
+  const [status, setStatus] = useState<string>(search.status ?? "all");
   const [brandId, setBrandId] = useState<string>("all");
   const [objective, setObjective] = useState<string>("all");
   const [format, setFormat] = useState<string>("all");
@@ -76,18 +77,29 @@ function LibraryPage() {
   });
 
   const { data: items, isLoading } = useQuery({
-    queryKey: ["library", { search, status, brandId, objective, format }],
+    queryKey: ["library", { search: searchText, status, brandId, objective, format }],
     queryFn: async () => {
+      let awaitingIds: string[] | null = null;
+      if (status === "awaiting_approval") {
+        const { data: ap } = await supabase
+          .from("client_approvals")
+          .select("project_id")
+          .in("status", ["enviado_para_aprovacao", "visualizado_pelo_cliente"])
+          .is("revoked_at", null);
+        awaitingIds = Array.from(new Set((ap ?? []).map((a) => a.project_id)));
+        if (awaitingIds.length === 0) return [] as LibProject[];
+      }
       let q = supabase
         .from("content_projects")
         .select("id, internal_title, display_title, theme, main_message, status, objective, selected_formats, brand_id, is_favorite, updated_at, brands(name, logo_url)")
         .order("updated_at", { ascending: false });
-      if (status !== "all") q = q.eq("status", status);
+      if (awaitingIds) q = q.in("id", awaitingIds);
+      else if (status !== "all") q = q.eq("status", status);
       if (brandId !== "all") q = q.eq("brand_id", brandId);
       if (objective !== "all") q = q.eq("objective", objective);
       if (format !== "all") q = q.contains("selected_formats", [format]);
-      if (search.trim()) {
-        const term = `%${search.trim()}%`;
+      if (searchText.trim()) {
+        const term = `%${searchText.trim()}%`;
         q = q.or(`display_title.ilike.${term},internal_title.ilike.${term},theme.ilike.${term}`);
       }
       const { data, error } = await q;
@@ -95,6 +107,7 @@ function LibraryPage() {
       return (data ?? []) as LibProject[];
     },
   });
+
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
