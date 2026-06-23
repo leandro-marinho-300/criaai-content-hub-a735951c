@@ -31,6 +31,7 @@ import {
 import type { Tables } from "@/integrations/supabase/types";
 import { HelpDialog } from "@/components/help-dialog";
 import { DevelopContentStep, DEFAULT_DEVELOP_STATE, type DevelopState } from "@/components/develop-content-step";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 export const Route = createFileRoute("/_authenticated/app/content/new")({
   head: () => ({ meta: [{ title: "Novo conteúdo — Cria Aí" }] }),
@@ -547,52 +548,92 @@ function StepFormats({ values, onToggle }: { values: string[]; onToggle: (v: str
 }
 
 function StepBriefing({ state, set, errors }: { state: State; set: <K extends keyof State>(k: K, v: State[K]) => void; errors: Partial<Record<keyof State, string>> }) {
+  const hasDevError = !!errors.audience_problem || !!errors.mandatory_information;
+  const hasEssentialError = !!errors.internal_title || !!errors.theme || !!errors.main_message || !!errors.call_to_action;
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Field label="Título interno do projeto *" className="sm:col-span-2" error={errors.internal_title}>
-        <Input value={state.internal_title} onChange={(e) => set("internal_title", e.target.value)} placeholder="Ex.: Divulgação Bolsa Eleganza — Junho" />
-      </Field>
-      <Field label="Tema principal *" className="sm:col-span-2" error={errors.theme}>
-        <Input value={state.theme} onChange={(e) => set("theme", e.target.value)} placeholder="Divulgação da Bolsa Eleganza Caramelo à pronta entrega" />
-      </Field>
-      <Field label="Público específico"><Input value={state.specific_audience} onChange={(e) => set("specific_audience", e.target.value)} placeholder="Ex.: Mulheres 30-50, executivas" /></Field>
-      <Field label="Problema ou necessidade" error={!state.audience_problem && !state.mandatory_information && !state.product_description ? "Preencha ao menos um campo de contexto." : undefined}>
-        <Input value={state.audience_problem} onChange={(e) => set("audience_problem", e.target.value)} placeholder="Ex.: bolsa elegante que cabe notebook" />
-      </Field>
-      <Field label="Mensagem principal *" className="sm:col-span-2" error={errors.main_message}>
-        <Textarea rows={2} value={state.main_message} onChange={(e) => set("main_message", e.target.value)} placeholder="Elegância, espaço e praticidade para diferentes momentos da rotina" />
-      </Field>
-      <Field label="Descrição do produto ou serviço" className="sm:col-span-2">
-        <Textarea rows={2} value={state.product_description} onChange={(e) => set("product_description", e.target.value)} placeholder="Descreva o produto, materiais, diferenciais, etc." />
-      </Field>
-      <Field label="Informações obrigatórias" className="sm:col-span-2" error={errors.mandatory_information}>
-        <Textarea rows={2} value={state.mandatory_information} onChange={(e) => set("mandatory_information", e.target.value)} placeholder="Datas, valores, endereços, telefones — tudo que a IA deve incluir literalmente." />
-      </Field>
-      <Field label="Chamada para ação *" error={errors.call_to_action}>
-        <Input value={state.call_to_action} onChange={(e) => set("call_to_action", e.target.value)} placeholder="Chame no WhatsApp e garanta a sua" />
-      </Field>
-      <Field label="Data da publicação"><Input type="date" value={state.publication_date} onChange={(e) => set("publication_date", e.target.value)} /></Field>
-      <Field label="Data do evento"><Input type="date" value={state.event_date} onChange={(e) => set("event_date", e.target.value)} /></Field>
-      <Field label="Horário"><Input value={state.event_time} onChange={(e) => set("event_time", e.target.value)} placeholder="Ex.: 19h30" /></Field>
-      <Field label="Local"><Input value={state.location} onChange={(e) => set("location", e.target.value)} /></Field>
-      <Field label="Valor"><Input value={state.price_information} onChange={(e) => set("price_information", e.target.value)} placeholder="Ex.: R$ 199,00" /></Field>
-      <Field label="Contato" className="sm:col-span-2"><Input value={state.contact_information} onChange={(e) => set("contact_information", e.target.value)} /></Field>
-      <Field label="Estilo desejado"><Input value={state.desired_style} onChange={(e) => set("desired_style", e.target.value)} placeholder="Ex.: minimalista, sofisticado" /></Field>
-      <Field label="Nível de formalidade">
-        <Select value={state.formality_level} onValueChange={(v) => set("formality_level", v)}>
-          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="muito_casual">Muito casual</SelectItem>
-            <SelectItem value="casual">Casual</SelectItem>
-            <SelectItem value="neutro">Neutro</SelectItem>
-            <SelectItem value="formal">Formal</SelectItem>
-            <SelectItem value="muito_formal">Muito formal</SelectItem>
-          </SelectContent>
-        </Select>
-      </Field>
-      <Field label="Restrições" className="sm:col-span-2"><Textarea rows={2} value={state.restrictions} onChange={(e) => set("restrictions", e.target.value)} /></Field>
-      <Field label="Observações" className="sm:col-span-2"><Textarea rows={2} value={state.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
-      <p className="sm:col-span-2 text-xs text-muted-foreground">* campos obrigatórios. Datas, valores, telefones e locais devem ser fornecidos — nada será inventado.</p>
+    <div className="space-y-3">
+      <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+        Briefing progressivo: comece pelo essencial, refine no desenvolvimento e abra a parte avançada só quando precisar. Nada fica permanentemente escondido — você pode editar tudo.
+      </div>
+      <Accordion type="multiple" defaultValue={["essencial", hasDevError ? "desenvolvimento" : ""].filter(Boolean)} className="space-y-2">
+        <AccordionItem value="essencial" className="rounded-lg border border-border/60 px-3">
+          <AccordionTrigger className="text-sm hover:no-underline">
+            <span className="flex items-center gap-2">
+              Essencial
+              {hasEssentialError && <Badge variant="destructive" className="text-[10px]">Pendente</Badge>}
+            </span>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="grid gap-4 pt-2 sm:grid-cols-2">
+              <Field label="Título interno do projeto *" className="sm:col-span-2" error={errors.internal_title}>
+                <Input value={state.internal_title} onChange={(e) => set("internal_title", e.target.value)} placeholder="Ex.: Divulgação Bolsa Eleganza — Junho" />
+              </Field>
+              <Field label="Tema principal *" className="sm:col-span-2" error={errors.theme}>
+                <Input value={state.theme} onChange={(e) => set("theme", e.target.value)} placeholder="Divulgação da Bolsa Eleganza Caramelo à pronta entrega" />
+              </Field>
+              <Field label="Mensagem principal *" className="sm:col-span-2" error={errors.main_message}>
+                <Textarea rows={2} value={state.main_message} onChange={(e) => set("main_message", e.target.value)} placeholder="Elegância, espaço e praticidade para diferentes momentos da rotina" />
+              </Field>
+              <Field label="Chamada para ação *" className="sm:col-span-2" error={errors.call_to_action}>
+                <Input value={state.call_to_action} onChange={(e) => set("call_to_action", e.target.value)} placeholder="Chame no WhatsApp e garanta a sua" />
+              </Field>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="desenvolvimento" className="rounded-lg border border-border/60 px-3">
+          <AccordionTrigger className="text-sm hover:no-underline">
+            <span className="flex items-center gap-2">
+              Desenvolvimento
+              {hasDevError && <Badge variant="destructive" className="text-[10px]">Pendente</Badge>}
+            </span>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="grid gap-4 pt-2 sm:grid-cols-2">
+              <Field label="Público específico"><Input value={state.specific_audience} onChange={(e) => set("specific_audience", e.target.value)} placeholder="Ex.: Mulheres 30-50, executivas" /></Field>
+              <Field label="Problema ou necessidade" error={!state.audience_problem && !state.mandatory_information && !state.product_description ? "Preencha ao menos um campo de contexto." : undefined}>
+                <Input value={state.audience_problem} onChange={(e) => set("audience_problem", e.target.value)} placeholder="Ex.: bolsa elegante que cabe notebook" />
+              </Field>
+              <Field label="Descrição do produto ou serviço" className="sm:col-span-2">
+                <Textarea rows={2} value={state.product_description} onChange={(e) => set("product_description", e.target.value)} placeholder="Descreva o produto, materiais, diferenciais, etc." />
+              </Field>
+              <Field label="Informações obrigatórias" className="sm:col-span-2" error={errors.mandatory_information}>
+                <Textarea rows={2} value={state.mandatory_information} onChange={(e) => set("mandatory_information", e.target.value)} placeholder="Datas, valores, endereços, telefones — tudo que a IA deve incluir literalmente." />
+              </Field>
+              <Field label="Estilo desejado"><Input value={state.desired_style} onChange={(e) => set("desired_style", e.target.value)} placeholder="Ex.: minimalista, sofisticado" /></Field>
+              <Field label="Nível de formalidade">
+                <Select value={state.formality_level} onValueChange={(v) => set("formality_level", v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="muito_casual">Muito casual</SelectItem>
+                    <SelectItem value="casual">Casual</SelectItem>
+                    <SelectItem value="neutro">Neutro</SelectItem>
+                    <SelectItem value="formal">Formal</SelectItem>
+                    <SelectItem value="muito_formal">Muito formal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="avancado" className="rounded-lg border border-border/60 px-3">
+          <AccordionTrigger className="text-sm hover:no-underline">Avançado (opcional)</AccordionTrigger>
+          <AccordionContent>
+            <div className="grid gap-4 pt-2 sm:grid-cols-2">
+              <Field label="Data da publicação"><Input type="date" value={state.publication_date} onChange={(e) => set("publication_date", e.target.value)} /></Field>
+              <Field label="Data do evento"><Input type="date" value={state.event_date} onChange={(e) => set("event_date", e.target.value)} /></Field>
+              <Field label="Horário"><Input value={state.event_time} onChange={(e) => set("event_time", e.target.value)} placeholder="Ex.: 19h30" /></Field>
+              <Field label="Local"><Input value={state.location} onChange={(e) => set("location", e.target.value)} /></Field>
+              <Field label="Valor"><Input value={state.price_information} onChange={(e) => set("price_information", e.target.value)} placeholder="Ex.: R$ 199,00" /></Field>
+              <Field label="Contato"><Input value={state.contact_information} onChange={(e) => set("contact_information", e.target.value)} /></Field>
+              <Field label="Restrições" className="sm:col-span-2"><Textarea rows={2} value={state.restrictions} onChange={(e) => set("restrictions", e.target.value)} /></Field>
+              <Field label="Observações" className="sm:col-span-2"><Textarea rows={2} value={state.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+      <p className="text-xs text-muted-foreground">* campos obrigatórios. Datas, valores, telefones e locais devem ser fornecidos — nada será inventado.</p>
     </div>
   );
 }
