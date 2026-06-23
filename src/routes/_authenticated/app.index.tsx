@@ -136,9 +136,9 @@ function Dashboard() {
               </Link>
             </Button>
             <Button asChild size="lg" className="gap-2">
-              <Link to="/app/content/new">
+              <Link to="/app/create">
                 <Plus className="h-4 w-4" />
-                Criar novo conteúdo
+                Criar conteúdo
               </Link>
             </Button>
           </div>

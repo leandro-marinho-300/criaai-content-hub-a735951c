@@ -21,6 +21,7 @@ import { Route as AuthenticatedAppTemplatesRouteImport } from './routes/_authent
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppLibraryRouteImport } from './routes/_authenticated/app.library'
 import { Route as AuthenticatedAppIdeasRouteImport } from './routes/_authenticated/app.ideas'
+import { Route as AuthenticatedAppCreateRouteImport } from './routes/_authenticated/app.create'
 import { Route as AuthenticatedAppCalendarRouteImport } from './routes/_authenticated/app.calendar'
 import { Route as AuthenticatedAppBrandsIndexRouteImport } from './routes/_authenticated/app.brands.index'
 import { Route as ApiPublicApprovalTokenRouteImport } from './routes/api/public/approval.$token'
@@ -91,6 +92,11 @@ const AuthenticatedAppIdeasRoute = AuthenticatedAppIdeasRouteImport.update({
   path: '/ideas',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppCreateRoute = AuthenticatedAppCreateRouteImport.update({
+  id: '/create',
+  path: '/create',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppCalendarRoute =
   AuthenticatedAppCalendarRouteImport.update({
     id: '/calendar',
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/approval/$token': typeof ApprovalTokenRoute
   '/app/calendar': typeof AuthenticatedAppCalendarRoute
+  '/app/create': typeof AuthenticatedAppCreateRoute
   '/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/app/library': typeof AuthenticatedAppLibraryRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/approval/$token': typeof ApprovalTokenRoute
   '/app/calendar': typeof AuthenticatedAppCalendarRoute
+  '/app/create': typeof AuthenticatedAppCreateRoute
   '/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/app/library': typeof AuthenticatedAppLibraryRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -190,6 +198,7 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/approval/$token': typeof ApprovalTokenRoute
   '/_authenticated/app/calendar': typeof AuthenticatedAppCalendarRoute
+  '/_authenticated/app/create': typeof AuthenticatedAppCreateRoute
   '/_authenticated/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/_authenticated/app/library': typeof AuthenticatedAppLibraryRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/approval/$token'
     | '/app/calendar'
+    | '/app/create'
     | '/app/ideas'
     | '/app/library'
     | '/app/settings'
@@ -233,6 +243,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/approval/$token'
     | '/app/calendar'
+    | '/app/create'
     | '/app/ideas'
     | '/app/library'
     | '/app/settings'
@@ -255,6 +266,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/approval/$token'
     | '/_authenticated/app/calendar'
+    | '/_authenticated/app/create'
     | '/_authenticated/app/ideas'
     | '/_authenticated/app/library'
     | '/_authenticated/app/settings'
@@ -365,6 +377,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppIdeasRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/create': {
+      id: '/_authenticated/app/create'
+      path: '/create'
+      fullPath: '/app/create'
+      preLoaderRoute: typeof AuthenticatedAppCreateRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/calendar': {
       id: '/_authenticated/app/calendar'
       path: '/calendar'
@@ -426,6 +445,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppCalendarRoute: typeof AuthenticatedAppCalendarRoute
+  AuthenticatedAppCreateRoute: typeof AuthenticatedAppCreateRoute
   AuthenticatedAppIdeasRoute: typeof AuthenticatedAppIdeasRoute
   AuthenticatedAppLibraryRoute: typeof AuthenticatedAppLibraryRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
@@ -441,6 +461,7 @@ interface AuthenticatedAppRouteChildren {
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppCalendarRoute: AuthenticatedAppCalendarRoute,
+  AuthenticatedAppCreateRoute: AuthenticatedAppCreateRoute,
   AuthenticatedAppIdeasRoute: AuthenticatedAppIdeasRoute,
   AuthenticatedAppLibraryRoute: AuthenticatedAppLibraryRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
@@ -483,13 +504,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
