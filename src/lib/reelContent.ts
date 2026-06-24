@@ -239,12 +239,12 @@ export function buildReelCaption(
   };
 }
 
-function inferDuration(project: Project): string {
+export function inferReelDurationSeconds(project: Project): number {
   const haystack = [project.notes, project.mandatory_information, project.main_message]
     .map(txt)
     .join(" ");
   const match = haystack.match(/\b(15|30|45|60)\s*(?:s|seg|segundos?)\b/i);
-  return match ? `${match[1]} segundos` : "30 segundos";
+  return match ? Number(match[1]) : 30;
 }
 
 function listOrFallback(items: string[], fallback: string): string {
@@ -253,7 +253,7 @@ function listOrFallback(items: string[], fallback: string): string {
 
 export function buildReelScriptRequest(brand: Brand, project: Project, fallbackCta = ""): string {
   const context = buildPublicationContext(brand, project, fallbackCta);
-  const duration = inferDuration(project);
+  const durationSeconds = inferReelDurationSeconds(project);
   const tone = unique([
     txt(brand.tone_of_voice),
     txt(brand.personality),
@@ -266,7 +266,7 @@ export function buildReelScriptRequest(brand: Brand, project: Project, fallbackC
   lines.push("TEMA:");
   lines.push(context.theme || context.title || "[INSERIR TEMA OU IDEIA]");
   lines.push("");
-  lines.push("CONTEXTO OPCIONAL:");
+  lines.push("CONTEXTO:");
   lines.push(
     [context.centralConcept, txt(project.notes), txt(project.audience_problem)]
       .filter(Boolean)
@@ -280,13 +280,16 @@ export function buildReelScriptRequest(brand: Brand, project: Project, fallbackC
   lines.push(context.audience || "Definir a partir do tema e da marca.");
   lines.push("");
   lines.push("DURAÇÃO:");
-  lines.push(duration);
+  lines.push(`${durationSeconds} segundos`);
   lines.push("");
-  lines.push("CTA:");
-  lines.push(context.strategicCta || "Criar um CTA adequado ao objetivo.");
+  lines.push("CONCEITO OU PROMESSA DA CAMPANHA:");
+  lines.push(context.promise || context.centralConcept || "Definir a partir do tema.");
   lines.push("");
-  lines.push("PONTOS QUE O ROTEIRO PRECISA DESENVOLVER:");
+  lines.push("PONTOS OBRIGATÓRIOS A DESENVOLVER:");
   lines.push(listOrFallback(context.mainPoints, "- Definir a partir do tema."));
+  lines.push("");
+  lines.push("CTA ESTRATÉGICO:");
+  lines.push(context.strategicCta || "Criar um CTA adequado ao objetivo.");
   lines.push("");
   lines.push("INFORMAÇÕES OBRIGATÓRIAS:");
   lines.push(
@@ -307,49 +310,133 @@ export function buildReelScriptRequest(brand: Brand, project: Project, fallbackC
     ),
   );
   lines.push("");
-  lines.push(
-    "O conteúdo pode utilizar storytelling emocional quando isso combinar com o tema, mas não deve forçar emoção, dramatizar excessivamente ou explorar sofrimento.",
-  );
+  lines.push("Crie um roteiro realmente desenvolvido e pronto para orientar a gravação.");
+  lines.push("");
+  lines.push("Não entregue apenas uma estrutura genérica como:");
+  lines.push("- “criar gancho”;");
+  lines.push("- “desenvolver em dois ou três cortes”;");
+  lines.push("- “apresentar benefício”;");
+  lines.push("- “inserir CTA”.");
   lines.push("");
   lines.push(
-    "Não use palavras, comparações, piadas, expressões ou construções que humilhem, diminuam, estigmatizem ou denigram pessoas, grupos, destinos, condições financeiras, culturas ou formas diferentes de viajar.",
+    "Escreva efetivamente as falas, narrações, textos na tela, ações, cenas, orientações de gravação e transições.",
   );
-  lines.push("");
-  lines.push("O roteiro precisa conter:");
-  lines.push("1. Conceito central.");
-  lines.push("2. Objetivo do Reel.");
-  lines.push("3. Emoção ou reação que o conteúdo deve despertar.");
-  lines.push("4. Gancho para os primeiros três segundos.");
-  lines.push("5. Roteiro dividido por cenas e tempo.");
-  lines.push("6. Fala, diálogo ou narração de cada cena.");
-  lines.push("7. Texto curto que aparecerá na tela.");
-  lines.push("8. Orientação de gravação, enquadramento, movimentos e imagens de apoio.");
-  lines.push("9. Sugestão de transições.");
-  lines.push("10. Clima de trilha sonora.");
-  lines.push("11. Fechamento memorável.");
-  lines.push("12. CTA natural e coerente.");
+  lines.push("Não repita o texto de apoio durante todo o desenvolvimento.");
   lines.push(
-    "13. Legenda completa para a publicação, baseada na campanha inteira e em todos os pontos acima.",
+    "Transforme cada ponto obrigatório em uma orientação concreta dentro de uma ou mais cenas.",
   );
-  lines.push("14. Duas alternativas de gancho.");
-  lines.push("15. Uma versão mais curta do roteiro.");
+  lines.push(
+    "A legenda deve representar o conteúdo completo do Reel e contemplar todos os pontos obrigatórios.",
+  );
+  lines.push("O CTA deve ser preservado exatamente como foi informado, inclusive na versão curta.");
+  lines.push("Não invente fatos, datas, condições, preços ou benefícios.");
   lines.push("");
   lines.push(
-    "O roteiro deve soar humano e natural quando falado. Evite frases genéricas, excesso de palavras motivacionais, clichês, textos publicitários artificiais e explicações longas.",
+    "RETORNE SOMENTE JSON VÁLIDO, SEM MARKDOWN E SEM TEXTO ANTES OU DEPOIS, NESTE FORMATO:",
   );
+  lines.push("{");
+  lines.push('  "schema_version": "reel_script_v1",');
+  lines.push('  "title": "Título interno do Reel",');
+  lines.push('  "assumptions": [],');
+  lines.push('  "overview": {');
+  lines.push('    "central_concept": "",');
+  lines.push('    "objective": "",');
+  lines.push('    "target_audience": "",');
+  lines.push('    "narrative_format": "",');
+  lines.push('    "desired_reaction": "",');
+  lines.push(`    "duration_seconds": ${durationSeconds}`);
+  lines.push("  },");
+  lines.push('  "hooks": {');
+  lines.push('    "primary": "",');
+  lines.push('    "alternatives": ["", ""]');
+  lines.push("  },");
+  lines.push('  "required_points": [');
+  if (context.mainPoints.length) {
+    context.mainPoints.forEach((point, index) => {
+      const comma = index < context.mainPoints.length - 1 ? "," : "";
+      lines.push(`    ${JSON.stringify(point)}${comma}`);
+    });
+  }
+  lines.push("  ],");
+  lines.push('  "scenes": [');
+  lines.push("    {");
+  lines.push('      "scene_number": 1,');
+  lines.push('      "scene_title": "Abertura",');
+  lines.push('      "start_second": 0,');
+  lines.push('      "end_second": 3,');
+  lines.push('      "purpose": "hook",');
+  lines.push('      "delivery_type": "speech | narration | on_screen_text | mixed",');
+  lines.push('      "speech_or_narration": "Fala ou narração completa",');
+  lines.push('      "on_screen_text": "Texto curto na tela",');
+  lines.push('      "recording_direction": "Orientação específica de gravação",');
+  lines.push('      "framing": "Enquadramento",');
+  lines.push('      "camera_movement": "Movimento ou câmera fixa",');
+  lines.push('      "supporting_images": ["Imagem de apoio"],');
+  lines.push('      "transition": "Transição",');
+  lines.push('      "production_notes": "Observações adicionais"');
+  lines.push("    }");
+  lines.push("  ],");
+  lines.push('  "production": {');
+  lines.push('    "soundtrack_mood": "",');
+  lines.push('    "editing_rhythm": "",');
+  lines.push('    "general_transitions": [],');
+  lines.push('    "accessibility_notes": []');
+  lines.push("  },");
+  lines.push('  "closing": {');
+  lines.push('    "memorable_line": "",');
+  lines.push(`    "cta": ${JSON.stringify(context.strategicCta || "")}`);
+  lines.push("  },");
+  lines.push('  "publication": {');
+  lines.push('    "caption": "Legenda completa baseada em toda a campanha",');
+  lines.push('    "hashtags": []');
+  lines.push("  },");
+  lines.push('  "short_version": {');
+  lines.push('    "duration_seconds": 15,');
+  lines.push('    "hook": "",');
+  lines.push('    "scenes": [');
+  lines.push("      {");
+  lines.push('        "scene_number": 1,');
+  lines.push('        "start_second": 0,');
+  lines.push('        "end_second": 3,');
+  lines.push('        "speech_or_narration": "",');
+  lines.push('        "on_screen_text": "",');
+  lines.push('        "recording_direction": ""');
+  lines.push("      }");
+  lines.push("    ],");
+  lines.push('    "closing": "",');
+  lines.push(`    "cta": ${JSON.stringify(context.strategicCta || "")}`);
+  lines.push("  },");
+  lines.push('  "coverage": [');
+  lines.push("    {");
+  lines.push('      "point": "Ponto obrigatório",');
+  lines.push('      "covered": true,');
+  lines.push('      "scene_numbers": [2],');
+  lines.push('      "covered_in_caption": true');
+  lines.push("    }");
+  lines.push("  ],");
+  lines.push('  "validation": {');
+  lines.push('    "hook_creates_curiosity": true,');
+  lines.push('    "has_beginning_middle_end": true,');
+  lines.push('    "all_required_points_covered": true,');
+  lines.push('    "cta_preserved": true,');
+  lines.push('    "caption_covers_full_campaign": true,');
+  lines.push('    "fits_duration": true,');
+  lines.push('    "recording_is_viable": true,');
+  lines.push('    "contains_no_offensive_language": true,');
+  lines.push('    "invented_information": false,');
+  lines.push(`    "estimated_speech_seconds": ${Math.max(1, durationSeconds - 3)},`);
+  lines.push('    "warnings": []');
+  lines.push("  }");
+  lines.push("}");
   lines.push("");
-  lines.push("Antes de entregar, verifique:");
-  lines.push("- se o gancho gera curiosidade;");
-  lines.push("- se a história tem começo, desenvolvimento e conclusão;");
-  lines.push("- se todos os pontos da campanha foram desenvolvidos;");
-  lines.push("- se a marca aparece de forma natural;");
-  lines.push("- se o CTA definido foi preservado;");
-  lines.push("- se o texto cabe na duração;");
-  lines.push("- se a gravação é viável;");
-  lines.push("- se nenhuma expressão pode ser interpretada como ofensiva ou depreciativa;");
-  lines.push("- se nenhuma informação foi inventada.");
-  lines.push("");
-  lines.push("Entregue o roteiro completo em texto estruturado, pronto para produção.");
+  lines.push("Antes de responder, confirme internamente que:");
+  lines.push("- todos os pontos obrigatórios aparecem em cenas concretas;");
+  lines.push("- todos os pontos também aparecem ou são sintetizados na legenda;");
+  lines.push("- o CTA foi preservado literalmente;");
+  lines.push("- as cenas não possuem lacunas ou sobreposições;");
+  lines.push("- as falas cabem na duração;");
+  lines.push("- a gravação é viável;");
+  lines.push("- nenhuma informação foi inventada.");
 
   return lines.join("\n");
 }
