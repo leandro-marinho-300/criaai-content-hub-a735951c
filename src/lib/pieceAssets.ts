@@ -6,13 +6,32 @@ import type { Tables } from "@/integrations/supabase/types";
 export type PieceAsset = Tables<"content_piece_assets">;
 
 export const ALLOWED_MIME = ["image/png", "image/jpeg", "image/jpg", "image/webp"] as const;
+export const ALLOWED_SCRIPT_VISUAL_MIME = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+] as const;
 export const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
+export const MAX_SCRIPT_VISUAL_FILE_SIZE = 30 * 1024 * 1024; // 30 MB
 
 export function validateFile(file: File): string | null {
   if (!ALLOWED_MIME.includes(file.type as (typeof ALLOWED_MIME)[number])) {
     return "Formato inválido. Use PNG, JPG, JPEG ou WebP.";
   }
   if (file.size > MAX_FILE_SIZE) return "Arquivo acima de 15 MB.";
+  if (file.size === 0) return "Arquivo vazio ou corrompido.";
+  return null;
+}
+
+export function validateScriptVisualFile(file: File): string | null {
+  if (
+    !ALLOWED_SCRIPT_VISUAL_MIME.includes(file.type as (typeof ALLOWED_SCRIPT_VISUAL_MIME)[number])
+  ) {
+    return "Formato inválido. Use PDF, PNG, JPG, JPEG ou WebP.";
+  }
+  if (file.size > MAX_SCRIPT_VISUAL_FILE_SIZE) return "Arquivo acima de 30 MB.";
   if (file.size === 0) return "Arquivo vazio ou corrompido.";
   return null;
 }
@@ -88,7 +107,9 @@ export async function deletePieceAsset(asset: PieceAsset): Promise<void> {
 }
 
 export async function getSignedUrl(path: string, expiresIn = 3600): Promise<string> {
-  const { data, error } = await supabase.storage.from("piece-assets").createSignedUrl(path, expiresIn);
+  const { data, error } = await supabase.storage
+    .from("piece-assets")
+    .createSignedUrl(path, expiresIn);
   if (error) throw error;
   return data.signedUrl;
 }
@@ -104,7 +125,10 @@ export async function fetchAssetsForProject(projectId: string): Promise<PieceAss
 }
 
 export async function toggleApproval(id: string, approved: boolean): Promise<void> {
-  const { error } = await supabase.from("content_piece_assets").update({ is_approved: approved }).eq("id", id);
+  const { error } = await supabase
+    .from("content_piece_assets")
+    .update({ is_approved: approved })
+    .eq("id", id);
   if (error) throw error;
 }
 
@@ -116,7 +140,11 @@ export async function toggleIncludeInPdf(id: string, include: boolean): Promise<
   if (error) throw error;
 }
 
-export async function updateAssetOrder(id: string, displayOrder: number, outputId?: string): Promise<void> {
+export async function updateAssetOrder(
+  id: string,
+  displayOrder: number,
+  outputId?: string,
+): Promise<void> {
   const patch = outputId
     ? { display_order: displayOrder, output_id: outputId }
     : { display_order: displayOrder };
@@ -146,4 +174,53 @@ export async function blobToDataUrl(blob: Blob): Promise<string> {
     r.onerror = () => reject(r.error);
     r.readAsDataURL(blob);
   });
+}
+
+/**
+ * Faz upload do visual do roteiro (PDF ou imagem) usando o bucket privado já existente.
+ * O arquivo é associado ao output do roteiro e não entra no PDF do cliente por padrão.
+ */
+export async function uploadReelScriptVisualAsset(params: {
+  userId: string;
+  projectId: string;
+  outputId: string;
+  file: File;
+  displayOrder?: number;
+}): Promise<PieceAsset> {
+  const { userId, projectId, outputId, file } = params;
+  const err = validateScriptVisualFile(file);
+  if (err) throw new Error(err);
+
+  const dims = file.type.startsWith("image/") ? await readImageSize(file) : { width: 0, height: 0 };
+  const path = `${userId}/${projectId}/${outputId}/script-visual/${Date.now()}-${sanitizeName(file.name)}`;
+  const { error: upErr } = await supabase.storage.from("piece-assets").upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: file.type,
+  });
+  if (upErr) throw upErr;
+
+  const { data, error } = await supabase
+    .from("content_piece_assets")
+    .insert({
+      user_id: userId,
+      project_id: projectId,
+      output_id: outputId,
+      storage_path: path,
+      file_name: file.name,
+      file_type: file.type,
+      file_size: file.size,
+      image_width: dims.width || null,
+      image_height: dims.height || null,
+      display_order: params.displayOrder ?? 0,
+      include_in_client_pdf: false,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    await supabase.storage.from("piece-assets").remove([path]);
+    throw error;
+  }
+  return data as PieceAsset;
 }

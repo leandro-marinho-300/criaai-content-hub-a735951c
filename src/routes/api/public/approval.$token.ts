@@ -129,8 +129,9 @@ export const Route = createFileRoute("/api/public/approval/$token")({
           .order("display_order");
         const { data: assets } = await supabaseAdmin
           .from("content_piece_assets")
-          .select("id, output_id, storage_path, file_name, image_width, image_height, display_order")
+          .select("id, output_id, storage_path, file_name, file_type, image_width, image_height, display_order, include_in_client_pdf")
           .eq("project_id", approval.project_id)
+          .eq("include_in_client_pdf", true)
           .order("display_order");
         const { data: items } = await supabaseAdmin
           .from("client_approval_items")

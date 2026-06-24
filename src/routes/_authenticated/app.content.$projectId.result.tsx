@@ -47,7 +47,9 @@ import { RenameTitleDialog } from "@/components/rename-title-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImportReelScriptDialog } from "@/components/import-reel-script-dialog";
 import { ReelScriptView } from "@/components/reel-script-view";
+import { ReelScriptVisualPanel } from "@/components/reel-script-visual-panel";
 import { getStoredReelScript, reelScriptToPlainText, type ReelScript } from "@/lib/reelScript";
+import { attachReelScriptVisualMeta, getStoredReelScriptVisualMeta } from "@/lib/reelScriptVisual";
 import { inferReelDurationSeconds } from "@/lib/reelContent";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
@@ -385,6 +387,7 @@ function ResultPage() {
           <div className="space-y-6">
             <ReelTabs
               pieces={reelPieces}
+              otherPieces={nonReelPieces}
               project={project}
               assets={data.assets ?? []}
               userId={user?.id ?? ""}
@@ -392,34 +395,6 @@ function ResultPage() {
               onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
             />
 
-            {nonReelPieces.length > 0 && (
-              <section className="space-y-3">
-                <div>
-                  <h3 className="font-display text-base font-semibold">Outros formatos da campanha</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Estes materiais permanecem separados do fluxo do Reel.
-                  </p>
-                </div>
-                {nonReelPieces.map(({ row, piece }) =>
-                  piece ? (
-                    <PieceCard
-                      key={row.id}
-                      row={row}
-                      piece={piece}
-                      brand={project.brands}
-                      project={project}
-                      allPieces={pieces.map((p) => p.piece).filter(Boolean) as Piece[]}
-                      onCopyAndOpen={copyAndOpenChatGPT}
-                      userId={user?.id ?? ""}
-                      assets={(data.assets ?? []).filter((a) => a.output_id === row.id)}
-                      onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
-                    />
-                  ) : (
-                    <LegacyBlockCard key={row.id} block={row} />
-                  ),
-                )}
-              </section>
-            )}
           </div>
         ) : (
           pieces.map(({ row, piece }) =>
@@ -1171,6 +1146,7 @@ function OutputKindBadge({ kind }: { kind: OutputKind }) {
 
 function ReelTabs({
   pieces,
+  otherPieces = [],
   project,
   assets,
   userId,
@@ -1178,6 +1154,7 @@ function ReelTabs({
   onAssetsChanged,
 }: {
   pieces: { row: Output; piece: Piece | null }[];
+  otherPieces?: { row: Output; piece: Piece | null }[];
   project: Tables<"content_projects"> & { brands: Tables<"brands"> | null };
   assets: PieceAsset[];
   userId: string;
@@ -1186,7 +1163,7 @@ function ReelTabs({
 }) {
   const qc = useQueryClient();
   const [importScriptOpen, setImportScriptOpen] = useState(false);
-  const allPieces = pieces.map((p) => p.piece).filter(Boolean) as Piece[];
+  const allPieces = [...pieces, ...otherPieces].map((p) => p.piece).filter(Boolean) as Piece[];
   const find = (role: string) => pieces.find((p) => p.piece?.role === role);
   const roteiro = find("roteiro");
   const capa = find("capa");
@@ -1215,15 +1192,25 @@ function ReelTabs({
         qualityIssues: undefined,
       };
 
+      const nextScriptVersion = (roteiro.row.version ?? 1) + 1;
+      const currentVisualMeta = getStoredReelScriptVisualMeta(roteiro.row.imported_content);
+      const hasVisualAttached = assets.some((asset) => asset.output_id === roteiro.row.id);
+      const importedScriptContent = attachReelScriptVisualMeta(script, {
+        ...currentVisualMeta,
+        status: hasVisualAttached ? "needs_revision" : "prompt_ready",
+        script_version: hasVisualAttached ? currentVisualMeta.script_version : null,
+        approved_at: hasVisualAttached ? null : currentVisualMeta.approved_at,
+      });
+
       const { error: scriptError } = await supabase
         .from("content_outputs")
         .update({
-          imported_content: script as unknown as Json,
+          imported_content: importedScriptContent,
           edited_content: JSON.stringify(updatedScriptPiece),
           source: "external_chatgpt",
           title: "Reel — Roteiro completo",
           copy_status: "review",
-          version: (roteiro.row.version ?? 1) + 1,
+          version: nextScriptVersion,
         })
         .eq("id", roteiro.row.id);
       if (scriptError) throw scriptError;
@@ -1325,6 +1312,9 @@ function ReelTabs({
           <TabsTrigger value="capa">Capa</TabsTrigger>
           <TabsTrigger value="legenda">Legenda e hashtags</TabsTrigger>
           <TabsTrigger value="arquivos">Arquivos finais</TabsTrigger>
+          {otherPieces.length > 0 && (
+            <TabsTrigger value="outros">Outros formatos ({otherPieces.length})</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
@@ -1372,7 +1362,23 @@ function ReelTabs({
             </Button>
           </div>
           {storedScript ? (
-            <ReelScriptView script={storedScript} onImportNewVersion={() => setImportScriptOpen(true)} />
+            <>
+              <ReelScriptView script={storedScript} onImportNewVersion={() => setImportScriptOpen(true)} />
+              {roteiro && (
+                <ReelScriptVisualPanel
+                  userId={userId}
+                  projectId={project.id}
+                  projectTitle={getProjectDisplayTitle(project)}
+                  outputId={roteiro.row.id}
+                  outputImportedContent={roteiro.row.imported_content}
+                  script={storedScript}
+                  scriptVersion={roteiro.row.version ?? 1}
+                  brand={project.brands}
+                  assets={assets.filter((asset) => asset.output_id === roteiro.row.id)}
+                  onChange={onAssetsChanged}
+                />
+              )}
+            </>
           ) : (
             renderPiece(roteiro, "Nenhum pedido de roteiro registrado para este Reel.")
           )}
@@ -1406,6 +1412,33 @@ function ReelTabs({
             <div key={entry.row.id}>{renderPiece(entry, "")}</div>
           ))}
         </TabsContent>
+
+        {otherPieces.length > 0 && (
+          <TabsContent value="outros" className="mt-4 space-y-3">
+            <div>
+              <h3 className="font-display text-base font-semibold">Outros formatos da campanha</h3>
+              <p className="text-xs text-muted-foreground">
+                Stories, posts e demais entregas permanecem separados das etapas internas do Reel.
+              </p>
+            </div>
+            {otherPieces.map(({ row, piece }) =>
+              piece ? (
+                <PieceCard
+                  key={row.id}
+                  row={row}
+                  piece={piece}
+                  brand={project.brands}
+                  project={project}
+                  allPieces={allPieces}
+                  onCopyAndOpen={onCopyAndOpen}
+                  userId={userId}
+                  assets={assets.filter((asset) => asset.output_id === row.id)}
+                  onAssetsChanged={onAssetsChanged}
+                />
+              ) : null,
+            )}
+          </TabsContent>
+        )}
       </Tabs>
 
       <ImportReelScriptDialog
