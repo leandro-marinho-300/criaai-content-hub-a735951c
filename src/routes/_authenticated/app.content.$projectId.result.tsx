@@ -150,7 +150,10 @@ function ResultPage() {
   const selectedFormats: string[] = Array.isArray(project.selected_formats)
     ? (project.selected_formats as string[])
     : [];
-  const isReelOnly = selectedFormats.length === 1 && selectedFormats[0] === "reel";
+  const hasReel = selectedFormats.includes("reel") || pieces.some(({ piece }) => piece?.formatKey === "reel");
+  const reelPieces = pieces.filter(({ piece }) => piece?.formatKey === "reel");
+  const nonReelPieces = pieces.filter(({ piece }) => piece?.formatKey !== "reel");
+  const isReelOnly = hasReel && nonReelPieces.length === 0;
 
   const storedReelScriptForExport = getStoredReelScript(
     pieces.find(({ piece }) => piece?.formatKey === "reel" && piece.role === "roteiro")?.row.imported_content,
@@ -346,7 +349,11 @@ function ResultPage() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-lg font-semibold">
-            {isReelOnly ? "Materiais do Reel" : `Peças geradas (${pieces.length})`}
+            {hasReel
+              ? isReelOnly
+                ? "Materiais do Reel"
+                : `Materiais do Reel e outros formatos (${pieces.length})`
+              : `Peças geradas (${pieces.length})`}
           </h2>
           <div className="flex items-center gap-2">
             {(() => {
@@ -355,8 +362,8 @@ function ResultPage() {
                 (assetsByOutput[a.output_id] ||= []).push(a);
               });
               const publishablePieces = pieces.filter((p) => p.piece && p.piece.outputKind === "publishable_asset");
-              const denom = isReelOnly ? publishablePieces.length : pieces.length;
-              const withArt = (isReelOnly ? publishablePieces : pieces).filter(
+              const denom = hasReel ? publishablePieces.length : pieces.length;
+              const withArt = (hasReel ? publishablePieces : pieces).filter(
                 (p) => (assetsByOutput[p.row.id] ?? []).length > 0,
               ).length;
               return (
@@ -374,15 +381,46 @@ function ResultPage() {
           <p className="text-sm text-muted-foreground">Nenhuma peça foi gerada para este projeto.</p>
         )}
 
-        {isReelOnly ? (
-          <ReelTabs
-            pieces={pieces}
-            project={project}
-            assets={data.assets ?? []}
-            userId={user?.id ?? ""}
-            onCopyAndOpen={copyAndOpenChatGPT}
-            onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
-          />
+        {hasReel ? (
+          <div className="space-y-6">
+            <ReelTabs
+              pieces={reelPieces}
+              project={project}
+              assets={data.assets ?? []}
+              userId={user?.id ?? ""}
+              onCopyAndOpen={copyAndOpenChatGPT}
+              onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
+            />
+
+            {nonReelPieces.length > 0 && (
+              <section className="space-y-3">
+                <div>
+                  <h3 className="font-display text-base font-semibold">Outros formatos da campanha</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Estes materiais permanecem separados do fluxo do Reel.
+                  </p>
+                </div>
+                {nonReelPieces.map(({ row, piece }) =>
+                  piece ? (
+                    <PieceCard
+                      key={row.id}
+                      row={row}
+                      piece={piece}
+                      brand={project.brands}
+                      project={project}
+                      allPieces={pieces.map((p) => p.piece).filter(Boolean) as Piece[]}
+                      onCopyAndOpen={copyAndOpenChatGPT}
+                      userId={user?.id ?? ""}
+                      assets={(data.assets ?? []).filter((a) => a.output_id === row.id)}
+                      onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
+                    />
+                  ) : (
+                    <LegacyBlockCard key={row.id} block={row} />
+                  ),
+                )}
+              </section>
+            )}
+          </div>
         ) : (
           pieces.map(({ row, piece }) =>
             piece ? (
