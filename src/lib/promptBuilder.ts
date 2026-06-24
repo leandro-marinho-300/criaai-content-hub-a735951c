@@ -836,6 +836,13 @@ export function buildPieces(args: BuildArgs): Piece[] {
       const warning = pieceWarning(tmpl.role, project);
       if (warning) piece.warning = warning;
 
+      // classifica a peça (publicável / copy / produção)
+      if (formatKey === "reel") {
+        piece.outputKind = classifyOutput("reel", reelKeyFromRole(tmpl.role));
+      } else {
+        piece.outputKind = "publishable_asset";
+      }
+
       pieces.push(piece);
     }
   }
