@@ -750,14 +750,14 @@ function PieceCard({
               )}
             </div>
 
-            {/* Arte final anexada (usada no PDF para o cliente) */}
-            {userId && (
+            {/* Arte final anexada — somente para peças publicáveis (vídeo / capa / arte). */}
+            {userId && (piece.outputKind ?? "publishable_asset") === "publishable_asset" && (
               <PieceAssetUploader
                 userId={userId}
                 projectId={row.project_id}
                 outputId={row.id}
                 assets={assets}
-                multiple={piece.formatKey === "carrossel"}
+                multiple={piece.formatKey === "carrossel" || (piece.formatKey === "reel" && piece.role === "capa") === false && piece.formatKey === "carrossel"}
                 onChange={onAssetsChanged}
               />
             )}
