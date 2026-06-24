@@ -757,7 +757,7 @@ function PieceCard({
                 projectId={row.project_id}
                 outputId={row.id}
                 assets={assets}
-                multiple={piece.formatKey === "carrossel" || (piece.formatKey === "reel" && piece.role === "capa") === false && piece.formatKey === "carrossel"}
+                multiple={piece.formatKey === "carrossel"}
                 onChange={onAssetsChanged}
               />
             )}
