@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/copy-button";
 import { parsePiece, pieceToPlainText, type Piece } from "@/lib/promptBuilder";
+import { OUTPUT_KIND_LABEL, type OutputKind } from "@/lib/formatOutputRules";
 import type { Tables } from "@/integrations/supabase/types";
 import { AdjustPieceDialog } from "@/components/adjust-piece-dialog";
 import { PieceAssetUploader } from "@/components/piece-asset-uploader";
@@ -43,6 +44,7 @@ import { FileImage } from "lucide-react";
 import { AddToCalendarDialog } from "@/components/calendar/add-to-calendar-dialog";
 import { getProjectDisplayTitle } from "@/lib/displayTitle";
 import { RenameTitleDialog } from "@/components/rename-title-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
