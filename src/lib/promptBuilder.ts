@@ -16,7 +16,7 @@ import {
   type QualityIssue,
   type CopyStatus,
 } from "./copyQuality";
-import { FORMAT_RULES, extractCaptionMode } from "./formatOutputRules";
+import { FORMAT_RULES, extractCaptionMode, classifyOutput, reelKeyFromRole, type OutputKind } from "./formatOutputRules";
 import { detectEditorialIntent, buildEditorialItems, type EditorialIntent } from "./editorialIntent";
 
 export type Brand = Tables<"brands">;
@@ -53,6 +53,8 @@ export interface Piece {
   qualityStatus: CopyStatus;
   headlineOptions: string[];
   supportTextOptions: string[];
+  /** Classificação da peça: publicável, texto da publicação, material interno. */
+  outputKind?: OutputKind;
   /** Origem da copy atual. */
   copySource?: "deterministic" | "manual" | "external_chatgpt";
   /** Histórico curto (últimas 3) de versões anteriores para restauração. */
@@ -467,6 +469,34 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
     ].join("\n");
   }
 
+  // ----- REEL: roteiro/legenda/CTA não devem gerar prompt visual -----
+  if (piece.formatKey === "reel") {
+    if (piece.role === "roteiro") {
+      return [
+        `Material interno — Roteiro do Reel.`,
+        ``,
+        `Este conteúdo orienta a gravação e edição. NÃO deve ser publicado como uma arte.`,
+        ``,
+        `Estrutura sugerida (15-30s):`,
+        `[0-2s] Gancho — ${piece.mainText || "[PREENCHER gancho]"}`,
+        `[2-15s] Desenvolvimento em 2-3 cortes — ${piece.supportText || "[PREENCHER desenvolvimento]"}`,
+        `[15-25s] Virada / prova / benefício`,
+        `[25-30s] CTA — ${piece.cta || "[PREENCHER CTA]"}`,
+        ``,
+        `Para cada bloco descreva: FALA, TEXTO NA TELA, AÇÃO.`,
+      ].join("\n");
+    }
+    if (piece.role === "legenda") {
+      return [
+        `Texto da publicação — Legenda do Reel.`,
+        ``,
+        `Use exatamente este texto como legenda da publicação. NÃO gerar imagem para esta peça.`,
+        ``,
+        piece.mainText || "[PREENCHER legenda]",
+      ].join("\n");
+    }
+  }
+
   const style = txt(project.desired_style) || txt(brand.visual_style) || "alinhado à identidade da marca";
   const identityBits = [
     brand.primary_color ? `cor principal ${brand.primary_color}` : null,
@@ -475,7 +505,12 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
   ].filter(Boolean).join(", ");
 
   const block: string[] = [];
-  block.push(`Crie a arte para ${piece.formatLabel} da empresa "${brand.name}", no estilo ${style}.`);
+  // Cabeçalho: capa de Reel ganha frase específica.
+  if (piece.formatKey === "reel" && piece.role === "capa") {
+    block.push(`Crie uma capa estática publicável para um Reel da empresa "${brand.name}", no estilo ${style}.`);
+  } else {
+    block.push(`Crie a arte para ${piece.formatLabel} da empresa "${brand.name}", no estilo ${style}.`);
+  }
   block.push("");
   block.push(`Função desta página: ${piece.objective}.`);
 
@@ -508,11 +543,6 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
   block.push("- Preferir camadas de texto legíveis a textos longos sobre a imagem.");
   if (restrictionsBrief) block.push(`- Restrições da marca: ${restrictionsBrief}.`);
   if (mode === "safe") block.push("- Em caso de dúvida, escrever [PREENCHER] em vez de inventar.");
-
-  if (piece.role === "roteiro") {
-    block.push("");
-    block.push("Roteiro do Reel: [0-2s] gancho, [2-15s] desenvolvimento em 2-3 cortes, [15-25s] virada, [25-30s] CTA. Para cada bloco: FALA, TEXTO NA TELA, AÇÃO.");
-  }
 
   return block.join("\n");
 }
@@ -805,6 +835,13 @@ export function buildPieces(args: BuildArgs): Piece[] {
 
       const warning = pieceWarning(tmpl.role, project);
       if (warning) piece.warning = warning;
+
+      // classifica a peça (publicável / copy / produção)
+      if (formatKey === "reel") {
+        piece.outputKind = classifyOutput("reel", reelKeyFromRole(tmpl.role));
+      } else {
+        piece.outputKind = "publishable_asset";
+      }
 
       pieces.push(piece);
     }

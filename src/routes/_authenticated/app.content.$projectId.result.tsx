@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/copy-button";
 import { parsePiece, pieceToPlainText, type Piece } from "@/lib/promptBuilder";
+import { OUTPUT_KIND_LABEL, type OutputKind } from "@/lib/formatOutputRules";
 import type { Tables } from "@/integrations/supabase/types";
 import { AdjustPieceDialog } from "@/components/adjust-piece-dialog";
 import { PieceAssetUploader } from "@/components/piece-asset-uploader";
@@ -43,6 +44,7 @@ import { FileImage } from "lucide-react";
 import { AddToCalendarDialog } from "@/components/calendar/add-to-calendar-dialog";
 import { getProjectDisplayTitle } from "@/lib/displayTitle";
 import { RenameTitleDialog } from "@/components/rename-title-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
@@ -113,10 +115,29 @@ function ResultPage() {
 
   const project = data.project;
 
-  const pieces: { row: Output; piece: Piece | null }[] = pieceRows.map((row) => ({
-    row,
-    piece: parsePiece(row.edited_content ?? row.original_content),
-  }));
+  const pieces: { row: Output; piece: Piece | null }[] = pieceRows.map((row) => {
+    const piece = parsePiece(row.edited_content ?? row.original_content);
+    if (piece && !piece.outputKind) {
+      // Inferência para projetos antigos (especialmente Reel).
+      if (piece.formatKey === "reel") {
+        piece.outputKind = piece.role === "capa"
+          ? "publishable_asset"
+          : piece.role === "roteiro"
+            ? "production_material"
+            : piece.role === "legenda"
+              ? "publication_copy"
+              : "publishable_asset";
+      } else {
+        piece.outputKind = "publishable_asset";
+      }
+    }
+    return { row, piece };
+  });
+
+  const selectedFormats: string[] = Array.isArray(project.selected_formats)
+    ? (project.selected_formats as string[])
+    : [];
+  const isReelOnly = selectedFormats.length === 1 && selectedFormats[0] === "reel";
 
   const allPiecesText = pieces
     .map(({ piece }) => (piece ? pieceToPlainText(piece) : ""))
@@ -272,15 +293,22 @@ function ResultPage() {
       {/* SEÇÃO 2 — PEÇAS GERADAS */}
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-lg font-semibold">Peças geradas ({pieces.length})</h2>
+          <h2 className="font-display text-lg font-semibold">
+            {isReelOnly ? "Materiais do Reel" : `Peças geradas (${pieces.length})`}
+          </h2>
           <div className="flex items-center gap-2">
             {(() => {
               const assetsByOutput: Record<string, PieceAsset[]> = {};
               (data.assets ?? []).forEach((a) => { (assetsByOutput[a.output_id] ||= []).push(a); });
-              const withArt = pieces.filter((p) => (assetsByOutput[p.row.id] ?? []).length > 0).length;
+              const publishablePieces = pieces.filter(
+                (p) => p.piece && p.piece.outputKind === "publishable_asset",
+              );
+              const denom = isReelOnly ? publishablePieces.length : pieces.length;
+              const withArt = (isReelOnly ? publishablePieces : pieces)
+                .filter((p) => (assetsByOutput[p.row.id] ?? []).length > 0).length;
               return (
                 <Badge variant="outline" className="text-xs">
-                  Artes finais: {withArt} de {pieces.length} peça(s)
+                  Artes finais: {withArt} de {denom} peça(s)
                 </Badge>
               );
             })()}
@@ -292,25 +320,38 @@ function ResultPage() {
         {pieces.length === 0 && (
           <p className="text-sm text-muted-foreground">Nenhuma peça foi gerada para este projeto.</p>
         )}
-        {pieces.map(({ row, piece }) =>
-          piece ? (
-            <PieceCard
-              key={row.id}
-              row={row}
-              piece={piece}
-              brand={project.brands}
-              project={project}
-              allPieces={pieces.map((p) => p.piece).filter(Boolean) as Piece[]}
-              onCopyAndOpen={copyAndOpenChatGPT}
-              userId={user?.id ?? ""}
-              assets={(data.assets ?? []).filter((a) => a.output_id === row.id)}
-              onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
-            />
-          ) : (
-            <LegacyBlockCard key={row.id} block={row} />
-          ),
+
+        {isReelOnly ? (
+          <ReelTabs
+            pieces={pieces}
+            project={project}
+            assets={data.assets ?? []}
+            userId={user?.id ?? ""}
+            onCopyAndOpen={copyAndOpenChatGPT}
+            onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
+          />
+        ) : (
+          pieces.map(({ row, piece }) =>
+            piece ? (
+              <PieceCard
+                key={row.id}
+                row={row}
+                piece={piece}
+                brand={project.brands}
+                project={project}
+                allPieces={pieces.map((p) => p.piece).filter(Boolean) as Piece[]}
+                onCopyAndOpen={copyAndOpenChatGPT}
+                userId={user?.id ?? ""}
+                assets={(data.assets ?? []).filter((a) => a.output_id === row.id)}
+                onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
+              />
+            ) : (
+              <LegacyBlockCard key={row.id} block={row} />
+            ),
+          )
         )}
       </section>
+
 
       {/* Blocos legados (projetos antigos) */}
       {legacyRows.length > 0 && (
@@ -460,6 +501,7 @@ function PieceCard({
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="text-[10px]">Peça {piece.index}</Badge>
               <Badge variant="outline" className="text-[10px]">{piece.formatLabel}</Badge>
+              {piece.outputKind && <OutputKindBadge kind={piece.outputKind} />}
               {row.is_favorite && <Badge variant="secondary" className="text-[10px]">Produzida</Badge>}
             </div>
             <h3 className="truncate font-display text-lg font-semibold">{piece.name}</h3>
@@ -617,34 +659,66 @@ function PieceCard({
               )}
             </div>
 
-            {/* Prompt pronto */}
-            <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-primary">
-                  {draft.qualityStatus === "blocked"
-                    ? "Prompt indisponível — copy bloqueada"
-                    : "Prompt pronto para colar no ChatGPT"}
-                </span>
-                {draft.qualityStatus !== "blocked" && (
-                  <div className="flex gap-1">
-                    <CopyButton text={draft.readyPrompt} label="Copiar prompt da página" variant="default" size="sm" />
-                    <Button size="sm" variant="secondary" onClick={() => onCopyAndOpen(draft.readyPrompt)} className="gap-1.5">
-                      <ExternalLink className="h-3.5 w-3.5" />Abrir ChatGPT
-                    </Button>
-                  </div>
+            {/* Prompt pronto — não publicável esconde como "Material interno / Texto da publicação". */}
+            {piece.outputKind === "production_material" && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
+                <p className="font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                  Material interno
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Este conteúdo orienta a gravação / edição e <b>não deve ser publicado</b> como uma arte.
+                  Não há prompt visual para esta peça.
+                </p>
+              </div>
+            )}
+            {piece.outputKind === "publication_copy" && (
+              <div className="rounded-lg border border-sky-500/40 bg-sky-500/5 p-3 text-xs">
+                <p className="font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+                  Usar na publicação
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Texto da publicação. Copie e cole na legenda do post — não é uma arte para gerar imagem.
+                </p>
+                <div className="mt-2">
+                  <CopyButton
+                    text={draft.mainText || draft.caption || ""}
+                    label="Copiar texto da publicação"
+                    variant="default"
+                    size="sm"
+                  />
+                </div>
+              </div>
+            )}
+            {(!piece.outputKind || piece.outputKind === "publishable_asset" || piece.outputKind === "reference_material") && (
+              <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    {draft.qualityStatus === "blocked"
+                      ? "Prompt indisponível — copy bloqueada"
+                      : "Prompt pronto para colar no ChatGPT"}
+                  </span>
+                  {draft.qualityStatus !== "blocked" && (
+                    <div className="flex gap-1">
+                      <CopyButton text={draft.readyPrompt} label="Copiar prompt da página" variant="default" size="sm" />
+                      <Button size="sm" variant="secondary" onClick={() => onCopyAndOpen(draft.readyPrompt)} className="gap-1.5">
+                        <ExternalLink className="h-3.5 w-3.5" />Abrir ChatGPT
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {editing ? (
+                  <Textarea
+                    rows={Math.min(20, Math.max(6, draft.readyPrompt.split("\n").length + 1))}
+                    value={draft.readyPrompt}
+                    onChange={(e) => setDraft({ ...draft, readyPrompt: e.target.value })}
+                    className="font-mono text-xs"
+                  />
+                ) : (
+                  <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">{draft.readyPrompt}</pre>
                 )}
               </div>
-              {editing ? (
-                <Textarea
-                  rows={Math.min(20, Math.max(6, draft.readyPrompt.split("\n").length + 1))}
-                  value={draft.readyPrompt}
-                  onChange={(e) => setDraft({ ...draft, readyPrompt: e.target.value })}
-                  className="font-mono text-xs"
-                />
-              ) : (
-                <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">{draft.readyPrompt}</pre>
-              )}
-            </div>
+            )}
+
 
             {/* Ações */}
             <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
@@ -676,8 +750,8 @@ function PieceCard({
               )}
             </div>
 
-            {/* Arte final anexada (usada no PDF para o cliente) */}
-            {userId && (
+            {/* Arte final anexada — somente para peças publicáveis (vídeo / capa / arte). */}
+            {userId && (piece.outputKind ?? "publishable_asset") === "publishable_asset" && (
               <PieceAssetUploader
                 userId={userId}
                 projectId={row.project_id}
@@ -807,5 +881,130 @@ function LegacyBlockCard({ block }: { block: Output }) {
   );
 }
 
+// ============ BADGE DE CLASSIFICAÇÃO ============
+
+function OutputKindBadge({ kind }: { kind: OutputKind }) {
+  const cls = kind === "publishable_asset"
+    ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/40 dark:text-emerald-300"
+    : kind === "publication_copy"
+      ? "bg-sky-500/15 text-sky-700 border-sky-500/40 dark:text-sky-300"
+      : kind === "production_material"
+        ? "bg-amber-500/15 text-amber-700 border-amber-500/40 dark:text-amber-300"
+        : "bg-muted text-muted-foreground border-border";
+  return (
+    <Badge variant="outline" className={`text-[10px] ${cls}`}>
+      {OUTPUT_KIND_LABEL[kind]}
+    </Badge>
+  );
+}
+
+// ============ ABAS DO REEL ============
+
+function ReelTabs({
+  pieces,
+  project,
+  assets,
+  userId,
+  onCopyAndOpen,
+  onAssetsChanged,
+}: {
+  pieces: { row: Output; piece: Piece | null }[];
+  project: Tables<"content_projects"> & { brands: Tables<"brands"> | null };
+  assets: PieceAsset[];
+  userId: string;
+  onCopyAndOpen: (text: string) => void;
+  onAssetsChanged: () => void;
+}) {
+  const allPieces = pieces.map((p) => p.piece).filter(Boolean) as Piece[];
+  const find = (role: string) => pieces.find((p) => p.piece?.role === role);
+  const roteiro = find("roteiro");
+  const capa = find("capa");
+  const legenda = find("legenda");
+  const publishables = pieces.filter((p) => p.piece && p.piece.outputKind === "publishable_asset");
+
+  const renderPiece = (entry: { row: Output; piece: Piece | null } | undefined, emptyHint: string) => {
+    if (!entry?.piece) {
+      return <p className="text-sm italic text-muted-foreground">{emptyHint}</p>;
+    }
+    return (
+      <PieceCard
+        row={entry.row}
+        piece={entry.piece}
+        brand={project.brands}
+        project={project}
+        allPieces={allPieces}
+        onCopyAndOpen={onCopyAndOpen}
+        userId={userId}
+        assets={assets.filter((a) => a.output_id === entry.row.id)}
+        onAssetsChanged={onAssetsChanged}
+      />
+    );
+  };
+
+  return (
+    <Tabs defaultValue="overview" className="w-full">
+      <TabsList className="flex w-full flex-wrap gap-1 overflow-x-auto">
+        <TabsTrigger value="overview">Visão geral</TabsTrigger>
+        <TabsTrigger value="roteiro">Roteiro</TabsTrigger>
+        <TabsTrigger value="capa">Capa</TabsTrigger>
+        <TabsTrigger value="legenda">Legenda e hashtags</TabsTrigger>
+        <TabsTrigger value="arquivos">Arquivos finais</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="overview" className="mt-4">
+        <Card>
+          <CardContent className="space-y-2 p-5 text-sm">
+            <p><b>Título:</b> {getProjectDisplayTitle(project)}</p>
+            <p><b>Marca:</b> {project.brands?.name ?? "—"}</p>
+            <p><b>Tema:</b> {project.theme || "—"}</p>
+            <p><b>Objetivo:</b> {project.objective || "—"}</p>
+            <p><b>Status:</b> {statusLabel(project.status)}</p>
+            <p className="text-xs text-muted-foreground">
+              Reel é uma publicação única no calendário (vídeo + capa + legenda).
+              Roteiro e storyboard são materiais internos de produção.
+            </p>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="roteiro" className="mt-4 space-y-3">
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+          <b>MATERIAL INTERNO.</b> Este roteiro orienta a gravação e não deve ser publicado como uma arte.
+        </div>
+        {renderPiece(roteiro, "Nenhum roteiro registrado para este Reel.")}
+      </TabsContent>
+
+      <TabsContent value="capa" className="mt-4 space-y-3">
+        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-900 dark:text-emerald-200">
+          <b>PUBLICAR.</b> Capa estática do Reel — gere a arte a partir do prompt e anexe abaixo.
+        </div>
+        {renderPiece(capa, "Nenhuma capa registrada para este Reel.")}
+      </TabsContent>
+
+      <TabsContent value="legenda" className="mt-4 space-y-3">
+        <div className="rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-xs text-sky-900 dark:text-sky-200">
+          <b>USAR NA PUBLICAÇÃO.</b> Texto da legenda + hashtags. Não há arte para esta peça.
+        </div>
+        {renderPiece(legenda, "Nenhuma legenda registrada para este Reel.")}
+      </TabsContent>
+
+      <TabsContent value="arquivos" className="mt-4 space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Apenas peças publicáveis (vídeo final e capa) aparecem aqui e no PDF para o cliente.
+        </p>
+        {publishables.length === 0 && (
+          <p className="text-sm italic text-muted-foreground">
+            Nenhum arquivo publicável anexado ainda.
+          </p>
+        )}
+        {publishables.map((entry) => (
+          <div key={entry.row.id}>{renderPiece(entry, "")}</div>
+        ))}
+      </TabsContent>
+    </Tabs>
+  );
+}
+
 // silencia imports não usados em alguns paths
 void Copy;
+
