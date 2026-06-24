@@ -313,3 +313,125 @@ export function appliesToLabel(
     .map(([f]) => formatLabelShort(f));
   return fmts.join(" e ");
 }
+
+// ============================================================================
+// Reel — classificação de saídas (Etapa 1 da reestruturação)
+// ----------------------------------------------------------------------------
+// Separa o que é PUBLICADO (vídeo/capa), o que é TEXTO da publicação (legenda,
+// CTA, hashtags, alt) e o que é MATERIAL INTERNO de produção (roteiro, cenas,
+// storyboard, orientações). Fonte única consumida pelo promptBuilder, pela
+// página de resultado, pela galeria e pelo calendário.
+// ============================================================================
+
+export type OutputKind =
+  | "publishable_asset"
+  | "publication_copy"
+  | "production_material"
+  | "reference_material";
+
+export interface FormatOutputRule {
+  format: string;
+  category: "image" | "carousel" | "video" | "story" | "text" | "print";
+  requiredOutputs: string[];
+  optionalOutputs: string[];
+  /** "single_publication" | "story_sequence" | "carousel" | "none" */
+  calendarUnit: "single_publication" | "story_sequence" | "carousel" | "none";
+  /** Chaves que devem aparecer na galeria de artes finais. */
+  galleryOutputs: string[];
+  /** Chaves classificadas como material de produção (não publicável). */
+  productionOutputs: string[];
+  /** Mapeamento chave → tipo (publishable / copy / production). */
+  outputKinds: Record<string, OutputKind>;
+}
+
+export const FORMAT_OUTPUT_RULES: Record<string, FormatOutputRule> = {
+  reel: {
+    format: "reel",
+    category: "video",
+    requiredOutputs: ["script", "caption"],
+    optionalOutputs: ["cover", "hashtags", "final_video", "storyboard", "alt_text"],
+    calendarUnit: "single_publication",
+    galleryOutputs: ["cover", "final_video"],
+    productionOutputs: ["script", "scene_list", "storyboard", "editing_notes", "scene_reference"],
+    outputKinds: {
+      final_video: "publishable_asset",
+      cover: "publishable_asset",
+      caption: "publication_copy",
+      cta: "publication_copy",
+      hashtags: "publication_copy",
+      alt_text: "publication_copy",
+      script: "production_material",
+      scene_list: "production_material",
+      storyboard: "production_material",
+      editing_notes: "production_material",
+      scene_reference: "reference_material",
+    },
+  },
+};
+
+/** Mapa role (promptBuilder) → chave canônica usada nas regras de Reel. */
+const REEL_ROLE_TO_KEY: Record<string, string> = {
+  capa: "cover",
+  roteiro: "script",
+  legenda: "caption",
+  cta: "cta",
+};
+
+export function reelKeyFromRole(role: string): string {
+  return REEL_ROLE_TO_KEY[role] ?? role;
+}
+
+export function getFormatOutputRule(format: string): FormatOutputRule | undefined {
+  return FORMAT_OUTPUT_RULES[format];
+}
+
+/** Classifica uma saída para um formato. Faz inferência segura quando o
+ * formato ainda não tem regra explícita. */
+export function classifyOutput(format: string, outputKey: string): OutputKind {
+  const rule = FORMAT_OUTPUT_RULES[format];
+  if (rule && rule.outputKinds[outputKey]) return rule.outputKinds[outputKey];
+  // fallback heurístico (não-reel ou chaves desconhecidas)
+  if (["caption", "cta", "hashtags", "alt_text"].includes(outputKey)) return "publication_copy";
+  if (["script", "scene_list", "storyboard", "editing_notes"].includes(outputKey)) return "production_material";
+  return "publishable_asset";
+}
+
+export function isPublishableOutput(format: string, outputKey: string): boolean {
+  return classifyOutput(format, outputKey) === "publishable_asset";
+}
+
+export function isProductionMaterial(format: string, outputKey: string): boolean {
+  return classifyOutput(format, outputKey) === "production_material";
+}
+
+/** Para Reel: prompt visual SÓ é gerado para capa e referências de cena.
+ * Roteiro, legenda, CTA, hashtags, falas e lista de cenas NÃO geram prompt. */
+export function shouldGenerateVisualPrompt(format: string, outputKey: string): boolean {
+  if (format === "reel") {
+    return outputKey === "cover" || outputKey === "scene_reference";
+  }
+  // Para outros formatos mantém comportamento atual (publishable gera prompt).
+  return isPublishableOutput(format, outputKey);
+}
+
+export function shouldShowInFinalGallery(format: string, outputKey: string): boolean {
+  const rule = FORMAT_OUTPUT_RULES[format];
+  if (rule) return rule.galleryOutputs.includes(outputKey);
+  return isPublishableOutput(format, outputKey);
+}
+
+export function shouldSendToCalendar(format: string, outputKey: string): boolean {
+  const rule = FORMAT_OUTPUT_RULES[format];
+  if (!rule) return isPublishableOutput(format, outputKey);
+  if (rule.calendarUnit === "none") return false;
+  // single_publication: somente as peças publicáveis viram parte da unidade.
+  return rule.galleryOutputs.includes(outputKey) || rule.outputKinds[outputKey] === "publication_copy";
+}
+
+export const OUTPUT_KIND_LABEL: Record<OutputKind, string> = {
+  publishable_asset: "PUBLICAR",
+  publication_copy: "USAR NA PUBLICAÇÃO",
+  production_material: "MATERIAL INTERNO",
+  reference_material: "REFERÊNCIA",
+};
+
