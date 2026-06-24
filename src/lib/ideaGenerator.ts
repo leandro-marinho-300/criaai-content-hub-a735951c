@@ -13,16 +13,16 @@ import {
   IDEA_FORMAT_LABELS,
   IDEA_OBJECTIVE_LABELS,
   OBJECTIVE_PILLAR,
+  IDEA_TONE_LABELS,
 } from "./ideaTaxonomy";
+import { evaluateCompatibility, type CompatibilityLevel } from "./ideaCompatibility";
+import { approachIsSafe, getBrandIdeaSources, type BrandIdeaSources } from "./brandIdeaSources";
 import {
-  evaluateCompatibility,
-  type CompatibilityLevel,
-} from "./ideaCompatibility";
-import {
-  approachIsSafe,
-  getBrandIdeaSources,
-  type BrandIdeaSources,
-} from "./brandIdeaSources";
+  type IdeaHistoryItem,
+  isIdeaTooSimilar,
+  noveltyScoreAgainstHistory,
+  normalizeIdeaText,
+} from "./ideaNovelty";
 
 export {
   IDEA_OBJECTIVE_LABELS,
@@ -32,13 +32,7 @@ export {
   IDEA_APPROACH_LABELS,
 } from "./ideaTaxonomy";
 
-export type {
-  IdeaObjective,
-  IdeaFocus,
-  IdeaFormat,
-  IdeaTone,
-  IdeaApproach,
-} from "./ideaTaxonomy";
+export type { IdeaObjective, IdeaFocus, IdeaFormat, IdeaTone, IdeaApproach } from "./ideaTaxonomy";
 
 export type Brand = Tables<"brands">;
 
@@ -56,6 +50,7 @@ export interface Idea {
   objective: string;
   recommended_format: string;
   approach: string;
+  tone: string;
   angle: string;
   target_audience: string;
   audience_problem: string;
@@ -83,16 +78,12 @@ export interface IdeaGenInput {
   format?: IdeaFormat;
   tone?: IdeaTone;
   quantity: number;
-  history?: Array<{
-    theme?: string | null;
-    objective?: string | null;
-    formats?: string[] | null;
-    cta?: string | null;
-    template_key?: string | null;
-  }>;
+  history?: IdeaHistoryItem[];
   excludeTitles?: string[];
   /** Quando true, permite degradar para abordagem auto ou foco automático. */
   allowFallback?: boolean;
+  /** No modo estrito, evita temas semanticamente próximos aos já usados ou em produção. */
+  noveltyMode?: "standard" | "strict";
   seed?: number;
 }
 
@@ -177,10 +168,73 @@ type Built = {
 interface TemplateContext {
   brand: Brand;
   sources: BrandIdeaSources;
+  subjects: string[];
   rand: () => number;
 }
 
 type ApproachBuilder = (ctx: TemplateContext) => Built | null;
+
+function uniqueSubjects(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const cleaned = String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const key = normalizeIdeaText(cleaned);
+    if (!cleaned || !key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(cleaned);
+  }
+  return result;
+}
+
+function subjectsForFocus(focus: IdeaFocus, sources: BrandIdeaSources, brand: Brand): string[] {
+  switch (focus) {
+    case "produto":
+    case "servico":
+      return uniqueSubjects([...sources.usableProducts, ...sources.usableServices]);
+    case "marca":
+      return uniqueSubjects([
+        ...sources.usableDifferentiators,
+        ...sources.usableHistory,
+        brand.name,
+      ]);
+    case "dor_publico":
+      return uniqueSubjects([
+        ...sources.usableDifficulties,
+        ...sources.usableNeeds,
+        ...sources.usableQuestions,
+      ]);
+    case "data_relevante":
+    case "evento":
+      return uniqueSubjects([...sources.usableDates, ...sources.usableTopics]);
+    case "impacto_social":
+    case "comunidade":
+      return uniqueSubjects([
+        ...sources.usableValues,
+        ...sources.usableDifferentiators,
+        ...sources.usableTopics,
+        ...sources.usableHistory,
+      ]);
+    case "campanha":
+      return uniqueSubjects([
+        ...sources.usableTopics,
+        ...sources.usableDates,
+        ...sources.usableProducts,
+      ]);
+    default:
+      return uniqueSubjects([
+        ...sources.usableTopics,
+        ...sources.usableProducts,
+        ...sources.usableQuestions,
+        ...sources.usableDifficulties,
+        ...sources.usableNeeds,
+        ...sources.usableDifferentiators,
+        ...sources.usableDates,
+      ]);
+  }
+}
 
 function firstSentence(text: unknown): string {
   if (text == null) return "";
@@ -216,7 +270,9 @@ function firstEditorialSubject(value: string): string {
 }
 
 function ensureQuestion(value: string): string {
-  const normalized = firstEditorialSubject(value).replace(/[.!]+$/g, "").trim();
+  const normalized = firstEditorialSubject(value)
+    .replace(/[.!]+$/g, "")
+    .trim();
   return normalized.endsWith("?") ? normalized : `${normalized}?`;
 }
 
@@ -234,8 +290,11 @@ function normalizeBuilt(built: Built): Built {
 
 const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
   auto: () => null, // selecionado dinamicamente
-  beneficio: ({ sources, rand }) => {
-    const item = pick(sources.usableProducts, rand);
+  beneficio: ({ sources, subjects, rand }) => {
+    const item =
+      pick(subjects, rand) ??
+      pick(sources.usableProducts, rand) ??
+      pick(sources.usableBenefits, rand);
     if (!item) return null;
     return {
       title: `Como ${item} facilita o seu dia`,
@@ -262,8 +321,8 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
       template_key: "duvida",
     };
   },
-  bastidores: ({ brand, sources, rand }) => {
-    const item = pick(sources.usableProducts, rand) ?? brand.name;
+  bastidores: ({ brand, sources, subjects, rand }) => {
+    const item = pick(subjects, rand) ?? pick(sources.usableProducts, rand) ?? brand.name;
     return {
       title: `O que acontece por trás de ${item}`,
       theme: `Bastidores de ${item}`,
@@ -303,8 +362,9 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
       template_key: "prova_social",
     };
   },
-  orientacao_pratica: ({ sources, rand }) => {
+  orientacao_pratica: ({ sources, subjects, rand }) => {
     const need =
+      pick(subjects, rand) ??
       pick(sources.usableNeeds, rand) ??
       pick(sources.usableDifficulties, rand) ??
       pick(sources.usableTopics, rand);
@@ -320,8 +380,11 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
       template_key: "orientacao_pratica",
     };
   },
-  erro_comum: ({ sources, rand }) => {
-    const dif = pick(sources.usableDifficulties, rand) ?? pick(sources.usableNeeds, rand);
+  erro_comum: ({ sources, subjects, rand }) => {
+    const dif =
+      pick(subjects, rand) ??
+      pick(sources.usableDifficulties, rand) ??
+      pick(sources.usableNeeds, rand);
     if (!dif) return null;
     const c = clean(dif).toLowerCase();
     return {
@@ -334,8 +397,9 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
       template_key: "erro_comum",
     };
   },
-  checklist: ({ sources, rand }) => {
-    const need = pick(sources.usableNeeds, rand) ?? pick(sources.usableTopics, rand);
+  checklist: ({ sources, subjects, rand }) => {
+    const need =
+      pick(subjects, rand) ?? pick(sources.usableNeeds, rand) ?? pick(sources.usableTopics, rand);
     if (!need) return null;
     return {
       title: `Checklist: ${need}`,
@@ -347,8 +411,9 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
       template_key: "checklist",
     };
   },
-  passo_a_passo: ({ sources, rand }) => {
-    const need = pick(sources.usableNeeds, rand) ?? pick(sources.usableProducts, rand);
+  passo_a_passo: ({ sources, subjects, rand }) => {
+    const need =
+      pick(subjects, rand) ?? pick(sources.usableNeeds, rand) ?? pick(sources.usableProducts, rand);
     if (!need) return null;
     const c = clean(need).toLowerCase();
     return {
@@ -361,8 +426,11 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
       template_key: "passo_a_passo",
     };
   },
-  comparacao: ({ sources, rand }) => {
-    const a = pick(sources.usableProducts, rand) ?? pick(sources.usableTopics, rand);
+  comparacao: ({ sources, subjects, rand }) => {
+    const a =
+      pick(subjects, rand) ??
+      pick(sources.usableProducts, rand) ??
+      pick(sources.usableTopics, rand);
     if (!a) return null;
     return {
       title: `Antes e depois com ${a}`,
@@ -374,8 +442,13 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
       template_key: "comparacao",
     };
   },
-  mito_verdade: ({ sources, rand, brand }) => {
-    const topic = pick(sources.usableTopics, rand) ?? pick(sources.usableQuestions, rand) ?? brand.segment ?? "";
+  mito_verdade: ({ sources, subjects, rand, brand }) => {
+    const topic =
+      pick(subjects, rand) ??
+      pick(sources.usableTopics, rand) ??
+      pick(sources.usableQuestions, rand) ??
+      brand.segment ??
+      "";
     if (!topic) return null;
     return {
       title: `Mito ou verdade: ${topic}?`,
@@ -387,8 +460,11 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
       template_key: "mito_verdade",
     };
   },
-  lista: ({ sources, rand }) => {
-    const focus = pick(sources.usableTopics, rand) ?? pick(sources.usableProducts, rand);
+  lista: ({ sources, subjects, rand }) => {
+    const focus =
+      pick(subjects, rand) ??
+      pick(sources.usableTopics, rand) ??
+      pick(sources.usableProducts, rand);
     if (!focus) return null;
     const c = clean(focus).toLowerCase();
     return {
@@ -401,8 +477,8 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
       template_key: "lista",
     };
   },
-  antes_de_contratar: ({ sources, rand }) => {
-    const item = pick(sources.usableProducts, rand);
+  antes_de_contratar: ({ sources, subjects, rand }) => {
+    const item = pick(subjects, rand) ?? pick(sources.usableProducts, rand);
     if (!item) return null;
     return {
       title: `O que saber antes de contratar ${item}`,
@@ -427,8 +503,8 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
       template_key: "prestacao_contas",
     };
   },
-  apresentacao_comercial: ({ sources, rand }) => {
-    const item = pick(sources.usableProducts, rand);
+  apresentacao_comercial: ({ sources, subjects, rand }) => {
+    const item = pick(subjects, rand) ?? pick(sources.usableProducts, rand);
     if (!item) return null;
     return {
       title: `Conheça ${item}`,
@@ -446,38 +522,101 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
 
 const APPROACH_ORDER_BY_OBJECTIVE: Record<IdeaObjective, IdeaApproach[]> = {
   qualquer: [
-    "orientacao_pratica", "duvida", "beneficio", "bastidores", "historia_marca",
-    "lista", "checklist", "passo_a_passo", "comparacao", "mito_verdade",
-    "erro_comum", "antes_de_contratar", "apresentacao_comercial", "prestacao_contas", "prova_social",
+    "orientacao_pratica",
+    "duvida",
+    "beneficio",
+    "bastidores",
+    "historia_marca",
+    "lista",
+    "checklist",
+    "passo_a_passo",
+    "comparacao",
+    "mito_verdade",
+    "erro_comum",
+    "antes_de_contratar",
+    "apresentacao_comercial",
+    "prestacao_contas",
+    "prova_social",
   ],
   educar: [
-    "orientacao_pratica", "duvida", "checklist", "passo_a_passo", "erro_comum",
-    "mito_verdade", "lista", "comparacao", "bastidores", "historia_marca",
-    "beneficio", "antes_de_contratar", "prestacao_contas",
+    "orientacao_pratica",
+    "duvida",
+    "checklist",
+    "passo_a_passo",
+    "erro_comum",
+    "mito_verdade",
+    "lista",
+    "comparacao",
+    "bastidores",
+    "historia_marca",
+    "beneficio",
+    "antes_de_contratar",
+    "prestacao_contas",
   ],
   vender: [
-    "beneficio", "apresentacao_comercial", "antes_de_contratar", "prova_social",
-    "comparacao", "checklist", "lista", "duvida", "orientacao_pratica", "bastidores",
+    "beneficio",
+    "apresentacao_comercial",
+    "antes_de_contratar",
+    "prova_social",
+    "comparacao",
+    "checklist",
+    "lista",
+    "duvida",
+    "orientacao_pratica",
+    "bastidores",
   ],
   gerar_contatos: [
-    "antes_de_contratar", "beneficio", "duvida", "prova_social", "apresentacao_comercial",
-    "orientacao_pratica", "checklist", "comparacao", "bastidores",
+    "antes_de_contratar",
+    "beneficio",
+    "duvida",
+    "prova_social",
+    "apresentacao_comercial",
+    "orientacao_pratica",
+    "checklist",
+    "comparacao",
+    "bastidores",
   ],
   relacionamento: [
-    "bastidores", "historia_marca", "duvida", "prestacao_contas", "prova_social",
-    "lista", "mito_verdade", "comparacao", "erro_comum",
+    "bastidores",
+    "historia_marca",
+    "duvida",
+    "prestacao_contas",
+    "prova_social",
+    "lista",
+    "mito_verdade",
+    "comparacao",
+    "erro_comum",
   ],
   autoridade: [
-    "orientacao_pratica", "duvida", "erro_comum", "comparacao", "historia_marca",
-    "mito_verdade", "checklist", "passo_a_passo", "lista",
+    "orientacao_pratica",
+    "duvida",
+    "erro_comum",
+    "comparacao",
+    "historia_marca",
+    "mito_verdade",
+    "checklist",
+    "passo_a_passo",
+    "lista",
   ],
   informar: [
-    "historia_marca", "prestacao_contas", "lista", "orientacao_pratica", "comparacao",
-    "duvida", "checklist", "passo_a_passo", "bastidores",
+    "historia_marca",
+    "prestacao_contas",
+    "lista",
+    "orientacao_pratica",
+    "comparacao",
+    "duvida",
+    "checklist",
+    "passo_a_passo",
+    "bastidores",
   ],
   inspirar: [
-    "historia_marca", "bastidores", "prova_social", "prestacao_contas",
-    "orientacao_pratica", "duvida", "comparacao",
+    "historia_marca",
+    "bastidores",
+    "prova_social",
+    "prestacao_contas",
+    "orientacao_pratica",
+    "duvida",
+    "comparacao",
   ],
 };
 
@@ -515,8 +654,12 @@ interface AttemptArgs {
   tone: IdeaTone;
   quantity: number;
   excludeTitles: Set<string>;
+  history: IdeaHistoryItem[];
   recentThemes: Set<string>;
   recentTemplates: Map<string, number>;
+  generatedThemes: Set<string>;
+  generatedTemplates: Map<string, number>;
+  noveltyMode: "standard" | "strict";
   rand: () => number;
   seedBase: number;
   fallbackLevel: number;
@@ -524,19 +667,39 @@ interface AttemptArgs {
 
 function attempt(args: AttemptArgs): Idea[] {
   const ideas: Idea[] = [];
+  const subjects = subjectsForFocus(args.focus, args.sources, args.brand);
   let counter = 0;
-  for (let pass = 0; pass < 3 && ideas.length < args.quantity; pass++) {
+  const maxPasses = args.noveltyMode === "strict" ? 14 : 6;
+
+  for (let pass = 0; pass < maxPasses && ideas.length < args.quantity; pass++) {
     for (const approach of args.approachOrder) {
       if (ideas.length >= args.quantity) break;
       const safety = approachIsSafe(approach, args.sources);
       if (!safety.ok) continue;
       const builder = BUILDERS[approach];
-      const rawBuilt = builder({ brand: args.brand, sources: args.sources, rand: args.rand });
+      const rawBuilt = builder({
+        brand: args.brand,
+        sources: args.sources,
+        subjects,
+        rand: args.rand,
+      });
       if (!rawBuilt) continue;
       const built = normalizeBuilt(rawBuilt);
-      const titleKey = built.title.toLowerCase();
-      if (args.excludeTitles.has(titleKey)) continue;
-      // Não excluir o tema inteiro: apenas evitar o título idêntico.
+      const titleKey = normalizeIdeaText(built.title);
+      const themeKey = normalizeIdeaText(built.theme);
+      if (!titleKey || args.excludeTitles.has(titleKey)) continue;
+
+      if (args.noveltyMode === "strict") {
+        if (themeKey && args.generatedThemes.has(themeKey)) continue;
+        if (isIdeaTooSimilar(built, args.history)) continue;
+        const generatedHistory = ideas.map((idea) => ({
+          title: idea.title,
+          theme: idea.theme,
+          main_message: idea.central_message,
+        }));
+        if (isIdeaTooSimilar(built, generatedHistory, 0.58)) continue;
+      }
+
       const compat = evaluateCompatibility({
         objective: args.objective,
         focus: args.focus,
@@ -548,14 +711,23 @@ function attempt(args: AttemptArgs): Idea[] {
       const recommended_format =
         args.format !== "auto" ? IDEA_FORMAT_LABELS[args.format] : suggestFormat(approach);
 
-      let score = 0;
-      if (!args.recentThemes.has(built.theme.toLowerCase())) score += 3; else score -= 2;
+      let score = noveltyScoreAgainstHistory(built, args.history);
+      if (!args.recentThemes.has(themeKey)) score += 1;
+      else score -= 2;
       const tplCount = args.recentTemplates.get(built.template_key) ?? 0;
-      if (tplCount === 0) score += 2; else if (tplCount >= 2) score -= 2;
+      const batchTplCount = args.generatedTemplates.get(built.template_key) ?? 0;
+      if (tplCount === 0) score += 1;
+      else if (tplCount >= 2) score -= 2;
+      if (batchTplCount > 0) score -= 1;
+
       const badge: NoveltyBadge =
-        score >= 4 ? "Ideia nova" :
-        score >= 1 ? "Variação de conteúdo" :
-        score >= -2 ? "Reaproveitamento" : "Tema recorrente";
+        score >= 4
+          ? "Ideia nova"
+          : score >= 1
+            ? "Variação de conteúdo"
+            : score >= -2
+              ? "Reaproveitamento"
+              : "Tema recorrente";
 
       const idea: Idea = {
         id: `idea_${args.seedBase}_${args.fallbackLevel}_${counter++}`,
@@ -565,14 +737,20 @@ function attempt(args: AttemptArgs): Idea[] {
         objective: IDEA_OBJECTIVE_LABELS[args.objective],
         recommended_format,
         approach: IDEA_APPROACH_LABELS[approach],
+        tone: IDEA_TONE_LABELS[args.tone],
         angle: built.angle,
         target_audience: args.brand.audience ?? "Público da marca",
-        audience_problem: firstSentence(args.brand.audience_difficulties) || firstSentence(args.brand.audience_needs) || "",
+        audience_problem:
+          firstSentence(args.brand.audience_difficulties) ||
+          firstSentence(args.brand.audience_needs) ||
+          "",
         central_message: built.central_message,
         hook: built.hook,
         suggested_cta: resolveCta({ objective: args.objective, brand: args.brand, idx: counter }),
         required_information: built.required,
-        visual_direction: args.brand.visual_style || "",
+        visual_direction: [args.brand.visual_style, `Tom: ${IDEA_TONE_LABELS[args.tone]}`]
+          .filter(Boolean)
+          .join(". "),
         reason_to_publish: built.angle,
         source_elements: args.sources.availableSources,
         novelty_score: score,
@@ -585,6 +763,8 @@ function attempt(args: AttemptArgs): Idea[] {
       };
 
       args.excludeTitles.add(titleKey);
+      if (themeKey) args.generatedThemes.add(themeKey);
+      args.generatedTemplates.set(built.template_key, batchTplCount + 1);
       ideas.push(idea);
     }
   }
@@ -621,9 +801,12 @@ function buildApproachOrder(args: {
   focus: IdeaFocus;
   format: IdeaFormat;
   approach: IdeaApproach;
+  noveltyMode?: "standard" | "strict";
+  rand?: () => number;
 }): IdeaApproach[] {
   if (args.approach !== "auto") {
-    // se houver abordagem explícita, ela vem primeiro; variações vêm depois.
+    // No Surpreenda-me, uma abordagem escolhida é uma regra, não apenas preferência.
+    if (args.noveltyMode === "strict") return [args.approach];
     const rest = APPROACH_ORDER_BY_OBJECTIVE[args.objective].filter((a) => a !== args.approach);
     return [args.approach, ...rest];
   }
@@ -641,6 +824,27 @@ function buildApproachOrder(args: {
     }))
     .sort((a, b) => rankLevel(b.level) - rankLevel(a.level))
     .map((x) => x.approach);
+  if (args.noveltyMode === "strict" && args.rand) {
+    const grouped = new Map<number, IdeaApproach[]>();
+    for (const item of ranked) {
+      const level = evaluateCompatibility({
+        objective: args.objective,
+        focus: args.focus,
+        approach: item,
+        format: args.format,
+      }).level;
+      const rank = rankLevel(level);
+      grouped.set(rank, [...(grouped.get(rank) ?? []), item]);
+    }
+    return [3, 2, 1, 0].flatMap((rank) => {
+      const group = [...(grouped.get(rank) ?? [])];
+      for (let i = group.length - 1; i > 0; i--) {
+        const j = Math.floor(args.rand!() * (i + 1));
+        [group[i], group[j]] = [group[j], group[i]];
+      }
+      return group;
+    });
+  }
   return ranked;
 }
 
@@ -656,36 +860,84 @@ export function generateIdeasWithMeta(input: IdeaGenInput): GenerationResult {
   const format = input.format ?? "auto";
   const tone = input.tone ?? "marca";
   const allowFallback = input.allowFallback !== false;
+  const noveltyMode = input.noveltyMode ?? "standard";
 
   const sources = getBrandIdeaSources(brand);
   const seedBase = input.seed ?? hashStr(brand.id + objective + focus + approach + format + tone);
   const rand = mulberry32(seedBase);
-  const excludeTitles = new Set((input.excludeTitles ?? []).map((t) => t.toLowerCase()));
+  const excludeTitles = new Set((input.excludeTitles ?? []).map(normalizeIdeaText));
   const recentThemes = new Set(
-    (input.history ?? []).slice(0, 10).map((h) => (h.theme ?? "").toLowerCase()).filter(Boolean),
+    (input.history ?? [])
+      .slice(0, 80)
+      .map((h) => normalizeIdeaText(h.theme))
+      .filter(Boolean),
   );
   const recentTemplates = new Map<string, number>();
   for (const h of input.history ?? []) {
-    if (h.template_key) recentTemplates.set(h.template_key, (recentTemplates.get(h.template_key) ?? 0) + 1);
+    if (h.template_key)
+      recentTemplates.set(h.template_key, (recentTemplates.get(h.template_key) ?? 0) + 1);
   }
 
+  const history = (input.history ?? []).slice(0, 120);
+  const generatedThemes = new Set<string>();
+  const generatedTemplates = new Map<string, number>();
   const notes: string[] = [];
+  if (noveltyMode === "strict") {
+    notes.push(
+      "Modo Surpreenda-me: mantivemos seus filtros e evitamos temas recentes ou já em produção.",
+    );
+  }
 
   // NÍVEL 1: exato
-  let order = buildApproachOrder({ objective, focus, format, approach });
+  let order = buildApproachOrder({ objective, focus, format, approach, noveltyMode, rand });
   let ideas = attempt({
-    brand, sources, objective, focus, approachOrder: order, format, tone,
-    quantity: input.quantity, excludeTitles, recentThemes, recentTemplates, rand, seedBase,
+    brand,
+    sources,
+    objective,
+    focus,
+    approachOrder: order,
+    format,
+    tone,
+    quantity: input.quantity,
+    excludeTitles,
+    history,
+    recentThemes,
+    recentTemplates,
+    generatedThemes,
+    generatedTemplates,
+    noveltyMode,
+    rand,
+    seedBase,
     fallbackLevel: 0,
   });
 
   // NÍVEL 2: relaxar abordagem (caso usuário tenha escolhido uma específica)
-  if (ideas.length < input.quantity && allowFallback && approach !== "auto") {
+  if (
+    ideas.length < input.quantity &&
+    allowFallback &&
+    noveltyMode !== "strict" &&
+    approach !== "auto"
+  ) {
     const extraOrder = APPROACH_ORDER_BY_OBJECTIVE[objective].filter((a) => a !== approach);
     const more = attempt({
-      brand, sources, objective, focus, approachOrder: extraOrder, format, tone,
+      brand,
+      sources,
+      objective,
+      focus,
+      approachOrder: extraOrder,
+      format,
+      tone,
       quantity: input.quantity - ideas.length,
-      excludeTitles, recentThemes, recentTemplates, rand, seedBase, fallbackLevel: 1,
+      excludeTitles,
+      history,
+      recentThemes,
+      recentTemplates,
+      generatedThemes,
+      generatedTemplates,
+      noveltyMode,
+      rand,
+      seedBase,
+      fallbackLevel: 1,
     });
     if (more.length > 0) {
       notes.push(
@@ -696,12 +948,31 @@ export function generateIdeasWithMeta(input: IdeaGenInput): GenerationResult {
   }
 
   // NÍVEL 3: foco automático
-  if (ideas.length < input.quantity && allowFallback && focus !== "qualquer") {
+  if (
+    ideas.length < input.quantity &&
+    allowFallback &&
+    noveltyMode !== "strict" &&
+    focus !== "qualquer"
+  ) {
     const more = attempt({
-      brand, sources, objective, focus: "qualquer",
-      approachOrder: APPROACH_ORDER_BY_OBJECTIVE[objective], format, tone,
+      brand,
+      sources,
+      objective,
+      focus: "qualquer",
+      approachOrder: APPROACH_ORDER_BY_OBJECTIVE[objective],
+      format,
+      tone,
       quantity: input.quantity - ideas.length,
-      excludeTitles, recentThemes, recentTemplates, rand, seedBase, fallbackLevel: 2,
+      excludeTitles,
+      history,
+      recentThemes,
+      recentTemplates,
+      generatedThemes,
+      generatedTemplates,
+      noveltyMode,
+      rand,
+      seedBase,
+      fallbackLevel: 2,
     });
     if (more.length > 0) {
       notes.push("Ampliamos o foco para complementar as ideias.");
@@ -710,12 +981,31 @@ export function generateIdeasWithMeta(input: IdeaGenInput): GenerationResult {
   }
 
   // NÍVEL 4: usar pilares / assuntos permitidos sem restrição de formato
-  if (ideas.length < input.quantity && allowFallback && format !== "auto") {
+  if (
+    ideas.length < input.quantity &&
+    allowFallback &&
+    noveltyMode !== "strict" &&
+    format !== "auto"
+  ) {
     const more = attempt({
-      brand, sources, objective, focus: "qualquer",
-      approachOrder: APPROACH_ORDER_BY_OBJECTIVE[objective], format: "auto", tone,
+      brand,
+      sources,
+      objective,
+      focus: "qualquer",
+      approachOrder: APPROACH_ORDER_BY_OBJECTIVE[objective],
+      format: "auto",
+      tone,
       quantity: input.quantity - ideas.length,
-      excludeTitles, recentThemes, recentTemplates, rand, seedBase, fallbackLevel: 3,
+      excludeTitles,
+      history,
+      recentThemes,
+      recentTemplates,
+      generatedThemes,
+      generatedTemplates,
+      noveltyMode,
+      rand,
+      seedBase,
+      fallbackLevel: 3,
     });
     if (more.length > 0) {
       notes.push("Sugerimos o formato automaticamente para completar as ideias.");
@@ -726,6 +1016,8 @@ export function generateIdeasWithMeta(input: IdeaGenInput): GenerationResult {
   const partial = ideas.length < input.quantity;
   if (partial && ideas.length > 0) {
     notes.unshift(`Encontramos ${ideas.length} ideias seguras com essa combinação.`);
+    if (noveltyMode === "strict")
+      notes.push("Preferimos entregar menos ideias a repetir temas já usados.");
   }
 
   return {

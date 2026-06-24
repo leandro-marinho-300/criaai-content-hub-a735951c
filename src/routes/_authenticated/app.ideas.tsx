@@ -3,8 +3,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Sparkles, RefreshCw, Star, Trash2, ArrowRight,
-  Layers, Info, Lightbulb, Shuffle, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown,
+  Sparkles,
+  RefreshCw,
+  Star,
+  Trash2,
+  ArrowRight,
+  Layers,
+  Info,
+  Lightbulb,
+  Shuffle,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,23 +27,38 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ChooseIdeaFormatsDialog } from "@/components/choose-idea-formats-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { Tables } from "@/integrations/supabase/types";
 import {
   generateIdeasWithMeta,
-  IDEA_OBJECTIVE_LABELS, IDEA_FORMAT_LABELS, IDEA_FOCUS_LABELS, IDEA_TONE_LABELS, IDEA_APPROACH_LABELS,
-  type Idea, type IdeaObjective, type IdeaFormat, type IdeaFocus, type IdeaTone, type IdeaApproach,
-  type IdeaGenInput, type GenerationResult,
+  IDEA_OBJECTIVE_LABELS,
+  IDEA_FORMAT_LABELS,
+  IDEA_FOCUS_LABELS,
+  IDEA_TONE_LABELS,
+  IDEA_APPROACH_LABELS,
+  type Idea,
+  type IdeaObjective,
+  type IdeaFormat,
+  type IdeaFocus,
+  type IdeaTone,
+  type IdeaApproach,
+  type IdeaGenInput,
+  type GenerationResult,
 } from "@/lib/ideaGenerator";
 import {
-  evaluateCompatibility, COMPATIBILITY_LABELS, type CompatibilityLevel,
+  evaluateCompatibility,
+  COMPATIBILITY_LABELS,
+  type CompatibilityLevel,
 } from "@/lib/ideaCompatibility";
 import { FIELD_TOOLTIPS } from "@/lib/ideaTaxonomy";
+import type { IdeaHistoryItem } from "@/lib/ideaNovelty";
 
 export const Route = createFileRoute("/_authenticated/app/ideas")({
   head: () => ({ meta: [{ title: "Laboratório de Ideias — Cria Aí" }] }),
@@ -52,9 +78,14 @@ function IdeasLab() {
   const [quantity, setQuantity] = useState<3 | 5 | 10>(5);
   const [seedBump, setSeedBump] = useState(0);
   const [sessionTitles, setSessionTitles] = useState<string[]>([]);
+  const [sessionHistory, setSessionHistory] = useState<IdeaHistoryItem[]>([]);
   const [surprise, setSurprise] = useState(false);
   const [allowFallback, setAllowFallback] = useState(true);
-  const [ideaForFormats, setIdeaForFormats] = useState<{ idea: Idea; brandId: string; initialFormats: string[] } | null>(null);
+  const [ideaForFormats, setIdeaForFormats] = useState<{
+    idea: Idea;
+    brandId: string;
+    initialFormats: string[];
+  } | null>(null);
 
   const { data: brands } = useQuery({
     queryKey: ["brands-lab"],
@@ -70,6 +101,7 @@ function IdeasLab() {
   // Limpar estado ao trocar de marca
   useEffect(() => {
     setSessionTitles([]);
+    setSessionHistory([]);
     setSeedBump(0);
     setSurprise(false);
   }, [brandId]);
@@ -77,59 +109,141 @@ function IdeasLab() {
   const { data: history } = useQuery({
     queryKey: ["history-for-ideas", brandId],
     enabled: !!brandId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("content_projects")
-        .select("theme, objective, selected_formats, call_to_action")
-        .eq("brand_id", brandId)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      return (data ?? []).map((p) => ({
-        theme: p.theme,
-        objective: p.objective,
-        formats: p.selected_formats,
-        cta: p.call_to_action,
+    queryFn: async (): Promise<IdeaHistoryItem[]> => {
+      const [projectsResult, ideasResult] = await Promise.all([
+        supabase
+          .from("content_projects")
+          .select(
+            "display_title, internal_title, theme, main_message, objective, selected_formats, call_to_action, status, created_at",
+          )
+          .eq("brand_id", brandId)
+          .order("created_at", { ascending: false })
+          .limit(80),
+        supabase
+          .from("content_ideas")
+          .select(
+            "title, theme, central_message, objective, recommended_format, suggested_cta, template_key, status, created_at",
+          )
+          .eq("brand_id", brandId)
+          .order("created_at", { ascending: false })
+          .limit(80),
+      ]);
+
+      if (projectsResult.error) throw projectsResult.error;
+      if (ideasResult.error) throw ideasResult.error;
+
+      const projects: IdeaHistoryItem[] = (projectsResult.data ?? []).map((project) => ({
+        title: project.display_title || project.internal_title,
+        theme: project.theme,
+        main_message: project.main_message,
+        objective: project.objective,
+        formats: project.selected_formats,
+        cta: project.call_to_action,
+        status: project.status,
+        created_at: project.created_at,
       }));
+
+      const savedIdeas: IdeaHistoryItem[] = (ideasResult.data ?? []).map((idea) => ({
+        title: idea.title,
+        theme: idea.theme,
+        main_message: idea.central_message,
+        objective: idea.objective,
+        formats: idea.recommended_format ? [idea.recommended_format] : [],
+        cta: idea.suggested_cta,
+        template_key: idea.template_key,
+        status: idea.status,
+        created_at: idea.created_at,
+      }));
+
+      return [...projects, ...savedIdeas].sort((a, b) =>
+        String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
+      );
     },
   });
 
   const result = useMemo(() => {
     if (!brand) return null;
     try {
-      const activeFormats = surprise ? (["auto"] as IdeaFormat[]) : formats;
+      const activeFormats = formats;
       return generateIdeasAcrossFormats({
         brand,
-        objective: surprise ? "qualquer" : objective,
-        focus: surprise ? "qualquer" : focus,
-        approach: surprise ? "auto" : approach,
+        objective,
+        focus,
+        approach,
         formats: activeFormats,
-        tone: surprise ? "marca" : tone,
+        tone,
         quantity,
-        history: history ?? [],
+        history: [...(history ?? []), ...sessionHistory],
         excludeTitles: sessionTitles,
         allowFallback,
-        seed: hash(brand.id + objective + focus + approach + activeFormats.join("|") + tone + quantity + seedBump + (surprise ? "s" : "")),
+        noveltyMode: surprise ? "strict" : "standard",
+        seed: hash(
+          brand.id +
+            objective +
+            focus +
+            approach +
+            activeFormats.join("|") +
+            tone +
+            quantity +
+            seedBump +
+            (surprise ? "strict" : "standard"),
+        ),
       });
     } catch (err) {
       console.error("[IdeasLab] falha ao gerar ideias para a marca", brand?.id, err);
       return null;
     }
-  }, [brand, objective, focus, approach, formats, tone, quantity, history, sessionTitles, seedBump, surprise, allowFallback]);
+  }, [
+    brand,
+    objective,
+    focus,
+    approach,
+    formats,
+    tone,
+    quantity,
+    history,
+    sessionHistory,
+    sessionTitles,
+    seedBump,
+    surprise,
+    allowFallback,
+  ]);
 
   const ideas: Idea[] = result?.ideas ?? [];
 
   const compat = useMemo(() => {
-    if (!brand || surprise) return null;
+    if (!brand) return null;
     const formatForCompatibility = formats.length === 1 ? formats[0] : "auto";
     return evaluateCompatibility({ objective, focus, approach, format: formatForCompatibility });
-  }, [brand, surprise, objective, focus, approach, formats]);
+  }, [brand, objective, focus, approach, formats]);
+
+  const rememberIdeas = (items: Idea[]) => {
+    if (items.length === 0) return;
+    setSessionTitles((prev) => Array.from(new Set([...prev, ...items.map((idea) => idea.title)])));
+    setSessionHistory((prev) => [
+      ...prev,
+      ...items.map((idea) => ({
+        title: idea.title,
+        theme: idea.theme,
+        main_message: idea.central_message,
+        objective: idea.objective,
+        formats: [idea.recommended_format],
+        cta: idea.suggested_cta,
+        template_key: idea.template_key,
+        status: "visualizada_na_sessao",
+        created_at: idea.created_at,
+      })),
+    ]);
+  };
 
   const regenerate = () => {
-    setSessionTitles((prev) => [...prev, ...ideas.map((i) => i.title)]);
+    rememberIdeas(ideas);
+    setSurprise(false);
     setSeedBump((n) => n + 1);
   };
 
   const surpriseMe = () => {
+    rememberIdeas(ideas);
     setSurprise(true);
     setSeedBump((n) => n + 1);
   };
@@ -211,7 +325,9 @@ function IdeasLab() {
       main_message: idea.central_message,
       call_to_action: idea.suggested_cta,
       mandatory_information: idea.required_information.join("\n"),
-      desired_style: idea.visual_direction,
+      desired_style: [idea.visual_direction, idea.tone ? `Tom: ${idea.tone}` : ""]
+        .filter(Boolean)
+        .join(". "),
       notes: `Origem: Laboratório de Ideias. Pilar: ${idea.content_pillar}. Abordagem: ${idea.approach}. Gancho: ${idea.hook}`,
     };
     try {
@@ -222,16 +338,17 @@ function IdeasLab() {
     navigate({ to: "/app/content/new" });
   };
 
-  const chooseFormatsForIdea = (idea: Idea, brandIdForUse: string, preferredFormats?: IdeaFormat[]) => {
+  const chooseFormatsForIdea = (
+    idea: Idea,
+    brandIdForUse: string,
+    preferredFormats?: IdeaFormat[],
+  ) => {
     const recommended = formatLabelToKey(idea.recommended_format);
     const selectedFromLab = (preferredFormats ?? [])
       .filter((format) => format !== "auto")
       .map((format) => format as string);
-    const initialFormats = selectedFromLab.length > 0
-      ? selectedFromLab
-      : recommended
-        ? [recommended]
-        : [];
+    const initialFormats =
+      selectedFromLab.length > 0 ? selectedFromLab : recommended ? [recommended] : [];
 
     setIdeaForFormats({ idea, brandId: brandIdForUse, initialFormats });
   };
@@ -245,17 +362,29 @@ function IdeasLab() {
     <TooltipProvider delayDuration={150}>
       <div className="mx-auto max-w-6xl space-y-6 min-w-0">
         <header className="space-y-2 min-w-0">
-          <Badge variant="secondary" className="rounded-full"><Lightbulb className="mr-1 h-3 w-3" />Laboratório</Badge>
-          <h1 className="text-2xl font-bold sm:text-3xl break-words">Sem ideia hoje? A gente começa por você.</h1>
+          <Badge variant="secondary" className="rounded-full">
+            <Lightbulb className="mr-1 h-3 w-3" />
+            Laboratório
+          </Badge>
+          <h1 className="text-2xl font-bold sm:text-3xl break-words">
+            Sem ideia hoje? A gente começa por você.
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Escolha uma marca e combine Objetivo, Foco, Abordagem, Formato e Tom para receber sugestões coerentes com o que já está cadastrado.
+            Escolha uma marca e combine Objetivo, Foco, Abordagem, Formato e Tom para receber
+            sugestões coerentes com o que já está cadastrado.
           </p>
         </header>
 
         <Tabs defaultValue="generate">
           <TabsList>
-            <TabsTrigger value="generate"><Sparkles className="mr-2 h-4 w-4" />Gerar ideias</TabsTrigger>
-            <TabsTrigger value="bank"><Star className="mr-2 h-4 w-4" />Banco de Ideias</TabsTrigger>
+            <TabsTrigger value="generate">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Gerar ideias
+            </TabsTrigger>
+            <TabsTrigger value="bank">
+              <Star className="mr-2 h-4 w-4" />
+              Banco de Ideias
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="generate" className="space-y-4">
@@ -263,22 +392,49 @@ function IdeasLab() {
               <CardContent className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
                 {/* Linha 1 */}
                 <Field label="Marca" tip="Selecione a marca para a qual gerar ideias.">
-                  <Select value={brandId} onValueChange={(v) => { setBrandId(v); setSurprise(false); }}>
-                    <SelectTrigger><SelectValue placeholder="Selecione uma marca" /></SelectTrigger>
+                  <Select
+                    value={brandId}
+                    onValueChange={(v) => {
+                      setBrandId(v);
+                      setSurprise(false);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione uma marca" />
+                    </SelectTrigger>
                     <SelectContent>
-                      {(brands ?? []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                      {(brands ?? []).map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </Field>
                 <Field label="Objetivo" tip={FIELD_TOOLTIPS.objective}>
-                  <Select value={objective} onValueChange={(v) => { setObjective(v as IdeaObjective); setSurprise(false); }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={objective}
+                    onValueChange={(v) => {
+                      setObjective(v as IdeaObjective);
+                      setSurprise(false);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(IDEA_OBJECTIVE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                      {Object.entries(IDEA_OBJECTIVE_LABELS).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>
+                          {v}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Preferência de formato" tip="Escolha formatos para orientar as sugestões. Depois de selecionar uma ideia, você poderá definir um ou mais formatos finais para produzi-la.">
+                <Field
+                  label="Preferência de formato"
+                  tip="Escolha formatos para orientar as sugestões. Depois de selecionar uma ideia, você poderá definir um ou mais formatos finais para produzi-la."
+                >
                   <FormatMultiSelect
                     value={formats}
                     quantity={quantity}
@@ -294,18 +450,42 @@ function IdeasLab() {
 
                 {/* Linha 2 */}
                 <Field label="Foco principal" tip={FIELD_TOOLTIPS.focus}>
-                  <Select value={focus} onValueChange={(v) => { setFocus(v as IdeaFocus); setSurprise(false); }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={focus}
+                    onValueChange={(v) => {
+                      setFocus(v as IdeaFocus);
+                      setSurprise(false);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(IDEA_FOCUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                      {Object.entries(IDEA_FOCUS_LABELS).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>
+                          {v}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </Field>
                 <Field label="Abordagem" tip={FIELD_TOOLTIPS.approach}>
-                  <Select value={approach} onValueChange={(v) => { setApproach(v as IdeaApproach); setSurprise(false); }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={approach}
+                    onValueChange={(v) => {
+                      setApproach(v as IdeaApproach);
+                      setSurprise(false);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      {orderedApproaches(objective, focus, formats.length === 1 ? formats[0] : "auto").map(({ approach: a, level }) => (
+                      {orderedApproaches(
+                        objective,
+                        focus,
+                        formats.length === 1 ? formats[0] : "auto",
+                      ).map(({ approach: a, level }) => (
                         <SelectItem key={a} value={a}>
                           <span className="flex items-center gap-2">
                             <span>{IDEA_APPROACH_LABELS[a]}</span>
@@ -317,21 +497,48 @@ function IdeasLab() {
                   </Select>
                 </Field>
                 <Field label="Tom" tip={FIELD_TOOLTIPS.tone}>
-                  <Select value={tone} onValueChange={(v) => { setTone(v as IdeaTone); setSurprise(false); }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={tone}
+                    onValueChange={(v) => {
+                      setTone(v as IdeaTone);
+                      setSurprise(false);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(IDEA_TONE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                      {Object.entries(IDEA_TONE_LABELS).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>
+                          {v}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </Field>
 
                 {/* Linha 3 */}
                 <Field label="Quantidade">
-                  <Select value={String(quantity)} onValueChange={(v) => setQuantity(Number(v) as 3 | 5 | 10)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={String(quantity)}
+                    onValueChange={(v) => setQuantity(Number(v) as 3 | 5 | 10)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="3" disabled={!formats.includes("auto") && formats.length > 3}>3 ideias</SelectItem>
-                      <SelectItem value="5" disabled={!formats.includes("auto") && formats.length > 5}>5 ideias</SelectItem>
+                      <SelectItem
+                        value="3"
+                        disabled={!formats.includes("auto") && formats.length > 3}
+                      >
+                        3 ideias
+                      </SelectItem>
+                      <SelectItem
+                        value="5"
+                        disabled={!formats.includes("auto") && formats.length > 5}
+                      >
+                        5 ideias
+                      </SelectItem>
                       <SelectItem value="10">10 ideias</SelectItem>
                     </SelectContent>
                   </Select>
@@ -339,7 +546,9 @@ function IdeasLab() {
                 <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm sm:col-span-2">
                   <div>
                     <p className="font-medium">Permitir fallback automático</p>
-                    <p className="text-xs text-muted-foreground">Inclui variações compatíveis quando não há ideias suficientes.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Inclui variações compatíveis quando não há ideias suficientes.
+                    </p>
                   </div>
                   <Switch checked={allowFallback} onCheckedChange={setAllowFallback} />
                 </div>
@@ -347,11 +556,21 @@ function IdeasLab() {
             </Card>
 
             {/* Resumo dinâmico */}
-            {brand && !surprise && (
+            {brand && (
               <Card className="border-primary/30 bg-primary/5">
                 <CardContent className="space-y-2 p-4 text-sm">
                   <p className="font-medium">Como essa ideia será construída</p>
                   <p className="text-muted-foreground">{summary}</p>
+                  {surprise && (
+                    <div className="flex items-start gap-2 rounded-md border border-violet-500/30 bg-violet-500/5 p-3 text-xs">
+                      <Shuffle className="mt-0.5 h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
+                      <p>
+                        <strong>Modo Surpreenda-me ativo:</strong> os filtros acima continuam
+                        valendo. O sistema apenas muda o caminho criativo e evita temas já usados,
+                        em produção ou vistos nesta sessão.
+                      </p>
+                    </div>
+                  )}
                   {compat && (
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       <CompatBadge level={compat.level} />
@@ -364,10 +583,12 @@ function IdeasLab() {
 
             <div className="flex flex-wrap items-center gap-2">
               <Button onClick={regenerate} disabled={!brand} variant="default" className="gap-2">
-                <RefreshCw className="h-4 w-4" />Gerar outras ideias
+                <RefreshCw className="h-4 w-4" />
+                Gerar outras ideias
               </Button>
               <Button onClick={surpriseMe} disabled={!brand} variant="outline" className="gap-2">
-                <Shuffle className="h-4 w-4" />Surpreenda-me
+                <Shuffle className="h-4 w-4" />
+                Surpreenda-me sem repetir
               </Button>
             </div>
 
@@ -375,8 +596,12 @@ function IdeasLab() {
               <Card className="border-dashed">
                 <CardContent className="grid place-items-center gap-2 p-10 text-center">
                   <Lightbulb className="h-6 w-6 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Selecione uma marca para começar a receber sugestões.</p>
-                  <Button asChild variant="outline" size="sm"><Link to="/app/brands/new">Cadastrar nova marca</Link></Button>
+                  <p className="text-sm text-muted-foreground">
+                    Selecione uma marca para começar a receber sugestões.
+                  </p>
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/app/brands/new">Cadastrar nova marca</Link>
+                  </Button>
                 </CardContent>
               </Card>
             ) : (
@@ -388,15 +613,34 @@ function IdeasLab() {
                       <div className="flex items-start gap-2">
                         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
                         <div className="space-y-1">
-                          {result.notes.map((n, i) => <p key={i}>{n}</p>)}
+                          {result.notes.map((n, i) => (
+                            <p key={i}>{n}</p>
+                          ))}
                         </div>
                       </div>
                       {result.partial && (
                         <div className="flex flex-wrap gap-2 pt-1">
-                          <Button size="sm" variant="outline" onClick={() => setAllowFallback(true)}>Relaxar filtros</Button>
-                          <Button size="sm" variant="outline" onClick={() => { setFocus("qualquer"); setApproach("auto"); }}>Usar foco automático</Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setAllowFallback(true)}
+                          >
+                            Relaxar filtros
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setFocus("qualquer");
+                              setApproach("auto");
+                            }}
+                          >
+                            Usar foco automático
+                          </Button>
                           <Button size="sm" variant="outline" asChild>
-                            <Link to="/app/brands/$brandId/edit" params={{ brandId: brand.id }}>Completar ficha da marca</Link>
+                            <Link to="/app/brands/$brandId/edit" params={{ brandId: brand.id }}>
+                              Completar ficha da marca
+                            </Link>
                           </Button>
                         </div>
                       )}
@@ -408,29 +652,45 @@ function IdeasLab() {
                 {result && result.ideas.length === 0 && (
                   <Card className="border-dashed">
                     <CardContent className="space-y-3 p-6 text-sm">
-                      <p className="font-medium">Não conseguimos gerar ideias com essa combinação.</p>
+                      <p className="font-medium">
+                        Não conseguimos gerar ideias com essa combinação.
+                      </p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         <div>
-                          <p className="text-xs font-medium text-muted-foreground">Disponíveis na marca</p>
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Disponíveis na marca
+                          </p>
                           <ul className="mt-1 space-y-1">
-                            {result.sources.availableSources.length === 0
-                              ? <li className="text-muted-foreground">Nenhuma fonte preenchida.</li>
-                              : result.sources.availableSources.map((s) => (
-                                <li key={s} className="flex items-center gap-2"><CheckCircle2 className="h-3 w-3 text-emerald-600" />{s}</li>
-                              ))}
+                            {result.sources.availableSources.length === 0 ? (
+                              <li className="text-muted-foreground">Nenhuma fonte preenchida.</li>
+                            ) : (
+                              result.sources.availableSources.map((s) => (
+                                <li key={s} className="flex items-center gap-2">
+                                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                  {s}
+                                </li>
+                              ))
+                            )}
                           </ul>
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-muted-foreground">O que ainda falta</p>
+                          <p className="text-xs font-medium text-muted-foreground">
+                            O que ainda falta
+                          </p>
                           <ul className="mt-1 space-y-1">
                             {result.sources.missingSources.slice(0, 6).map((s) => (
-                              <li key={s} className="flex items-center gap-2 text-muted-foreground"><ChevronRight className="h-3 w-3" />{s}</li>
+                              <li key={s} className="flex items-center gap-2 text-muted-foreground">
+                                <ChevronRight className="h-3 w-3" />
+                                {s}
+                              </li>
                             ))}
                           </ul>
                         </div>
                       </div>
                       <Button asChild size="sm" variant="outline">
-                        <Link to="/app/brands/$brandId/edit" params={{ brandId: brand.id }}>Ver o que falta na marca</Link>
+                        <Link to="/app/brands/$brandId/edit" params={{ brandId: brand.id }}>
+                          Ver o que falta na marca
+                        </Link>
                       </Button>
                     </CardContent>
                   </Card>
@@ -443,7 +703,10 @@ function IdeasLab() {
                       idea={idea}
                       onUse={() => chooseFormatsForIdea(idea, brand.id, formats)}
                       onFavorite={() => favorite.mutate(idea)}
-                      onDiscard={() => setSessionTitles((p) => [...p, idea.title])}
+                      onDiscard={() => {
+                        rememberIdeas([idea]);
+                        setSeedBump((n) => n + 1);
+                      }}
                     />
                   ))}
                 </div>
@@ -454,8 +717,9 @@ function IdeasLab() {
               <CardContent className="flex items-start gap-3 p-4 text-sm">
                 <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                 <p>
-                  As ideias usam apenas o que está cadastrado na ficha da marca. Antes de publicar, confirme as informações
-                  marcadas como “necessárias” — o Cria Aí nunca inventa preço, dado de cliente ou depoimento.
+                  As ideias usam apenas o que está cadastrado na ficha da marca. Antes de publicar,
+                  confirme as informações marcadas como “necessárias” — o Cria Aí nunca inventa
+                  preço, dado de cliente ou depoimento.
                 </p>
               </CardContent>
             </Card>
@@ -475,17 +739,37 @@ function IdeasLab() {
                   <Card key={s.id} className="border-border/60 min-w-0">
                     <CardContent className="space-y-2 p-5 min-w-0">
                       <div className="flex items-center justify-between gap-2 min-w-0">
-                        <Badge variant="secondary" className="truncate max-w-[60%]">{(s as { brands?: { name?: string } }).brands?.name ?? "Marca"}</Badge>
+                        <Badge variant="secondary" className="truncate max-w-[60%]">
+                          {(s as { brands?: { name?: string } }).brands?.name ?? "Marca"}
+                        </Badge>
                         <Badge variant="outline">{s.status}</Badge>
                       </div>
                       <p className="font-semibold break-words">{s.title}</p>
-                      {s.hook && <p className="text-sm text-muted-foreground italic break-words">“{s.hook}”</p>}
+                      {s.hook && (
+                        <p className="text-sm text-muted-foreground italic break-words">
+                          “{s.hook}”
+                        </p>
+                      )}
                       <div className="flex flex-wrap gap-1 pt-1 text-xs text-muted-foreground">
-                        {s.recommended_format && <Badge variant="outline" className="font-normal">{s.recommended_format}</Badge>}
-                        {s.content_pillar && <Badge variant="outline" className="font-normal">{s.content_pillar}</Badge>}
-                        {s.objective && <Badge variant="outline" className="font-normal">{s.objective}</Badge>}
+                        {s.recommended_format && (
+                          <Badge variant="outline" className="font-normal">
+                            {s.recommended_format}
+                          </Badge>
+                        )}
+                        {s.content_pillar && (
+                          <Badge variant="outline" className="font-normal">
+                            {s.content_pillar}
+                          </Badge>
+                        )}
+                        {s.objective && (
+                          <Badge variant="outline" className="font-normal">
+                            {s.objective}
+                          </Badge>
+                        )}
                         {(s as { approach?: string | null }).approach && (
-                          <Badge variant="outline" className="font-normal">{(s as { approach?: string }).approach}</Badge>
+                          <Badge variant="outline" className="font-normal">
+                            {(s as { approach?: string }).approach}
+                          </Badge>
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 pt-2">
@@ -495,7 +779,8 @@ function IdeasLab() {
                           disabled={!s.brand_id}
                           className="gap-1"
                         >
-                          <ArrowRight className="h-3 w-3" />Usar esta ideia
+                          <ArrowRight className="h-3 w-3" />
+                          Usar esta ideia
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => removeSaved.mutate(s.id)}>
                           <Trash2 className="h-3 w-3" />
@@ -512,15 +797,15 @@ function IdeasLab() {
         {ideaForFormats && (
           <ChooseIdeaFormatsDialog
             open
-            onOpenChange={(open) => { if (!open) setIdeaForFormats(null); }}
+            onOpenChange={(open) => {
+              if (!open) setIdeaForFormats(null);
+            }}
             ideaTitle={ideaForFormats.idea.title}
             recommendedFormat={formatLabelToKey(ideaForFormats.idea.recommended_format)}
             initialFormats={ideaForFormats.initialFormats}
-            onContinue={(selectedFormats) => continueWithIdea(
-              ideaForFormats.idea,
-              ideaForFormats.brandId,
-              selectedFormats,
-            )}
+            onContinue={(selectedFormats) =>
+              continueWithIdea(ideaForFormats.idea, ideaForFormats.brandId, selectedFormats)
+            }
           />
         )}
       </div>
@@ -591,7 +876,9 @@ function FormatMultiSelect({
 }) {
   const automatic = value.includes("auto");
   const selected = automatic ? [] : value;
-  const options = (Object.keys(IDEA_FORMAT_LABELS) as IdeaFormat[]).filter((format) => format !== "auto");
+  const options = (Object.keys(IDEA_FORMAT_LABELS) as IdeaFormat[]).filter(
+    (format) => format !== "auto",
+  );
 
   const triggerLabel = automatic
     ? IDEA_FORMAT_LABELS.auto
@@ -620,11 +907,15 @@ function FormatMultiSelect({
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-72 space-y-3 p-3">
+      <PopoverContent
+        align="start"
+        className="w-[var(--radix-popover-trigger-width)] min-w-72 space-y-3 p-3"
+      >
         <div>
           <p className="text-sm font-medium">Escolha um ou mais formatos</p>
           <p className="text-xs text-muted-foreground">
-            As sugestões serão distribuídas entre estes formatos. Ao usar uma ideia, você poderá escolher vários formatos para o mesmo projeto.
+            As sugestões serão distribuídas entre estes formatos. Ao usar uma ideia, você poderá
+            escolher vários formatos para o mesmo projeto.
           </p>
         </div>
 
@@ -635,7 +926,10 @@ function FormatMultiSelect({
 
         <div className="grid gap-1 sm:grid-cols-2">
           {options.map((format) => (
-            <label key={format} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 hover:bg-muted">
+            <label
+              key={format}
+              className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 hover:bg-muted"
+            >
               <Checkbox
                 checked={selected.includes(format)}
                 onCheckedChange={() => toggleFormat(format)}
@@ -656,62 +950,139 @@ function FormatMultiSelect({
 }
 
 function IdeaCard({
-  idea, onUse, onFavorite, onDiscard,
-}: { idea: Idea; onUse: () => void; onFavorite: () => void; onDiscard: () => void }) {
+  idea,
+  onUse,
+  onFavorite,
+  onDiscard,
+}: {
+  idea: Idea;
+  onUse: () => void;
+  onFavorite: () => void;
+  onDiscard: () => void;
+}) {
   const badgeColor =
-    idea.novelty_badge === "Ideia nova" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30" :
-    idea.novelty_badge === "Variação de conteúdo" ? "bg-primary/10 text-primary border-primary/30" :
-    idea.novelty_badge === "Reaproveitamento" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30" :
-    "bg-muted text-muted-foreground border-border";
+    idea.novelty_badge === "Ideia nova"
+      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+      : idea.novelty_badge === "Variação de conteúdo"
+        ? "bg-primary/10 text-primary border-primary/30"
+        : idea.novelty_badge === "Reaproveitamento"
+          ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30"
+          : "bg-muted text-muted-foreground border-border";
 
   return (
     <Card className="border-border/60 min-w-0">
       <CardContent className="space-y-3 p-5 min-w-0">
         <div className="flex items-start justify-between gap-2 min-w-0">
           <div className="space-y-1 min-w-0">
-            <Badge variant="outline" className="font-normal">{idea.content_pillar}</Badge>
-            <p className="line-clamp-2 font-semibold leading-tight break-words" title={idea.title}>{idea.title}</p>
+            <Badge variant="outline" className="font-normal">
+              {idea.content_pillar}
+            </Badge>
+            <p className="line-clamp-2 font-semibold leading-tight break-words" title={idea.title}>
+              {idea.title}
+            </p>
           </div>
-          <Badge variant="outline" className={`shrink-0 ${badgeColor}`}>{idea.novelty_badge}</Badge>
+          <Badge variant="outline" className={`shrink-0 ${badgeColor}`}>
+            {idea.novelty_badge}
+          </Badge>
         </div>
 
         <div className="flex flex-wrap gap-1 text-xs">
-          <Badge variant="outline" className="font-normal"><Layers className="mr-1 h-3 w-3" />Sugestão: {idea.recommended_format}</Badge>
-          <Badge variant="outline" className="font-normal">{idea.objective}</Badge>
-          <Badge variant="outline" className="font-normal">{idea.approach}</Badge>
+          <Badge variant="outline" className="font-normal">
+            <Layers className="mr-1 h-3 w-3" />
+            Sugestão: {idea.recommended_format}
+          </Badge>
+          <Badge variant="outline" className="font-normal">
+            {idea.objective}
+          </Badge>
+          <Badge variant="outline" className="font-normal">
+            {idea.approach}
+          </Badge>
+          {idea.tone && (
+            <Badge variant="outline" className="font-normal">
+              Tom: {idea.tone}
+            </Badge>
+          )}
           <CompatBadge level={idea.compatibility_level} />
           {idea.applied_fallback_level > 0 && (
-            <Badge variant="outline" className="font-normal text-amber-700 dark:text-amber-300 border-amber-500/30">
+            <Badge
+              variant="outline"
+              className="font-normal text-amber-700 dark:text-amber-300 border-amber-500/30"
+            >
               Fallback nível {idea.applied_fallback_level}
             </Badge>
           )}
         </div>
 
-        {idea.hook && <p className="line-clamp-3 text-sm text-muted-foreground italic break-words" title={idea.hook}>Gancho: “{idea.hook}”</p>}
-        {idea.central_message && <p className="line-clamp-3 text-sm break-words" title={idea.central_message}><span className="text-muted-foreground">Mensagem central: </span>{idea.central_message}</p>}
-        {idea.suggested_cta && <p className="text-sm break-words"><span className="text-muted-foreground">CTA: </span>{idea.suggested_cta}</p>}
-        {idea.reason_to_publish && <p className="text-sm break-words"><span className="text-muted-foreground">Motivo: </span>{idea.reason_to_publish}</p>}
+        {idea.hook && (
+          <p
+            className="line-clamp-3 text-sm text-muted-foreground italic break-words"
+            title={idea.hook}
+          >
+            Gancho: “{idea.hook}”
+          </p>
+        )}
+        {idea.central_message && (
+          <p className="line-clamp-3 text-sm break-words" title={idea.central_message}>
+            <span className="text-muted-foreground">Mensagem central: </span>
+            {idea.central_message}
+          </p>
+        )}
+        {idea.suggested_cta && (
+          <p className="text-sm break-words">
+            <span className="text-muted-foreground">CTA: </span>
+            {idea.suggested_cta}
+          </p>
+        )}
+        {idea.reason_to_publish && (
+          <p className="text-sm break-words">
+            <span className="text-muted-foreground">Motivo: </span>
+            {idea.reason_to_publish}
+          </p>
+        )}
 
         {idea.required_information.length > 0 && (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-xs">
-            <p className="font-medium text-amber-700 dark:text-amber-300">Informações a confirmar antes da publicação:</p>
+            <p className="font-medium text-amber-700 dark:text-amber-300">
+              Informações a confirmar antes da publicação:
+            </p>
             <ul className="ml-4 mt-1 list-disc text-muted-foreground">
-              {idea.required_information.map((r, i) => <li key={i} className="break-words">{r}</li>)}
+              {idea.required_information.map((r, i) => (
+                <li key={i} className="break-words">
+                  {r}
+                </li>
+              ))}
             </ul>
           </div>
         )}
 
         <div className="flex flex-wrap gap-2 pt-1">
-          <Button size="sm" onClick={onUse} className="gap-1"><ArrowRight className="h-3 w-3" />Usar esta ideia</Button>
-          <Button size="sm" variant="outline" onClick={onFavorite} className="gap-1"><Star className="h-3 w-3" />Favoritar</Button>
-          <Button size="sm" variant="ghost" onClick={onDiscard} className="gap-1"><Trash2 className="h-3 w-3" />Descartar</Button>
+          <Button size="sm" onClick={onUse} className="gap-1">
+            <ArrowRight className="h-3 w-3" />
+            Usar esta ideia
+          </Button>
+          <Button size="sm" variant="outline" onClick={onFavorite} className="gap-1">
+            <Star className="h-3 w-3" />
+            Favoritar
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onDiscard} className="gap-1">
+            <Trash2 className="h-3 w-3" />
+            Descartar
+          </Button>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function Field({ label, tip, children }: { label: string; tip?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  tip,
+  children,
+}: {
+  label: string;
+  tip?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5 min-w-0">
       <div className="flex items-center gap-1.5">
@@ -719,11 +1090,17 @@ function Field({ label, tip, children }: { label: string; tip?: string; children
         {tip && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`Sobre ${label}`}>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground"
+                aria-label={`Sobre ${label}`}
+              >
                 <Info className="h-3 w-3" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs text-xs">{tip}</TooltipContent>
+            <TooltipContent side="top" className="max-w-xs text-xs">
+              {tip}
+            </TooltipContent>
           </Tooltip>
         )}
       </div>
@@ -734,32 +1111,50 @@ function Field({ label, tip, children }: { label: string; tip?: string; children
 
 function CompatDot({ level }: { level: CompatibilityLevel }) {
   const color =
-    level === "recommended" ? "bg-emerald-500" :
-    level === "possible" ? "bg-sky-500" :
-    level === "weak" ? "bg-amber-500" :
-    "bg-rose-500";
-  return <span className={`inline-block h-2 w-2 rounded-full ${color}`} aria-label={COMPATIBILITY_LABELS[level]} />;
+    level === "recommended"
+      ? "bg-emerald-500"
+      : level === "possible"
+        ? "bg-sky-500"
+        : level === "weak"
+          ? "bg-amber-500"
+          : "bg-rose-500";
+  return (
+    <span
+      className={`inline-block h-2 w-2 rounded-full ${color}`}
+      aria-label={COMPATIBILITY_LABELS[level]}
+    />
+  );
 }
 
 function CompatBadge({ level }: { level: CompatibilityLevel }) {
   const cls =
-    level === "recommended" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-500/10" :
-    level === "possible" ? "border-sky-500/40 text-sky-700 dark:text-sky-300 bg-sky-500/10" :
-    level === "weak" ? "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-500/10" :
-    "border-rose-500/40 text-rose-700 dark:text-rose-300 bg-rose-500/10";
-  return <Badge variant="outline" className={`font-normal ${cls}`}>{COMPATIBILITY_LABELS[level]}</Badge>;
+    level === "recommended"
+      ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-500/10"
+      : level === "possible"
+        ? "border-sky-500/40 text-sky-700 dark:text-sky-300 bg-sky-500/10"
+        : level === "weak"
+          ? "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-500/10"
+          : "border-rose-500/40 text-rose-700 dark:text-rose-300 bg-rose-500/10";
+  return (
+    <Badge variant="outline" className={`font-normal ${cls}`}>
+      {COMPATIBILITY_LABELS[level]}
+    </Badge>
+  );
 }
 
 function orderedApproaches(
-  objective: IdeaObjective, focus: IdeaFocus, format: IdeaFormat,
+  objective: IdeaObjective,
+  focus: IdeaFocus,
+  format: IdeaFormat,
 ): Array<{ approach: IdeaApproach; level: CompatibilityLevel }> {
   const all = Object.keys(IDEA_APPROACH_LABELS) as IdeaApproach[];
   return all
     .map((a) => ({
       approach: a,
-      level: a === "auto"
-        ? ("recommended" as CompatibilityLevel)
-        : evaluateCompatibility({ objective, focus, approach: a, format }).level,
+      level:
+        a === "auto"
+          ? ("recommended" as CompatibilityLevel)
+          : evaluateCompatibility({ objective, focus, approach: a, format }).level,
     }))
     .sort((a, b) => {
       if (a.approach === "auto") return -1;
@@ -770,30 +1165,41 @@ function orderedApproaches(
 }
 
 function buildCombinationSummary(args: {
-  objective: IdeaObjective; focus: IdeaFocus; approach: IdeaApproach; formats: IdeaFormat[]; tone: IdeaTone;
+  objective: IdeaObjective;
+  focus: IdeaFocus;
+  approach: IdeaApproach;
+  formats: IdeaFormat[];
+  tone: IdeaTone;
 }): string {
   const obj = IDEA_OBJECTIVE_LABELS[args.objective].toLowerCase();
-  const foc = args.focus === "qualquer" ? "qualquer foco" : IDEA_FOCUS_LABELS[args.focus].toLowerCase();
-  const app = args.approach === "auto" ? "abordagem sugerida automaticamente" : IDEA_APPROACH_LABELS[args.approach].toLowerCase();
+  const foc =
+    args.focus === "qualquer" ? "qualquer foco" : IDEA_FOCUS_LABELS[args.focus].toLowerCase();
+  const app =
+    args.approach === "auto"
+      ? "abordagem sugerida automaticamente"
+      : IDEA_APPROACH_LABELS[args.approach].toLowerCase();
   const fmt = args.formats.includes("auto")
     ? "no melhor formato para cada ideia"
     : args.formats.length === 1
       ? `para ${IDEA_FORMAT_LABELS[args.formats[0]]}`
       : `com sugestões distribuídas entre ${args.formats.map((format) => IDEA_FORMAT_LABELS[format]).join(", ")}`;
-  const tn = args.tone === "marca" ? "seguindo o tom da marca" : `com tom ${IDEA_TONE_LABELS[args.tone].toLowerCase()}`;
+  const tn =
+    args.tone === "marca"
+      ? "seguindo o tom da marca"
+      : `com tom ${IDEA_TONE_LABELS[args.tone].toLowerCase()}`;
   return `O Cria Aí buscará ideias com o objetivo de ${obj}, focando em ${foc}, usando ${app}, ${fmt}, ${tn}.`;
 }
 
 function formatLabelToKey(label: string): string | null {
   const map: Record<string, string> = {
     "Post Feed": "post",
-    "Carrossel": "carrossel",
-    "Story": "story",
-    "Stories": "story",
+    Carrossel: "carrossel",
+    Story: "story",
+    Stories: "story",
     "Sequência de Stories": "sequencia_stories",
     "Status WhatsApp": "status_whatsapp",
-    "Reel": "reel",
-    "Comunicado": "comunicado",
+    Reel: "reel",
+    Comunicado: "comunicado",
   };
   return map[label] ?? null;
 }
@@ -807,6 +1213,7 @@ function savedToIdea(s: Record<string, unknown>): Idea {
     objective: String(s.objective ?? ""),
     recommended_format: String(s.recommended_format ?? "Post Feed"),
     approach: String((s as { approach?: string | null }).approach ?? "Sugerir automaticamente"),
+    tone: "Seguir o tom da marca",
     angle: String(s.angle ?? ""),
     target_audience: String(s.target_audience ?? ""),
     audience_problem: String(s.audience_problem ?? ""),
@@ -820,9 +1227,15 @@ function savedToIdea(s: Record<string, unknown>): Idea {
     novelty_score: Number(s.novelty_score ?? 0),
     novelty_badge: (s.novelty_badge as Idea["novelty_badge"]) ?? "Ideia nova",
     template_key: String(s.template_key ?? "duvida"),
-    compatibility_level: (((s as { compatibility_level?: string }).compatibility_level) as CompatibilityLevel) ?? "possible",
-    compatibility_reason: String((s as { compatibility_reason?: string }).compatibility_reason ?? ""),
-    applied_fallback_level: Number((s as { applied_fallback_level?: number }).applied_fallback_level ?? 0),
+    compatibility_level:
+      ((s as { compatibility_level?: string }).compatibility_level as CompatibilityLevel) ??
+      "possible",
+    compatibility_reason: String(
+      (s as { compatibility_reason?: string }).compatibility_reason ?? "",
+    ),
+    applied_fallback_level: Number(
+      (s as { applied_fallback_level?: number }).applied_fallback_level ?? 0,
+    ),
     created_at: String(s.created_at ?? new Date().toISOString()),
   };
 }
