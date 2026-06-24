@@ -33,6 +33,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HelpDialog } from "@/components/help-dialog";
+import { ChooseIdeaFormatsDialog } from "@/components/choose-idea-formats-dialog";
 import { quickIdea, type Idea } from "@/lib/ideaGenerator";
 import type { Tables } from "@/integrations/supabase/types";
 import {
@@ -414,6 +415,7 @@ function QuickIdeaBlock() {
   const [brandId, setBrandId] = useState<string>("");
   const [idea, setIdea] = useState<Idea | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
+  const [showFormatDialog, setShowFormatDialog] = useState(false);
 
   const { data: brands } = useQuery({
     queryKey: ["brands-light-dash"],
@@ -438,16 +440,19 @@ function QuickIdeaBlock() {
     setIdea(next);
   };
 
+  const recommendedFormat = idea ? formatLabelToWizardKey(idea.recommended_format) : null;
+
   const useIt = () => {
     if (!idea || !brandId) return;
-    const formatMap: Record<string, string> = {
-      "Post Feed": "post", "Carrossel": "carrossel", "Stories": "story",
-      "Status WhatsApp": "status_whatsapp", "Reel": "reel", "Comunicado": "comunicado",
-    };
+    setShowFormatDialog(true);
+  };
+
+  const continueWithFormats = (selectedFormats: string[]) => {
+    if (!idea || !brandId) return;
     const prefill = {
       brand_id: brandId,
       objective: idea.objective,
-      selected_formats: formatMap[idea.recommended_format] ? [formatMap[idea.recommended_format]] : [],
+      selected_formats: selectedFormats,
       internal_title: idea.title,
       theme: idea.theme,
       specific_audience: idea.target_audience,
@@ -462,6 +467,7 @@ function QuickIdeaBlock() {
       localStorage.setItem("cria-wizard-prefill", JSON.stringify(prefill));
       sessionStorage.setItem("cria-wizard-from-idea", "1");
     } catch {}
+    setShowFormatDialog(false);
     navigate({ to: "/app/content/new" });
   };
 
@@ -517,7 +523,7 @@ function QuickIdeaBlock() {
               <Badge variant="outline">{idea.novelty_badge}</Badge>
             </div>
             <div className="flex flex-wrap gap-1 text-xs">
-              <Badge variant="outline" className="font-normal">{idea.recommended_format}</Badge>
+              <Badge variant="outline" className="font-normal">Sugestão: {idea.recommended_format}</Badge>
               <Badge variant="outline" className="font-normal">{idea.content_pillar}</Badge>
               <Badge variant="outline" className="font-normal">{idea.objective}</Badge>
             </div>
@@ -532,8 +538,31 @@ function QuickIdeaBlock() {
           </CardContent>
         </Card>
       )}
+      {idea && (
+        <ChooseIdeaFormatsDialog
+          open={showFormatDialog}
+          onOpenChange={setShowFormatDialog}
+          ideaTitle={idea.title}
+          recommendedFormat={recommendedFormat}
+          initialFormats={recommendedFormat ? [recommendedFormat] : []}
+          onContinue={continueWithFormats}
+        />
+      )}
     </section>
   );
+}
+
+
+function formatLabelToWizardKey(label: string): string | null {
+  const normalized = label.trim().toLowerCase();
+  const entry = Object.entries(FORMAT_LABELS).find(([, formatLabel]) => formatLabel.toLowerCase() === normalized);
+  if (entry) return entry[0];
+  const aliases: Record<string, string> = {
+    "post feed": "post",
+    "stories": "story",
+    "status whatsapp": "status_whatsapp",
+  };
+  return aliases[normalized] ?? null;
 }
 
 function ClientApprovalsSection() {

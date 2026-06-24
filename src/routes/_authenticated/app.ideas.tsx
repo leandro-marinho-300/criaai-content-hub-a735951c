@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ChooseIdeaFormatsDialog } from "@/components/choose-idea-formats-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -53,6 +54,7 @@ function IdeasLab() {
   const [sessionTitles, setSessionTitles] = useState<string[]>([]);
   const [surprise, setSurprise] = useState(false);
   const [allowFallback, setAllowFallback] = useState(true);
+  const [ideaForFormats, setIdeaForFormats] = useState<{ idea: Idea; brandId: string; initialFormats: string[] } | null>(null);
 
   const { data: brands } = useQuery({
     queryKey: ["brands-lab"],
@@ -197,12 +199,11 @@ function IdeasLab() {
     },
   });
 
-  const useIdea = (idea: Idea, brandIdForUse: string) => {
-    const formatKey = formatLabelToKey(idea.recommended_format);
+  const continueWithIdea = (idea: Idea, brandIdForUse: string, selectedFormats: string[]) => {
     const prefill = {
       brand_id: brandIdForUse,
       objective: idea.objective,
-      selected_formats: formatKey ? [formatKey] : [],
+      selected_formats: selectedFormats,
       internal_title: idea.title,
       theme: idea.theme,
       specific_audience: idea.target_audience,
@@ -217,7 +218,22 @@ function IdeasLab() {
       localStorage.setItem("cria-wizard-prefill", JSON.stringify(prefill));
       sessionStorage.setItem("cria-wizard-from-idea", "1");
     } catch {}
+    setIdeaForFormats(null);
     navigate({ to: "/app/content/new" });
+  };
+
+  const chooseFormatsForIdea = (idea: Idea, brandIdForUse: string, preferredFormats?: IdeaFormat[]) => {
+    const recommended = formatLabelToKey(idea.recommended_format);
+    const selectedFromLab = (preferredFormats ?? [])
+      .filter((format) => format !== "auto")
+      .map((format) => format as string);
+    const initialFormats = selectedFromLab.length > 0
+      ? selectedFromLab
+      : recommended
+        ? [recommended]
+        : [];
+
+    setIdeaForFormats({ idea, brandId: brandIdForUse, initialFormats });
   };
 
   const summary = useMemo(
@@ -262,7 +278,7 @@ function IdeasLab() {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Formato" tip={FIELD_TOOLTIPS.format}>
+                <Field label="Preferência de formato" tip="Escolha formatos para orientar as sugestões. Depois de selecionar uma ideia, você poderá definir um ou mais formatos finais para produzi-la.">
                   <FormatMultiSelect
                     value={formats}
                     quantity={quantity}
@@ -425,7 +441,7 @@ function IdeasLab() {
                     <IdeaCard
                       key={idea.id}
                       idea={idea}
-                      onUse={() => useIdea(idea, brand.id)}
+                      onUse={() => chooseFormatsForIdea(idea, brand.id, formats)}
                       onFavorite={() => favorite.mutate(idea)}
                       onDiscard={() => setSessionTitles((p) => [...p, idea.title])}
                     />
@@ -475,7 +491,7 @@ function IdeasLab() {
                       <div className="flex flex-wrap items-center gap-2 pt-2">
                         <Button
                           size="sm"
-                          onClick={() => useIdea(savedToIdea(s), s.brand_id ?? "")}
+                          onClick={() => chooseFormatsForIdea(savedToIdea(s), s.brand_id ?? "")}
                           disabled={!s.brand_id}
                           className="gap-1"
                         >
@@ -492,6 +508,21 @@ function IdeasLab() {
             )}
           </TabsContent>
         </Tabs>
+
+        {ideaForFormats && (
+          <ChooseIdeaFormatsDialog
+            open
+            onOpenChange={(open) => { if (!open) setIdeaForFormats(null); }}
+            ideaTitle={ideaForFormats.idea.title}
+            recommendedFormat={formatLabelToKey(ideaForFormats.idea.recommended_format)}
+            initialFormats={ideaForFormats.initialFormats}
+            onContinue={(selectedFormats) => continueWithIdea(
+              ideaForFormats.idea,
+              ideaForFormats.brandId,
+              selectedFormats,
+            )}
+          />
+        )}
       </div>
     </TooltipProvider>
   );
@@ -593,7 +624,7 @@ function FormatMultiSelect({
         <div>
           <p className="text-sm font-medium">Escolha um ou mais formatos</p>
           <p className="text-xs text-muted-foreground">
-            A quantidade total de ideias será distribuída entre os formatos selecionados.
+            As sugestões serão distribuídas entre estes formatos. Ao usar uma ideia, você poderá escolher vários formatos para o mesmo projeto.
           </p>
         </div>
 
@@ -645,7 +676,7 @@ function IdeaCard({
         </div>
 
         <div className="flex flex-wrap gap-1 text-xs">
-          <Badge variant="outline" className="font-normal"><Layers className="mr-1 h-3 w-3" />{idea.recommended_format}</Badge>
+          <Badge variant="outline" className="font-normal"><Layers className="mr-1 h-3 w-3" />Sugestão: {idea.recommended_format}</Badge>
           <Badge variant="outline" className="font-normal">{idea.objective}</Badge>
           <Badge variant="outline" className="font-normal">{idea.approach}</Badge>
           <CompatBadge level={idea.compatibility_level} />
@@ -748,7 +779,7 @@ function buildCombinationSummary(args: {
     ? "no melhor formato para cada ideia"
     : args.formats.length === 1
       ? `para ${IDEA_FORMAT_LABELS[args.formats[0]]}`
-      : `distribuídas entre ${args.formats.map((format) => IDEA_FORMAT_LABELS[format]).join(", ")}`;
+      : `com sugestões distribuídas entre ${args.formats.map((format) => IDEA_FORMAT_LABELS[format]).join(", ")}`;
   const tn = args.tone === "marca" ? "seguindo o tom da marca" : `com tom ${IDEA_TONE_LABELS[args.tone].toLowerCase()}`;
   return `O Cria Aí buscará ideias com o objetivo de ${obj}, focando em ${foc}, usando ${app}, ${fmt}, ${tn}.`;
 }
