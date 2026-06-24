@@ -659,34 +659,66 @@ function PieceCard({
               )}
             </div>
 
-            {/* Prompt pronto */}
-            <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-primary">
-                  {draft.qualityStatus === "blocked"
-                    ? "Prompt indisponível — copy bloqueada"
-                    : "Prompt pronto para colar no ChatGPT"}
-                </span>
-                {draft.qualityStatus !== "blocked" && (
-                  <div className="flex gap-1">
-                    <CopyButton text={draft.readyPrompt} label="Copiar prompt da página" variant="default" size="sm" />
-                    <Button size="sm" variant="secondary" onClick={() => onCopyAndOpen(draft.readyPrompt)} className="gap-1.5">
-                      <ExternalLink className="h-3.5 w-3.5" />Abrir ChatGPT
-                    </Button>
-                  </div>
+            {/* Prompt pronto — não publicável esconde como "Material interno / Texto da publicação". */}
+            {piece.outputKind === "production_material" && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
+                <p className="font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                  Material interno
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Este conteúdo orienta a gravação / edição e <b>não deve ser publicado</b> como uma arte.
+                  Não há prompt visual para esta peça.
+                </p>
+              </div>
+            )}
+            {piece.outputKind === "publication_copy" && (
+              <div className="rounded-lg border border-sky-500/40 bg-sky-500/5 p-3 text-xs">
+                <p className="font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+                  Usar na publicação
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Texto da publicação. Copie e cole na legenda do post — não é uma arte para gerar imagem.
+                </p>
+                <div className="mt-2">
+                  <CopyButton
+                    text={draft.mainText || draft.caption || ""}
+                    label="Copiar texto da publicação"
+                    variant="default"
+                    size="sm"
+                  />
+                </div>
+              </div>
+            )}
+            {(!piece.outputKind || piece.outputKind === "publishable_asset" || piece.outputKind === "reference_material") && (
+              <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    {draft.qualityStatus === "blocked"
+                      ? "Prompt indisponível — copy bloqueada"
+                      : "Prompt pronto para colar no ChatGPT"}
+                  </span>
+                  {draft.qualityStatus !== "blocked" && (
+                    <div className="flex gap-1">
+                      <CopyButton text={draft.readyPrompt} label="Copiar prompt da página" variant="default" size="sm" />
+                      <Button size="sm" variant="secondary" onClick={() => onCopyAndOpen(draft.readyPrompt)} className="gap-1.5">
+                        <ExternalLink className="h-3.5 w-3.5" />Abrir ChatGPT
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {editing ? (
+                  <Textarea
+                    rows={Math.min(20, Math.max(6, draft.readyPrompt.split("\n").length + 1))}
+                    value={draft.readyPrompt}
+                    onChange={(e) => setDraft({ ...draft, readyPrompt: e.target.value })}
+                    className="font-mono text-xs"
+                  />
+                ) : (
+                  <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">{draft.readyPrompt}</pre>
                 )}
               </div>
-              {editing ? (
-                <Textarea
-                  rows={Math.min(20, Math.max(6, draft.readyPrompt.split("\n").length + 1))}
-                  value={draft.readyPrompt}
-                  onChange={(e) => setDraft({ ...draft, readyPrompt: e.target.value })}
-                  className="font-mono text-xs"
-                />
-              ) : (
-                <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">{draft.readyPrompt}</pre>
-              )}
-            </div>
+            )}
+
 
             {/* Ações */}
             <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
