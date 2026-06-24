@@ -53,6 +53,8 @@ export interface Piece {
   qualityStatus: CopyStatus;
   headlineOptions: string[];
   supportTextOptions: string[];
+  /** Classificação da peça: publicável, texto da publicação, material interno. */
+  outputKind?: OutputKind;
   /** Origem da copy atual. */
   copySource?: "deterministic" | "manual" | "external_chatgpt";
   /** Histórico curto (últimas 3) de versões anteriores para restauração. */
