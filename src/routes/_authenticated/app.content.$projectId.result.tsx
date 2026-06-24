@@ -35,7 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/copy-button";
 import { parsePiece, pieceToPlainText, type Piece } from "@/lib/promptBuilder";
 import { OUTPUT_KIND_LABEL, type OutputKind } from "@/lib/formatOutputRules";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Json, Tables } from "@/integrations/supabase/types";
 import { AdjustPieceDialog } from "@/components/adjust-piece-dialog";
 import { PieceAssetUploader } from "@/components/piece-asset-uploader";
 import { fetchAssetsForProject, type PieceAsset } from "@/lib/pieceAssets";
@@ -45,6 +45,10 @@ import { AddToCalendarDialog } from "@/components/calendar/add-to-calendar-dialo
 import { getProjectDisplayTitle } from "@/lib/displayTitle";
 import { RenameTitleDialog } from "@/components/rename-title-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ImportReelScriptDialog } from "@/components/import-reel-script-dialog";
+import { ReelScriptView } from "@/components/reel-script-view";
+import { getStoredReelScript, reelScriptToPlainText, type ReelScript } from "@/lib/reelScript";
+import { inferReelDurationSeconds } from "@/lib/reelContent";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
@@ -148,8 +152,17 @@ function ResultPage() {
     : [];
   const isReelOnly = selectedFormats.length === 1 && selectedFormats[0] === "reel";
 
+  const storedReelScriptForExport = getStoredReelScript(
+    pieces.find(({ piece }) => piece?.formatKey === "reel" && piece.role === "roteiro")?.row.imported_content,
+  );
   const allPiecesText = pieces
-    .map(({ piece }) => (piece ? pieceToPlainText(piece) : ""))
+    .map(({ piece }) => {
+      if (!piece) return "";
+      if (piece.formatKey === "reel" && piece.role === "roteiro" && storedReelScriptForExport) {
+        return reelScriptToPlainText(storedReelScriptForExport);
+      }
+      return pieceToPlainText(piece);
+    })
     .filter(Boolean)
     .join("\n\n---\n\n");
 
@@ -1133,12 +1146,118 @@ function ReelTabs({
   onCopyAndOpen: (text: string) => void;
   onAssetsChanged: () => void;
 }) {
+  const qc = useQueryClient();
+  const [importScriptOpen, setImportScriptOpen] = useState(false);
   const allPieces = pieces.map((p) => p.piece).filter(Boolean) as Piece[];
   const find = (role: string) => pieces.find((p) => p.piece?.role === role);
   const roteiro = find("roteiro");
   const capa = find("capa");
   const legenda = find("legenda");
   const publishables = pieces.filter((p) => p.piece && p.piece.outputKind === "publishable_asset");
+  const storedScript = getStoredReelScript(roteiro?.row.imported_content);
+  const expectedPoints = roteiro?.piece?.campaignPoints ?? [];
+  const expectedCta = roteiro?.piece?.cta ?? project.call_to_action ?? "";
+  const expectedDuration = inferReelDurationSeconds(project);
+
+  const importScript = useMutation({
+    mutationFn: async ({ script }: { script: ReelScript; raw: string }) => {
+      if (!roteiro?.piece) throw new Error("O output de roteiro não foi encontrado.");
+
+      const updatedScriptPiece: Piece = {
+        ...roteiro.piece,
+        name: "Reel — Roteiro completo",
+        objective: "roteiro completo do vídeo com falas, cenas e orientações de produção",
+        mainText: script.title,
+        supportText: script.overview.central_concept,
+        bullets: script.required_points,
+        cta: script.closing.cta,
+        contentStage: "script_complete",
+        copySource: "external_chatgpt",
+        qualityStatus: "approved",
+        qualityIssues: undefined,
+      };
+
+      const { error: scriptError } = await supabase
+        .from("content_outputs")
+        .update({
+          imported_content: script as unknown as Json,
+          edited_content: JSON.stringify(updatedScriptPiece),
+          source: "external_chatgpt",
+          title: "Reel — Roteiro completo",
+          copy_status: "review",
+          version: (roteiro.row.version ?? 1) + 1,
+        })
+        .eq("id", roteiro.row.id);
+      if (scriptError) throw scriptError;
+
+      if (legenda?.piece) {
+        const captionCoverage = {
+          coveredPoints: [...expectedPoints],
+          missingPoints: [] as string[],
+          coveragePercentage: 100,
+        };
+        const updatedCaptionPiece: Piece = {
+          ...legenda.piece,
+          name: "Reel — Legenda + CTA",
+          mainText: script.publication.caption,
+          supportText: "",
+          bullets: [],
+          cta: script.closing.cta,
+          caption: script.publication.caption,
+          hashtags: script.publication.hashtags,
+          campaignPoints: script.required_points.length ? script.required_points : expectedPoints,
+          captionCoverage,
+          contentStage: "publication_copy",
+          copySource: "external_chatgpt",
+          qualityStatus: "approved",
+          qualityIssues: undefined,
+          readyPrompt: [
+            "Texto da publicação — Legenda do Reel.",
+            "",
+            "Este conteúdo deve ser usado como texto da publicação. NÃO gerar imagem para esta saída.",
+            "",
+            script.publication.caption,
+            script.publication.hashtags.length ? `\n${script.publication.hashtags.join(" ")}` : "",
+          ]
+            .join("\n")
+            .trim(),
+        };
+
+        const { error: captionError } = await supabase
+          .from("content_outputs")
+          .update({
+            imported_content: {
+              caption: script.publication.caption,
+              hashtags: script.publication.hashtags,
+              cta: script.closing.cta,
+              source_schema: script.schema_version,
+            } as Json,
+            edited_content: JSON.stringify(updatedCaptionPiece),
+            source: "external_chatgpt",
+            copy_status: "review",
+            version: (legenda.row.version ?? 1) + 1,
+          })
+          .eq("id", legenda.row.id);
+        if (captionError) throw captionError;
+      }
+
+      const { error: projectError } = await supabase
+        .from("content_projects")
+        .update({
+          content_source: "external_chatgpt",
+          content_development_status: "script_imported",
+          imported_at: new Date().toISOString(),
+        })
+        .eq("id", project.id);
+      if (projectError) throw projectError;
+    },
+    onSuccess: () => {
+      toast.success("Roteiro completo importado e legenda atualizada.");
+      qc.invalidateQueries({ queryKey: ["project-result", project.id] });
+      qc.invalidateQueries({ queryKey: ["library"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Não foi possível importar o roteiro."),
+  });
 
   const renderPiece = (entry: { row: Output; piece: Piece | null } | undefined, emptyHint: string) => {
     if (!entry?.piece) {
@@ -1160,75 +1279,109 @@ function ReelTabs({
   };
 
   return (
-    <Tabs defaultValue="overview" className="w-full">
-      <TabsList className="flex w-full flex-wrap gap-1 overflow-x-auto">
-        <TabsTrigger value="overview">Visão geral</TabsTrigger>
-        <TabsTrigger value="roteiro">Roteiro</TabsTrigger>
-        <TabsTrigger value="capa">Capa</TabsTrigger>
-        <TabsTrigger value="legenda">Legenda e hashtags</TabsTrigger>
-        <TabsTrigger value="arquivos">Arquivos finais</TabsTrigger>
-      </TabsList>
+    <>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="flex w-full flex-wrap gap-1 overflow-x-auto">
+          <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="roteiro">Roteiro</TabsTrigger>
+          <TabsTrigger value="capa">Capa</TabsTrigger>
+          <TabsTrigger value="legenda">Legenda e hashtags</TabsTrigger>
+          <TabsTrigger value="arquivos">Arquivos finais</TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="overview" className="mt-4">
-        <Card>
-          <CardContent className="space-y-2 p-5 text-sm">
-            <p>
-              <b>Título:</b> {getProjectDisplayTitle(project)}
-            </p>
-            <p>
-              <b>Marca:</b> {project.brands?.name ?? "—"}
-            </p>
-            <p>
-              <b>Tema:</b> {project.theme || "—"}
-            </p>
-            <p>
-              <b>Objetivo:</b> {project.objective || "—"}
-            </p>
-            <p>
-              <b>Status:</b> {statusLabel(project.status)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Reel é uma publicação única no calendário (vídeo + capa + legenda). Roteiro e storyboard são materiais
-              internos de produção.
-            </p>
-          </CardContent>
-        </Card>
-      </TabsContent>
+        <TabsContent value="overview" className="mt-4">
+          <Card>
+            <CardContent className="space-y-2 p-5 text-sm">
+              <p>
+                <b>Título:</b> {getProjectDisplayTitle(project)}
+              </p>
+              <p>
+                <b>Marca:</b> {project.brands?.name ?? "—"}
+              </p>
+              <p>
+                <b>Tema:</b> {project.theme || "—"}
+              </p>
+              <p>
+                <b>Objetivo:</b> {project.objective || "—"}
+              </p>
+              <p>
+                <b>Status:</b> {statusLabel(project.status)}
+              </p>
+              <p>
+                <b>Roteiro:</b>{" "}
+                {storedScript
+                  ? `Completo · ${storedScript.scenes.length} cenas · ${storedScript.overview.duration_seconds}s`
+                  : "Aguardando desenvolvimento externo"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Reel é uma publicação única no calendário (vídeo + capa + legenda). Roteiro e storyboard são materiais
+                internos de produção.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <TabsContent value="roteiro" className="mt-4 space-y-3">
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
-          <b>MATERIAL INTERNO.</b> O conteúdo inicial desta aba é um pedido estruturado. Ele só deve ser chamado de
-          roteiro completo depois que as cenas, falas e orientações estiverem preenchidas.
-        </div>
-        {renderPiece(roteiro, "Nenhum roteiro registrado para este Reel.")}
-      </TabsContent>
+        <TabsContent value="roteiro" className="mt-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+            <span>
+              <b>MATERIAL INTERNO.</b>{" "}
+              {storedScript
+                ? "O roteiro abaixo foi importado e validado."
+                : "Copie o pedido, gere o JSON no ChatGPT e importe a resposta para criar o roteiro completo."}
+            </span>
+            <Button size="sm" onClick={() => setImportScriptOpen(true)}>
+              {storedScript ? "Importar nova versão" : "Importar roteiro JSON"}
+            </Button>
+          </div>
+          {storedScript ? (
+            <ReelScriptView script={storedScript} onImportNewVersion={() => setImportScriptOpen(true)} />
+          ) : (
+            renderPiece(roteiro, "Nenhum pedido de roteiro registrado para este Reel.")
+          )}
+        </TabsContent>
 
-      <TabsContent value="capa" className="mt-4 space-y-3">
-        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-900 dark:text-emerald-200">
-          <b>PUBLICAR.</b> Capa estática do Reel — gere a arte a partir do prompt e anexe abaixo.
-        </div>
-        {renderPiece(capa, "Nenhuma capa registrada para este Reel.")}
-      </TabsContent>
+        <TabsContent value="capa" className="mt-4 space-y-3">
+          <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-900 dark:text-emerald-200">
+            <b>PUBLICAR.</b> Capa estática do Reel — gere a arte a partir do prompt e anexe abaixo.
+          </div>
+          {renderPiece(capa, "Nenhuma capa registrada para este Reel.")}
+        </TabsContent>
 
-      <TabsContent value="legenda" className="mt-4 space-y-3">
-        <div className="rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-xs text-sky-900 dark:text-sky-200">
-          <b>USAR NA PUBLICAÇÃO.</b> Texto da legenda + hashtags. Não há arte para esta peça.
-        </div>
-        {renderPiece(legenda, "Nenhuma legenda registrada para este Reel.")}
-      </TabsContent>
+        <TabsContent value="legenda" className="mt-4 space-y-3">
+          <div className="rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-xs text-sky-900 dark:text-sky-200">
+            <b>USAR NA PUBLICAÇÃO.</b>{" "}
+            {storedScript
+              ? "A legenda abaixo foi atualizada automaticamente a partir do roteiro completo importado."
+              : "Texto provisório baseado na campanha. Será substituído pela legenda do roteiro importado."}
+          </div>
+          {renderPiece(legenda, "Nenhuma legenda registrada para este Reel.")}
+        </TabsContent>
 
-      <TabsContent value="arquivos" className="mt-4 space-y-3">
-        <p className="text-xs text-muted-foreground">
-          Apenas peças publicáveis (vídeo final e capa) aparecem aqui e no PDF para o cliente.
-        </p>
-        {publishables.length === 0 && (
-          <p className="text-sm italic text-muted-foreground">Nenhum arquivo publicável anexado ainda.</p>
-        )}
-        {publishables.map((entry) => (
-          <div key={entry.row.id}>{renderPiece(entry, "")}</div>
-        ))}
-      </TabsContent>
-    </Tabs>
+        <TabsContent value="arquivos" className="mt-4 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Apenas peças publicáveis (vídeo final e capa) aparecem aqui e no PDF para o cliente.
+          </p>
+          {publishables.length === 0 && (
+            <p className="text-sm italic text-muted-foreground">Nenhum arquivo publicável anexado ainda.</p>
+          )}
+          {publishables.map((entry) => (
+            <div key={entry.row.id}>{renderPiece(entry, "")}</div>
+          ))}
+        </TabsContent>
+      </Tabs>
+
+      <ImportReelScriptDialog
+        open={importScriptOpen}
+        onOpenChange={setImportScriptOpen}
+        expectations={{
+          durationSeconds: expectedDuration,
+          requiredPoints: expectedPoints,
+          strategicCta: expectedCta,
+        }}
+        hasExistingScript={!!storedScript}
+        onImport={(script, raw) => importScript.mutateAsync({ script, raw })}
+      />
+    </>
   );
 }
 
