@@ -199,6 +199,39 @@ function clean(s: string): string {
   return s.replace(/[?.!]+$/g, "").trim();
 }
 
+function truncateAtWord(value: string, maxLength: number): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  const slice = normalized.slice(0, maxLength + 1);
+  const cut = slice.lastIndexOf(" ");
+  return `${slice.slice(0, cut > maxLength * 0.55 ? cut : maxLength).trim()}…`;
+}
+
+function firstEditorialSubject(value: string): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  const questions = normalized.match(/[^?]+\?/g);
+  if (questions && questions.length > 0) return questions[0].trim();
+  const first = normalized.split(/\s*[;|]\s*|\s+[–—]\s+/)[0] ?? normalized;
+  return first.trim();
+}
+
+function ensureQuestion(value: string): string {
+  const normalized = firstEditorialSubject(value).replace(/[.!]+$/g, "").trim();
+  return normalized.endsWith("?") ? normalized : `${normalized}?`;
+}
+
+function normalizeBuilt(built: Built): Built {
+  return {
+    ...built,
+    title: truncateAtWord(firstEditorialSubject(built.title), 96),
+    theme: truncateAtWord(firstEditorialSubject(built.theme), 180),
+    hook: truncateAtWord(firstEditorialSubject(built.hook), 190),
+    central_message: truncateAtWord(built.central_message, 260),
+    angle: truncateAtWord(built.angle, 180),
+    required: built.required.map((item) => truncateAtWord(item, 220)),
+  };
+}
+
 const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
   auto: () => null, // selecionado dinamicamente
   beneficio: ({ sources, rand }) => {
@@ -217,13 +250,14 @@ const BUILDERS: Record<IdeaApproach, ApproachBuilder> = {
   duvida: ({ sources, rand }) => {
     const q = pick(sources.usableQuestions, rand) ?? pick(sources.usableDifficulties, rand);
     if (!q) return null;
-    const c = clean(q).toLowerCase();
+    const question = ensureQuestion(q);
+    const c = clean(question).toLowerCase();
     return {
-      title: `Você sabe ${c}?`,
-      theme: q,
+      title: question,
+      theme: question,
       angle: "Esclarecer uma dúvida real do público sem inventar dados.",
-      central_message: `Responder objetivamente: ${q}.`,
-      hook: `Tem gente que ainda tem dúvida sobre isso: ${c}.`,
+      central_message: `Responder de forma objetiva à pergunta: ${question}`,
+      hook: `Essa dúvida aparece bastante: ${c}?`,
       required: ["Confirmar a resposta correta com a marca antes de publicar."],
       template_key: "duvida",
     };
@@ -497,8 +531,9 @@ function attempt(args: AttemptArgs): Idea[] {
       const safety = approachIsSafe(approach, args.sources);
       if (!safety.ok) continue;
       const builder = BUILDERS[approach];
-      const built = builder({ brand: args.brand, sources: args.sources, rand: args.rand });
-      if (!built) continue;
+      const rawBuilt = builder({ brand: args.brand, sources: args.sources, rand: args.rand });
+      if (!rawBuilt) continue;
+      const built = normalizeBuilt(rawBuilt);
       const titleKey = built.title.toLowerCase();
       if (args.excludeTitles.has(titleKey)) continue;
       // Não excluir o tema inteiro: apenas evitar o título idêntico.

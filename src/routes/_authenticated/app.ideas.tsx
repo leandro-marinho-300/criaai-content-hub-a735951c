@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Sparkles, RefreshCw, Star, Trash2, ArrowRight,
-  Layers, Info, Lightbulb, Shuffle, AlertTriangle, CheckCircle2, ChevronRight,
+  Layers, Info, Lightbulb, Shuffle, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -24,6 +26,7 @@ import {
   generateIdeasWithMeta,
   IDEA_OBJECTIVE_LABELS, IDEA_FORMAT_LABELS, IDEA_FOCUS_LABELS, IDEA_TONE_LABELS, IDEA_APPROACH_LABELS,
   type Idea, type IdeaObjective, type IdeaFormat, type IdeaFocus, type IdeaTone, type IdeaApproach,
+  type IdeaGenInput, type GenerationResult,
 } from "@/lib/ideaGenerator";
 import {
   evaluateCompatibility, COMPATIBILITY_LABELS, type CompatibilityLevel,
@@ -43,7 +46,7 @@ function IdeasLab() {
   const [objective, setObjective] = useState<IdeaObjective>("qualquer");
   const [focus, setFocus] = useState<IdeaFocus>("qualquer");
   const [approach, setApproach] = useState<IdeaApproach>("auto");
-  const [format, setFormat] = useState<IdeaFormat>("auto");
+  const [formats, setFormats] = useState<IdeaFormat[]>(["auto"]);
   const [tone, setTone] = useState<IdeaTone>("marca");
   const [quantity, setQuantity] = useState<3 | 5 | 10>(5);
   const [seedBump, setSeedBump] = useState(0);
@@ -91,31 +94,33 @@ function IdeasLab() {
   const result = useMemo(() => {
     if (!brand) return null;
     try {
-      return generateIdeasWithMeta({
+      const activeFormats = surprise ? (["auto"] as IdeaFormat[]) : formats;
+      return generateIdeasAcrossFormats({
         brand,
         objective: surprise ? "qualquer" : objective,
         focus: surprise ? "qualquer" : focus,
         approach: surprise ? "auto" : approach,
-        format: surprise ? "auto" : format,
+        formats: activeFormats,
         tone: surprise ? "marca" : tone,
         quantity,
         history: history ?? [],
         excludeTitles: sessionTitles,
         allowFallback,
-        seed: hash(brand.id + objective + focus + approach + format + tone + quantity + seedBump + (surprise ? "s" : "")),
+        seed: hash(brand.id + objective + focus + approach + activeFormats.join("|") + tone + quantity + seedBump + (surprise ? "s" : "")),
       });
     } catch (err) {
       console.error("[IdeasLab] falha ao gerar ideias para a marca", brand?.id, err);
       return null;
     }
-  }, [brand, objective, focus, approach, format, tone, quantity, history, sessionTitles, seedBump, surprise, allowFallback]);
+  }, [brand, objective, focus, approach, formats, tone, quantity, history, sessionTitles, seedBump, surprise, allowFallback]);
 
   const ideas: Idea[] = result?.ideas ?? [];
 
   const compat = useMemo(() => {
     if (!brand || surprise) return null;
-    return evaluateCompatibility({ objective, focus, approach, format });
-  }, [brand, surprise, objective, focus, approach, format]);
+    const formatForCompatibility = formats.length === 1 ? formats[0] : "auto";
+    return evaluateCompatibility({ objective, focus, approach, format: formatForCompatibility });
+  }, [brand, surprise, objective, focus, approach, formats]);
 
   const regenerate = () => {
     setSessionTitles((prev) => [...prev, ...ideas.map((i) => i.title)]);
@@ -215,7 +220,10 @@ function IdeasLab() {
     navigate({ to: "/app/content/new" });
   };
 
-  const summary = useMemo(() => buildCombinationSummary({ objective, focus, approach, format, tone }), [objective, focus, approach, format, tone]);
+  const summary = useMemo(
+    () => buildCombinationSummary({ objective, focus, approach, formats, tone }),
+    [objective, focus, approach, formats, tone],
+  );
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -255,12 +263,17 @@ function IdeasLab() {
                   </Select>
                 </Field>
                 <Field label="Formato" tip={FIELD_TOOLTIPS.format}>
-                  <Select value={format} onValueChange={(v) => { setFormat(v as IdeaFormat); setSurprise(false); }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(IDEA_FORMAT_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <FormatMultiSelect
+                    value={formats}
+                    quantity={quantity}
+                    onChange={(next) => {
+                      setFormats(next);
+                      setSurprise(false);
+                      if (!next.includes("auto") && next.length > quantity) {
+                        setQuantity(next.length <= 5 ? 5 : 10);
+                      }
+                    }}
+                  />
                 </Field>
 
                 {/* Linha 2 */}
@@ -276,7 +289,7 @@ function IdeasLab() {
                   <Select value={approach} onValueChange={(v) => { setApproach(v as IdeaApproach); setSurprise(false); }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {orderedApproaches(objective, focus, format).map(({ approach: a, level }) => (
+                      {orderedApproaches(objective, focus, formats.length === 1 ? formats[0] : "auto").map(({ approach: a, level }) => (
                         <SelectItem key={a} value={a}>
                           <span className="flex items-center gap-2">
                             <span>{IDEA_APPROACH_LABELS[a]}</span>
@@ -301,8 +314,8 @@ function IdeasLab() {
                   <Select value={String(quantity)} onValueChange={(v) => setQuantity(Number(v) as 3 | 5 | 10)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="3">3 ideias</SelectItem>
-                      <SelectItem value="5">5 ideias</SelectItem>
+                      <SelectItem value="3" disabled={!formats.includes("auto") && formats.length > 3}>3 ideias</SelectItem>
+                      <SelectItem value="5" disabled={!formats.includes("auto") && formats.length > 5}>5 ideias</SelectItem>
                       <SelectItem value="10">10 ideias</SelectItem>
                     </SelectContent>
                   </Select>
@@ -484,6 +497,133 @@ function IdeasLab() {
   );
 }
 
+type MultiFormatIdeaInput = Omit<IdeaGenInput, "format"> & {
+  formats: IdeaFormat[];
+};
+
+function generateIdeasAcrossFormats(input: MultiFormatIdeaInput): GenerationResult {
+  const requestedFormats = input.formats.includes("auto")
+    ? (["auto"] as IdeaFormat[])
+    : Array.from(new Set(input.formats.filter((format) => format !== "auto")));
+
+  const activeFormats = requestedFormats.length > 0 ? requestedFormats : (["auto"] as IdeaFormat[]);
+  if (activeFormats.length === 1) {
+    return generateIdeasWithMeta({ ...input, format: activeFormats[0] });
+  }
+
+  const sharedExclusions = [...(input.excludeTitles ?? [])];
+  const ideas: Idea[] = [];
+  const notes: string[] = [];
+  let sources: GenerationResult["sources"] | null = null;
+  let appliedFallbackLevel = 0;
+
+  const baseQuantity = Math.floor(input.quantity / activeFormats.length);
+  const remainder = input.quantity % activeFormats.length;
+
+  activeFormats.forEach((format, index) => {
+    const formatQuantity = baseQuantity + (index < remainder ? 1 : 0);
+    if (formatQuantity <= 0) return;
+
+    const result = generateIdeasWithMeta({
+      ...input,
+      format,
+      quantity: formatQuantity,
+      excludeTitles: sharedExclusions,
+      seed: (input.seed ?? 0) + (index + 1) * 1009,
+    });
+
+    ideas.push(...result.ideas);
+    sharedExclusions.push(...result.ideas.map((idea) => idea.title));
+    appliedFallbackLevel = Math.max(appliedFallbackLevel, result.appliedFallbackLevel);
+    sources ??= result.sources;
+    notes.push(...result.notes.map((note) => `${IDEA_FORMAT_LABELS[format]}: ${note}`));
+  });
+
+  return {
+    ideas,
+    requested: input.quantity,
+    appliedFallbackLevel,
+    partial: ideas.length < input.quantity,
+    notes: Array.from(new Set(notes)),
+    sources: sources ?? generateIdeasWithMeta({ ...input, format: "auto", quantity: 1 }).sources,
+  };
+}
+
+function FormatMultiSelect({
+  value,
+  quantity,
+  onChange,
+}: {
+  value: IdeaFormat[];
+  quantity: number;
+  onChange: (value: IdeaFormat[]) => void;
+}) {
+  const automatic = value.includes("auto");
+  const selected = automatic ? [] : value;
+  const options = (Object.keys(IDEA_FORMAT_LABELS) as IdeaFormat[]).filter((format) => format !== "auto");
+
+  const triggerLabel = automatic
+    ? IDEA_FORMAT_LABELS.auto
+    : selected.length === 1
+      ? IDEA_FORMAT_LABELS[selected[0]]
+      : `${selected.length} formatos selecionados`;
+
+  const toggleFormat = (format: IdeaFormat) => {
+    if (format === "auto") {
+      onChange(["auto"]);
+      return;
+    }
+
+    const next = selected.includes(format)
+      ? selected.filter((item) => item !== format)
+      : [...selected, format];
+
+    onChange(next.length > 0 ? next : ["auto"]);
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" className="w-full justify-between px-3 font-normal">
+          <span className="truncate">{triggerLabel}</span>
+          <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-72 space-y-3 p-3">
+        <div>
+          <p className="text-sm font-medium">Escolha um ou mais formatos</p>
+          <p className="text-xs text-muted-foreground">
+            A quantidade total de ideias será distribuída entre os formatos selecionados.
+          </p>
+        </div>
+
+        <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 hover:bg-muted">
+          <Checkbox checked={automatic} onCheckedChange={() => toggleFormat("auto")} />
+          <span className="text-sm">{IDEA_FORMAT_LABELS.auto}</span>
+        </label>
+
+        <div className="grid gap-1 sm:grid-cols-2">
+          {options.map((format) => (
+            <label key={format} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 hover:bg-muted">
+              <Checkbox
+                checked={selected.includes(format)}
+                onCheckedChange={() => toggleFormat(format)}
+              />
+              <span className="text-sm">{IDEA_FORMAT_LABELS[format]}</span>
+            </label>
+          ))}
+        </div>
+
+        {!automatic && selected.length > quantity && (
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            A quantidade será ajustada para contemplar ao menos uma ideia por formato.
+          </p>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function IdeaCard({
   idea, onUse, onFavorite, onDiscard,
 }: { idea: Idea; onUse: () => void; onFavorite: () => void; onDiscard: () => void }) {
@@ -499,7 +639,7 @@ function IdeaCard({
         <div className="flex items-start justify-between gap-2 min-w-0">
           <div className="space-y-1 min-w-0">
             <Badge variant="outline" className="font-normal">{idea.content_pillar}</Badge>
-            <p className="font-semibold leading-tight break-words">{idea.title}</p>
+            <p className="line-clamp-2 font-semibold leading-tight break-words" title={idea.title}>{idea.title}</p>
           </div>
           <Badge variant="outline" className={`shrink-0 ${badgeColor}`}>{idea.novelty_badge}</Badge>
         </div>
@@ -516,8 +656,8 @@ function IdeaCard({
           )}
         </div>
 
-        {idea.hook && <p className="text-sm text-muted-foreground italic break-words">Gancho: “{idea.hook}”</p>}
-        {idea.central_message && <p className="text-sm break-words"><span className="text-muted-foreground">Mensagem central: </span>{idea.central_message}</p>}
+        {idea.hook && <p className="line-clamp-3 text-sm text-muted-foreground italic break-words" title={idea.hook}>Gancho: “{idea.hook}”</p>}
+        {idea.central_message && <p className="line-clamp-3 text-sm break-words" title={idea.central_message}><span className="text-muted-foreground">Mensagem central: </span>{idea.central_message}</p>}
         {idea.suggested_cta && <p className="text-sm break-words"><span className="text-muted-foreground">CTA: </span>{idea.suggested_cta}</p>}
         {idea.reason_to_publish && <p className="text-sm break-words"><span className="text-muted-foreground">Motivo: </span>{idea.reason_to_publish}</p>}
 
@@ -599,12 +739,16 @@ function orderedApproaches(
 }
 
 function buildCombinationSummary(args: {
-  objective: IdeaObjective; focus: IdeaFocus; approach: IdeaApproach; format: IdeaFormat; tone: IdeaTone;
+  objective: IdeaObjective; focus: IdeaFocus; approach: IdeaApproach; formats: IdeaFormat[]; tone: IdeaTone;
 }): string {
   const obj = IDEA_OBJECTIVE_LABELS[args.objective].toLowerCase();
   const foc = args.focus === "qualquer" ? "qualquer foco" : IDEA_FOCUS_LABELS[args.focus].toLowerCase();
   const app = args.approach === "auto" ? "abordagem sugerida automaticamente" : IDEA_APPROACH_LABELS[args.approach].toLowerCase();
-  const fmt = args.format === "auto" ? "no melhor formato para a ideia" : `para ${IDEA_FORMAT_LABELS[args.format]}`;
+  const fmt = args.formats.includes("auto")
+    ? "no melhor formato para cada ideia"
+    : args.formats.length === 1
+      ? `para ${IDEA_FORMAT_LABELS[args.formats[0]]}`
+      : `distribuídas entre ${args.formats.map((format) => IDEA_FORMAT_LABELS[format]).join(", ")}`;
   const tn = args.tone === "marca" ? "seguindo o tom da marca" : `com tom ${IDEA_TONE_LABELS[args.tone].toLowerCase()}`;
   return `O Cria Aí buscará ideias com o objetivo de ${obj}, focando em ${foc}, usando ${app}, ${fmt}, ${tn}.`;
 }

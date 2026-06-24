@@ -14,25 +14,70 @@ type Brand = Tables<"brands">;
  * Aceita: string[] (Postgres ARRAY), string com `;`/quebras de linha, null, undefined,
  * jsonb ou tipos inesperados. Nunca lança.
  */
-function toStringArray(value: unknown): string[] {
+function cleanListItem(value: string): string {
+  return value
+    .replace(/^\s*(?:[-•–—]|\d+[.)])\s*/u, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const cleaned = cleanListItem(value);
+    if (!cleaned) continue;
+    const key = cleaned.toLocaleLowerCase("pt-BR");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(cleaned);
+  }
+  return result;
+}
+
+function splitScalar(value: unknown): string[] {
   if (value == null) return [];
-  if (Array.isArray(value)) {
-    return value
-      .map((v) => (v == null ? "" : String(v)).trim())
-      .filter((s) => s.length > 0);
-  }
-  if (typeof value === "string") {
-    return value
-      .split(/[;\n\r]+/g)
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
+  let text = "";
   try {
-    const s = String(value).trim();
-    return s ? [s] : [];
+    text = String(value);
   } catch {
     return [];
   }
+  return text
+    .split(/[;\n\r]+/g)
+    .map(cleanListItem)
+    .filter(Boolean);
+}
+
+function toStringArray(value: unknown): string[] {
+  if (value == null) return [];
+  const values = Array.isArray(value)
+    ? value.flatMap((item) => splitScalar(item))
+    : splitScalar(value);
+  return uniqueStrings(values);
+}
+
+/**
+ * Dúvidas frequentemente chegam como um único texto contendo várias perguntas.
+ * Ex.: "Como pedir orçamento? O que está incluso? É possível parcelar?".
+ * Cada pergunta precisa virar uma fonte editorial independente.
+ */
+function splitQuestionList(value: unknown): string[] {
+  const rawItems = toStringArray(value);
+  const questions = rawItems.flatMap((item) => {
+    const matches = item.match(/[^?]+\?/g);
+    if (!matches || matches.length <= 1) return [item];
+
+    const consumed = matches.join("").length;
+    const remainder = item.slice(consumed).trim();
+    return remainder ? [...matches, remainder] : matches;
+  });
+
+  return uniqueStrings(
+    questions
+      .map((item) => cleanListItem(item))
+      .filter((item) => item.length >= 4),
+  );
 }
 
 function splitList(value: unknown): string[] {
@@ -108,7 +153,7 @@ export function getBrandIdeaSources(brand: Brand | null | undefined): BrandIdeaS
         ...splitList(b.differentiators),
         ...splitList(b.audience_needs),
       ].slice(0, 12),
-      usableQuestions: splitList(b.frequently_asked_questions),
+      usableQuestions: splitQuestionList(b.frequently_asked_questions),
       usableDifferentiators: splitList(b.differentiators),
       usableTopics: asArray(b.allowed_topics),
       usableDates: splitList(b.important_dates),
