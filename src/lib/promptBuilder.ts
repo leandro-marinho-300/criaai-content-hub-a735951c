@@ -16,7 +16,7 @@ import {
   type QualityIssue,
   type CopyStatus,
 } from "./copyQuality";
-import { FORMAT_RULES, extractCaptionMode } from "./formatOutputRules";
+import { FORMAT_RULES, extractCaptionMode, classifyOutput, reelKeyFromRole, type OutputKind } from "./formatOutputRules";
 import { detectEditorialIntent, buildEditorialItems, type EditorialIntent } from "./editorialIntent";
 
 export type Brand = Tables<"brands">;
