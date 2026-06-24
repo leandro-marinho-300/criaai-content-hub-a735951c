@@ -293,15 +293,22 @@ function ResultPage() {
       {/* SEÇÃO 2 — PEÇAS GERADAS */}
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-lg font-semibold">Peças geradas ({pieces.length})</h2>
+          <h2 className="font-display text-lg font-semibold">
+            {isReelOnly ? "Materiais do Reel" : `Peças geradas (${pieces.length})`}
+          </h2>
           <div className="flex items-center gap-2">
             {(() => {
               const assetsByOutput: Record<string, PieceAsset[]> = {};
               (data.assets ?? []).forEach((a) => { (assetsByOutput[a.output_id] ||= []).push(a); });
-              const withArt = pieces.filter((p) => (assetsByOutput[p.row.id] ?? []).length > 0).length;
+              const publishablePieces = pieces.filter(
+                (p) => p.piece && p.piece.outputKind === "publishable_asset",
+              );
+              const denom = isReelOnly ? publishablePieces.length : pieces.length;
+              const withArt = (isReelOnly ? publishablePieces : pieces)
+                .filter((p) => (assetsByOutput[p.row.id] ?? []).length > 0).length;
               return (
                 <Badge variant="outline" className="text-xs">
-                  Artes finais: {withArt} de {pieces.length} peça(s)
+                  Artes finais: {withArt} de {denom} peça(s)
                 </Badge>
               );
             })()}
@@ -313,25 +320,38 @@ function ResultPage() {
         {pieces.length === 0 && (
           <p className="text-sm text-muted-foreground">Nenhuma peça foi gerada para este projeto.</p>
         )}
-        {pieces.map(({ row, piece }) =>
-          piece ? (
-            <PieceCard
-              key={row.id}
-              row={row}
-              piece={piece}
-              brand={project.brands}
-              project={project}
-              allPieces={pieces.map((p) => p.piece).filter(Boolean) as Piece[]}
-              onCopyAndOpen={copyAndOpenChatGPT}
-              userId={user?.id ?? ""}
-              assets={(data.assets ?? []).filter((a) => a.output_id === row.id)}
-              onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
-            />
-          ) : (
-            <LegacyBlockCard key={row.id} block={row} />
-          ),
+
+        {isReelOnly ? (
+          <ReelTabs
+            pieces={pieces}
+            project={project}
+            assets={data.assets ?? []}
+            userId={user?.id ?? ""}
+            onCopyAndOpen={copyAndOpenChatGPT}
+            onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
+          />
+        ) : (
+          pieces.map(({ row, piece }) =>
+            piece ? (
+              <PieceCard
+                key={row.id}
+                row={row}
+                piece={piece}
+                brand={project.brands}
+                project={project}
+                allPieces={pieces.map((p) => p.piece).filter(Boolean) as Piece[]}
+                onCopyAndOpen={copyAndOpenChatGPT}
+                userId={user?.id ?? ""}
+                assets={(data.assets ?? []).filter((a) => a.output_id === row.id)}
+                onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
+              />
+            ) : (
+              <LegacyBlockCard key={row.id} block={row} />
+            ),
+          )
         )}
       </section>
+
 
       {/* Blocos legados (projetos antigos) */}
       {legacyRows.length > 0 && (
