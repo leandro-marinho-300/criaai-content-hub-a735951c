@@ -178,7 +178,8 @@ export async function blobToDataUrl(blob: Blob): Promise<string> {
 
 /**
  * Faz upload do visual do roteiro (PDF ou imagem) usando o bucket privado já existente.
- * O arquivo é associado ao output do roteiro e não entra no PDF do cliente por padrão.
+ * O arquivo é associado ao output do roteiro e fica disponível no portal de aprovação.
+ * O backend público expõe somente a versão visual mais recente de cada roteiro.
  */
 export async function uploadReelScriptVisualAsset(params: {
   userId: string;
@@ -213,7 +214,7 @@ export async function uploadReelScriptVisualAsset(params: {
       image_width: dims.width || null,
       image_height: dims.height || null,
       display_order: params.displayOrder ?? 0,
-      include_in_client_pdf: false,
+      include_in_client_pdf: true,
     })
     .select()
     .single();

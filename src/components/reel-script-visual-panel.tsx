@@ -288,7 +288,8 @@ export function ReelScriptVisualPanel({
             </div>
             <p className="max-w-2xl text-xs text-muted-foreground">
               Gere no ChatGPT um PDF visual de storyboard, anexe o resultado e mantenha o histórico
-              de versões junto ao Reel.
+              de versões junto ao Reel. A versão mais recente também será exibida no link de
+              aprovação para conferência do cliente.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

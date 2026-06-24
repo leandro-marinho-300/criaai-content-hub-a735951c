@@ -119,7 +119,11 @@ export const Route = createFileRoute("/api/public/approval/$token")({
           .eq("id", approval.project_id)
           .single();
         const { data: brand } = approval.brand_id
-          ? await supabaseAdmin.from("brands").select("name, logo_url").eq("id", approval.brand_id).single()
+          ? await supabaseAdmin
+              .from("brands")
+              .select("name, logo_url")
+              .eq("id", approval.brand_id)
+              .single()
           : { data: null };
         const { data: outputs } = await supabaseAdmin
           .from("content_outputs")
@@ -129,9 +133,10 @@ export const Route = createFileRoute("/api/public/approval/$token")({
           .order("display_order");
         const { data: assets } = await supabaseAdmin
           .from("content_piece_assets")
-          .select("id, output_id, storage_path, file_name, file_type, image_width, image_height, display_order, include_in_client_pdf")
+          .select(
+            "id, output_id, storage_path, file_name, file_type, image_width, image_height, display_order, include_in_client_pdf, is_approved, created_at",
+          )
           .eq("project_id", approval.project_id)
-          .eq("include_in_client_pdf", true)
           .order("display_order");
         const { data: items } = await supabaseAdmin
           .from("client_approval_items")
@@ -142,7 +147,22 @@ export const Route = createFileRoute("/api/public/approval/$token")({
         const piecesPayload = await Promise.all(
           (outputs ?? []).map(async (o) => {
             const piece = parsePiece(o.edited_content ?? o.original_content ?? "");
-            const pieceAssets = (assets ?? []).filter((a) => a.output_id === o.id);
+            const outputAssets = (assets ?? []).filter((a) => a.output_id === o.id);
+            const regularClientAssets = outputAssets.filter(
+              (a) => a.include_in_client_pdf && !a.storage_path.includes("/script-visual/"),
+            );
+            const latestScriptVisual = outputAssets
+              .filter((a) => a.storage_path.includes("/script-visual/"))
+              .sort(
+                (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+              )[0];
+            // Compatibilidade com uploads antigos: o visual do roteiro era salvo com
+            // include_in_client_pdf=false. Ainda assim, a versão mais recente deve
+            // aparecer no portal para o cliente conferir se o storyboard corresponde
+            // ao pedido aprovado.
+            const pieceAssets = latestScriptVisual
+              ? [...regularClientAssets, latestScriptVisual]
+              : regularClientAssets;
             const signed = await Promise.all(
               pieceAssets.map(async (a) => {
                 const { data: sig } = await supabaseAdmin.storage
@@ -153,6 +173,9 @@ export const Route = createFileRoute("/api/public/approval/$token")({
                   url: sig?.signedUrl ?? null,
                   width: a.image_width,
                   height: a.image_height,
+                  fileName: a.file_name,
+                  fileType: a.file_type,
+                  isScriptVisual: a.storage_path.includes("/script-visual/"),
                 };
               }),
             );
@@ -160,8 +183,8 @@ export const Route = createFileRoute("/api/public/approval/$token")({
             return {
               outputId: o.id,
               title: o.title ?? piece?.name ?? `Peça ${o.display_order + 1}`,
-              caption: approval.include_caption ? piece?.caption ?? piece?.mainText ?? "" : null,
-              hashtags: approval.include_hashtags ? piece?.hashtags ?? [] : null,
+              caption: approval.include_caption ? (piece?.caption ?? piece?.mainText ?? "") : null,
+              hashtags: approval.include_hashtags ? (piece?.hashtags ?? []) : null,
               order: o.display_order,
               assets: signed,
               decision: existing?.decision ?? "pending",
@@ -230,11 +253,19 @@ export const Route = createFileRoute("/api/public/approval/$token")({
         if (!body.clientName || body.clientName.trim().length < 2) {
           return json({ error: "name_required" }, 400);
         }
-        const validDecisions = ["approved", "approved_with_changes", "changes_requested", "rejected"] as const;
+        const validDecisions = [
+          "approved",
+          "approved_with_changes",
+          "changes_requested",
+          "rejected",
+        ] as const;
         if (!body.decision || !validDecisions.includes(body.decision)) {
           return json({ error: "decision_required" }, 400);
         }
-        if ((body.decision === "changes_requested" || body.decision === "rejected") && !body.generalComment?.trim()) {
+        if (
+          (body.decision === "changes_requested" || body.decision === "rejected") &&
+          !body.generalComment?.trim()
+        ) {
           return json({ error: "comment_required" }, 400);
         }
 
@@ -264,16 +295,24 @@ export const Route = createFileRoute("/api/public/approval/$token")({
           await supabaseAdmin.from("client_approval_items").delete().eq("approval_id", approval.id);
           const rows = body.pieces
             .filter((p) => p.outputId)
-            .map((p) => ({
-              approval_id: approval.id,
-              user_id: approval.user_id,
-              output_id: p.outputId,
-              decision: ["pending", "approved", "changes_requested", "rejected", "excluded"].includes(p.decision)
-                ? p.decision
-                : "pending",
-              comment: p.comment?.trim() || null,
-              display_order: 0,
-            }));
+            .map((p) => {
+              const normalizedDecision =
+                body.decision === "approved"
+                  ? "approved"
+                  : ["pending", "approved", "changes_requested", "rejected", "excluded"].includes(
+                        p.decision,
+                      )
+                    ? p.decision
+                    : "pending";
+              return {
+                approval_id: approval.id,
+                user_id: approval.user_id,
+                output_id: p.outputId,
+                decision: normalizedDecision,
+                comment: normalizedDecision === "approved" ? null : p.comment?.trim() || null,
+                display_order: 0,
+              };
+            });
           if (rows.length > 0) {
             await supabaseAdmin.from("client_approval_items").insert(rows);
           }

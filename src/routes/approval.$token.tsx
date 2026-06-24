@@ -2,7 +2,17 @@
 // Rota pública: não exige login. Consome /api/public/approval/$token.
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, AlertTriangle, MessageSquare, Send, ImageOff, Lock, Clock } from "lucide-react";
+import {
+  CheckCircle2,
+  AlertTriangle,
+  MessageSquare,
+  Send,
+  ImageOff,
+  Lock,
+  Clock,
+  FileText,
+  ExternalLink,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,7 +35,15 @@ interface PieceData {
   caption: string | null;
   hashtags: string[] | null;
   order: number;
-  assets: Array<{ id: string; url: string | null; width: number | null; height: number | null }>;
+  assets: Array<{
+    id: string;
+    url: string | null;
+    width: number | null;
+    height: number | null;
+    fileName: string;
+    fileType: string;
+    isScriptVisual: boolean;
+  }>;
   decision: PieceDecision;
   comment: string;
 }
@@ -39,7 +57,14 @@ interface Payload {
   includeCaption: boolean;
   includeHashtags: boolean;
   expiresAt?: string | null;
-  approval: { id: string; title: string; introductionMessage: string | null; decision: string | null; clientName: string | null; generalComment: string | null };
+  approval: {
+    id: string;
+    title: string;
+    introductionMessage: string | null;
+    decision: string | null;
+    clientName: string | null;
+    generalComment: string | null;
+  };
   brand: { name: string; logoUrl: string | null } | null;
   project: { title: string };
   pieces: PieceData[];
@@ -75,7 +100,11 @@ function PortalPage() {
         const res = await fetch(`/api/public/approval/${encodeURIComponent(token)}`, {
           headers: pw ? { "x-approval-password": pw } : undefined,
         });
-        if (res.status === 404) { setError("invalid"); setLoading(false); return; }
+        if (res.status === 404) {
+          setError("invalid");
+          setLoading(false);
+          return;
+        }
         const j = (await res.json()) as Payload;
         if (j.state === "password_required") {
           setNeedsPassword(true);
@@ -97,14 +126,19 @@ function PortalPage() {
           setLoading(false);
           return;
         }
-        if (j.state !== "ok") { setError(j.state); setLoading(false); return; }
+        if (j.state !== "ok") {
+          setError(j.state);
+          setLoading(false);
+          return;
+        }
         setNeedsPassword(false);
         setData(j);
         setPieces(j.pieces);
         if (j.alreadyResponded && !j.allowMultipleResponses) setSubmitted(true);
         setLoading(false);
       } catch {
-        setError("invalid"); setLoading(false);
+        setError("invalid");
+        setLoading(false);
       }
     },
     [token],
@@ -112,8 +146,12 @@ function PortalPage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => { if (!cancelled) await fetchData(); })();
-    return () => { cancelled = true; };
+    (async () => {
+      if (!cancelled) await fetchData();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [fetchData]);
 
   const submitPassword = async () => {
@@ -127,8 +165,19 @@ function PortalPage() {
     }
   };
 
-  const updatePiece = (idx: number, patch: Partial<PieceData>) =>
+  const updatePiece = (idx: number, patch: Partial<PieceData>) => {
     setPieces((prev) => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+    if (patch.decision && patch.decision !== "approved" && decision === "approved") {
+      setDecision("");
+    }
+  };
+
+  const updateGeneralDecision = (value: GeneralDecision) => {
+    setDecision(value);
+    if (value === "approved") {
+      setPieces((prev) => prev.map((piece) => ({ ...piece, decision: "approved", comment: "" })));
+    }
+  };
 
   const summary = useMemo(() => {
     const approved = pieces.filter((p) => p.decision === "approved").length;
@@ -140,10 +189,12 @@ function PortalPage() {
   const canSubmit = useMemo(() => {
     if (!decision) return false;
     if (clientName.trim().length < 2) return false;
-    if ((decision === "changes_requested" || decision === "rejected") && !generalComment.trim()) return false;
+    if ((decision === "changes_requested" || decision === "rejected") && !generalComment.trim())
+      return false;
     if (data?.allowPieceApproval) {
       const invalid = pieces.find(
-        (p) => (p.decision === "changes_requested" || p.decision === "rejected") && !p.comment.trim(),
+        (p) =>
+          (p.decision === "changes_requested" || p.decision === "rejected") && !p.comment.trim(),
       );
       if (invalid) return false;
     }
@@ -166,12 +217,20 @@ function PortalPage() {
           clientCompany: clientCompany || undefined,
           decision,
           generalComment,
-          pieces: pieces.map((p) => ({ outputId: p.outputId, decision: p.decision, comment: p.comment })),
+          pieces: pieces.map((p) => ({
+            outputId: p.outputId,
+            decision: p.decision,
+            comment: p.comment,
+          })),
         }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(j.error === "comment_required" ? "Adicione um motivo." : "Não foi possível enviar. Tente novamente.");
+        alert(
+          j.error === "comment_required"
+            ? "Adicione um motivo."
+            : "Não foi possível enviar. Tente novamente.",
+        );
         return;
       }
       setSubmitted(true);
@@ -201,7 +260,9 @@ function PortalPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") submitPassword(); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitPassword();
+                }}
                 autoFocus
               />
               {passwordError && (
@@ -211,7 +272,11 @@ function PortalPage() {
                 </p>
               )}
             </div>
-            <Button onClick={submitPassword} disabled={submittingPassword || !password.trim()} className="w-full">
+            <Button
+              onClick={submitPassword}
+              disabled={submittingPassword || !password.trim()}
+              className="w-full"
+            >
               {submittingPassword ? "Verificando…" : "Acessar"}
             </Button>
           </CardContent>
@@ -220,9 +285,24 @@ function PortalPage() {
     );
   }
 
-  if (error === "invalid") return <CenterMsg icon={<AlertTriangle className="h-8 w-8 text-muted-foreground" />}>Não foi possível localizar esta aprovação.</CenterMsg>;
-  if (error === "expired") return <CenterMsg icon={<Clock className="h-8 w-8 text-amber-500" />}>Este link de aprovação expirou.</CenterMsg>;
-  if (error === "revoked") return <CenterMsg icon={<AlertTriangle className="h-8 w-8 text-destructive" />}>Este link não está mais disponível.</CenterMsg>;
+  if (error === "invalid")
+    return (
+      <CenterMsg icon={<AlertTriangle className="h-8 w-8 text-muted-foreground" />}>
+        Não foi possível localizar esta aprovação.
+      </CenterMsg>
+    );
+  if (error === "expired")
+    return (
+      <CenterMsg icon={<Clock className="h-8 w-8 text-amber-500" />}>
+        Este link de aprovação expirou.
+      </CenterMsg>
+    );
+  if (error === "revoked")
+    return (
+      <CenterMsg icon={<AlertTriangle className="h-8 w-8 text-destructive" />}>
+        Este link não está mais disponível.
+      </CenterMsg>
+    );
   if (error === "locked") {
     const until = lockedUntil ? new Date(lockedUntil).toLocaleString("pt-BR") : null;
     return (
@@ -242,7 +322,9 @@ function PortalPage() {
               <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" />
               <h1 className="text-xl font-semibold">Resposta registrada com sucesso</h1>
               <p className="text-sm text-muted-foreground">
-                {data.approval.title} · {decisionLabel(data.approval.decision as GeneralDecision | null) ?? "Resposta enviada"}
+                {data.approval.title} ·{" "}
+                {decisionLabel(data.approval.decision as GeneralDecision | null) ??
+                  "Resposta enviada"}
               </p>
               <p className="text-xs text-muted-foreground">Você já pode fechar esta janela.</p>
             </CardContent>
@@ -262,7 +344,9 @@ function PortalPage() {
             <div className="h-10 w-10 rounded-md bg-primary/10" />
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs text-muted-foreground">{data.brand?.name ?? "Apresentação"}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {data.brand?.name ?? "Apresentação"}
+            </p>
             <h1 className="truncate text-base font-semibold sm:text-lg">{data.approval.title}</h1>
           </div>
           {data.expiresAt && (
@@ -276,13 +360,19 @@ function PortalPage() {
 
       <main className="mx-auto max-w-3xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6">
         {data.approval.introductionMessage && (
-          <Card><CardContent className="p-4 text-sm leading-relaxed sm:p-5">{data.approval.introductionMessage}</CardContent></Card>
+          <Card>
+            <CardContent className="p-4 text-sm leading-relaxed sm:p-5">
+              {data.approval.introductionMessage}
+            </CardContent>
+          </Card>
         )}
 
         {pieces.length === 0 && (
-          <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">
-            Este conteúdo ainda não possui peças disponíveis para aprovação.
-          </CardContent></Card>
+          <Card>
+            <CardContent className="p-6 text-center text-sm text-muted-foreground">
+              Este conteúdo ainda não possui peças disponíveis para aprovação.
+            </CardContent>
+          </Card>
         )}
 
         {pieces.map((p, idx) => (
@@ -290,22 +380,66 @@ function PortalPage() {
             <CardContent className="space-y-4 p-4 sm:p-5">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">Peça {idx + 1} de {pieces.length}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Peça {idx + 1} de {pieces.length}
+                  </p>
                   <h2 className="truncate font-semibold">{p.title}</h2>
                 </div>
                 {data.allowPieceApproval && (
-                  <Badge variant={p.decision === "approved" ? "default" : p.decision === "pending" ? "outline" : "secondary"} className="shrink-0">
+                  <Badge
+                    variant={
+                      p.decision === "approved"
+                        ? "default"
+                        : p.decision === "pending"
+                          ? "outline"
+                          : "secondary"
+                    }
+                    className="shrink-0"
+                  >
                     {pieceDecisionLabel(p.decision)}
                   </Badge>
                 )}
               </div>
 
               {p.assets.length > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-3">
                   {p.assets.map((a) => (
                     <div key={a.id} className="overflow-hidden rounded-md border bg-muted/40">
+                      {a.isScriptVisual && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-violet-500/5 px-3 py-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <FileText className="h-4 w-4 shrink-0 text-violet-600" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                                Visual do roteiro
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">{a.fileName}</p>
+                            </div>
+                          </div>
+                          {a.url && (
+                            <Button asChild size="sm" variant="outline" className="h-8">
+                              <a href={a.url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Abrir
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+                      )}
                       {a.url ? (
-                        <img src={a.url} alt="" className="h-auto w-full" loading="lazy" />
+                        a.fileType === "application/pdf" ? (
+                          <iframe
+                            src={a.url}
+                            title={a.isScriptVisual ? "Visual do roteiro" : a.fileName}
+                            className="h-[70vh] min-h-[480px] w-full bg-white"
+                          />
+                        ) : (
+                          <img
+                            src={a.url}
+                            alt={a.fileName}
+                            className="h-auto max-h-[80vh] w-full object-contain"
+                            loading="lazy"
+                          />
+                        )
                       ) : (
                         <div className="flex aspect-square items-center justify-center text-muted-foreground">
                           <ImageOff className="h-6 w-6" />
@@ -323,24 +457,46 @@ function PortalPage() {
               {data.includeCaption && p.caption && (
                 <div>
                   <Label className="text-xs uppercase text-muted-foreground">Legenda</Label>
-                  <pre className="mt-1 whitespace-pre-wrap break-words rounded-md bg-muted/30 p-3 text-sm leading-relaxed">{p.caption}</pre>
+                  <pre className="mt-1 whitespace-pre-wrap break-words rounded-md bg-muted/30 p-3 text-sm leading-relaxed">
+                    {p.caption}
+                  </pre>
                 </div>
               )}
               {data.includeHashtags && p.hashtags && p.hashtags.length > 0 && (
                 <div>
                   <Label className="text-xs uppercase text-muted-foreground">Hashtags</Label>
-                  <p className="mt-1 break-words text-sm text-muted-foreground">{p.hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)).join(" ")}</p>
+                  <p className="mt-1 break-words text-sm text-muted-foreground">
+                    {p.hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)).join(" ")}
+                  </p>
                 </div>
               )}
 
               {data.allowPieceApproval && (
                 <div className="space-y-2 rounded-md border p-3">
-                  <Label className="text-xs uppercase text-muted-foreground">Sua avaliação desta peça</Label>
-                  <RadioGroup value={p.decision} onValueChange={(v) => updatePiece(idx, { decision: v as PieceDecision })} className="flex flex-wrap gap-3">
-                    <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="approved" />Aprovar</label>
-                    <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="changes_requested" />Solicitar ajuste</label>
-                    <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="rejected" />Não utilizar</label>
-                    <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="pending" />Sem avaliar</label>
+                  <Label className="text-xs uppercase text-muted-foreground">
+                    Sua avaliação desta peça
+                  </Label>
+                  <RadioGroup
+                    value={p.decision}
+                    onValueChange={(v) => updatePiece(idx, { decision: v as PieceDecision })}
+                    className="flex flex-wrap gap-3"
+                  >
+                    <label className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem value="approved" />
+                      Aprovar
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem value="changes_requested" />
+                      Solicitar ajuste
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem value="rejected" />
+                      Não utilizar
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem value="pending" />
+                      Sem avaliar
+                    </label>
                   </RadioGroup>
                   {(p.decision === "changes_requested" || p.decision === "rejected") && (
                     <Textarea
@@ -360,53 +516,102 @@ function PortalPage() {
         {pieces.length > 0 && (
           <Card>
             <CardContent className="space-y-4 p-4 sm:p-5">
-              <h2 className="font-semibold"><MessageSquare className="mr-1 inline h-4 w-4" />Sua decisão final</h2>
-              <RadioGroup value={decision} onValueChange={(v) => setDecision(v as GeneralDecision)} className="grid gap-2">
+              <h2 className="font-semibold">
+                <MessageSquare className="mr-1 inline h-4 w-4" />
+                Sua decisão final
+              </h2>
+              <RadioGroup
+                value={decision}
+                onValueChange={(v) => updateGeneralDecision(v as GeneralDecision)}
+                className="grid gap-2"
+              >
                 <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer">
                   <RadioGroupItem value="approved" className="mt-1" />
-                  <div><p className="font-medium text-sm">Aprovar todo o conteúdo</p><p className="text-xs text-muted-foreground">Todas as peças seguirão para publicação.</p></div>
+                  <div>
+                    <p className="font-medium text-sm">Aprovar todo o conteúdo</p>
+                    <p className="text-xs text-muted-foreground">
+                      Todas as peças serão marcadas como aprovadas e seguirão para publicação.
+                    </p>
+                  </div>
                 </label>
                 <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer">
                   <RadioGroupItem value="approved_with_changes" className="mt-1" />
-                  <div><p className="font-medium text-sm">Aprovar com ajustes</p><p className="text-xs text-muted-foreground">Use os comentários para indicar pequenos ajustes.</p></div>
+                  <div>
+                    <p className="font-medium text-sm">Aprovar com ajustes</p>
+                    <p className="text-xs text-muted-foreground">
+                      Use os comentários para indicar pequenos ajustes.
+                    </p>
+                  </div>
                 </label>
                 <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer">
                   <RadioGroupItem value="changes_requested" className="mt-1" />
-                  <div><p className="font-medium text-sm">Solicitar nova versão</p><p className="text-xs text-muted-foreground">Requer uma observação geral.</p></div>
+                  <div>
+                    <p className="font-medium text-sm">Solicitar nova versão</p>
+                    <p className="text-xs text-muted-foreground">Requer uma observação geral.</p>
+                  </div>
                 </label>
                 <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer">
                   <RadioGroupItem value="rejected" className="mt-1" />
-                  <div><p className="font-medium text-sm">Não aprovar</p><p className="text-xs text-muted-foreground">Requer motivo.</p></div>
+                  <div>
+                    <p className="font-medium text-sm">Não aprovar</p>
+                    <p className="text-xs text-muted-foreground">Requer motivo.</p>
+                  </div>
                 </label>
               </RadioGroup>
 
               <div>
                 <Label htmlFor="gen-comment">Observação geral</Label>
-                <Textarea id="gen-comment" rows={3} value={generalComment} onChange={(e) => setGeneralComment(e.target.value)} maxLength={2000} />
+                <Textarea
+                  id="gen-comment"
+                  rows={3}
+                  value={generalComment}
+                  onChange={(e) => setGeneralComment(e.target.value)}
+                  maxLength={2000}
+                />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="cl-name">Seu nome *</Label>
-                  <Input id="cl-name" value={clientName} onChange={(e) => setClientName(e.target.value)} maxLength={120} />
+                  <Input
+                    id="cl-name"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    maxLength={120}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="cl-email">E-mail (opcional)</Label>
-                  <Input id="cl-email" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} maxLength={200} />
+                  <Input
+                    id="cl-email"
+                    type="email"
+                    value={clientEmail}
+                    onChange={(e) => setClientEmail(e.target.value)}
+                    maxLength={200}
+                  />
                 </div>
                 <div className="sm:col-span-2">
                   <Label htmlFor="cl-company">Empresa (opcional)</Label>
-                  <Input id="cl-company" value={clientCompany} onChange={(e) => setClientCompany(e.target.value)} maxLength={200} />
+                  <Input
+                    id="cl-company"
+                    value={clientCompany}
+                    onChange={(e) => setClientCompany(e.target.value)}
+                    maxLength={200}
+                  />
                 </div>
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Ao enviar, declaro que revisei o material apresentado e estou registrando minha decisão.
+                Ao enviar, declaro que revisei o material apresentado e estou registrando minha
+                decisão.
               </p>
 
               {data.allowPieceApproval && (
                 <p className="text-xs text-muted-foreground">
-                  Resumo: {summary.approved} aprovadas · {summary.adjust} com ajustes · {summary.rejected} recusadas · {summary.total - summary.approved - summary.adjust - summary.rejected} sem avaliar.
+                  Resumo: {summary.approved} aprovadas · {summary.adjust} com ajustes ·{" "}
+                  {summary.rejected} recusadas ·{" "}
+                  {summary.total - summary.approved - summary.adjust - summary.rejected} sem
+                  avaliar.
                 </p>
               )}
             </CardContent>
@@ -417,8 +622,13 @@ function PortalPage() {
       {pieces.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-card/95 px-3 py-3 backdrop-blur sm:px-4">
           <div className="mx-auto flex max-w-3xl items-center justify-end">
-            <Button onClick={submit} disabled={!canSubmit || submitting} className="w-full sm:w-auto">
-              <Send className="mr-2 h-4 w-4" />{submitting ? "Enviando…" : "Confirmar e enviar"}
+            <Button
+              onClick={submit}
+              disabled={!canSubmit || submitting}
+              className="w-full sm:w-auto"
+            >
+              <Send className="mr-2 h-4 w-4" />
+              {submitting ? "Enviando…" : "Confirmar e enviar"}
             </Button>
           </div>
         </div>
@@ -428,11 +638,21 @@ function PortalPage() {
 }
 
 function pieceDecisionLabel(d: PieceDecision) {
-  return { pending: "Sem avaliar", approved: "Aprovada", changes_requested: "Ajuste solicitado", rejected: "Não utilizar" }[d];
+  return {
+    pending: "Sem avaliar",
+    approved: "Aprovada",
+    changes_requested: "Ajuste solicitado",
+    rejected: "Não utilizar",
+  }[d];
 }
 function decisionLabel(d: GeneralDecision | null) {
   if (!d) return null;
-  return { approved: "Aprovado", approved_with_changes: "Aprovado com ajustes", changes_requested: "Ajustes solicitados", rejected: "Recusado" }[d];
+  return {
+    approved: "Aprovado",
+    approved_with_changes: "Aprovado com ajustes",
+    changes_requested: "Ajustes solicitados",
+    rejected: "Recusado",
+  }[d];
 }
 
 function CenterMsg({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
