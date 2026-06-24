@@ -501,6 +501,7 @@ function PieceCard({
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="text-[10px]">Peça {piece.index}</Badge>
               <Badge variant="outline" className="text-[10px]">{piece.formatLabel}</Badge>
+              {piece.outputKind && <OutputKindBadge kind={piece.outputKind} />}
               {row.is_favorite && <Badge variant="secondary" className="text-[10px]">Produzida</Badge>}
             </div>
             <h3 className="truncate font-display text-lg font-semibold">{piece.name}</h3>
