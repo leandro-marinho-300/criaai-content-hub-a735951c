@@ -115,10 +115,29 @@ function ResultPage() {
 
   const project = data.project;
 
-  const pieces: { row: Output; piece: Piece | null }[] = pieceRows.map((row) => ({
-    row,
-    piece: parsePiece(row.edited_content ?? row.original_content),
-  }));
+  const pieces: { row: Output; piece: Piece | null }[] = pieceRows.map((row) => {
+    const piece = parsePiece(row.edited_content ?? row.original_content);
+    if (piece && !piece.outputKind) {
+      // Inferência para projetos antigos (especialmente Reel).
+      if (piece.formatKey === "reel") {
+        piece.outputKind = piece.role === "capa"
+          ? "publishable_asset"
+          : piece.role === "roteiro"
+            ? "production_material"
+            : piece.role === "legenda"
+              ? "publication_copy"
+              : "publishable_asset";
+      } else {
+        piece.outputKind = "publishable_asset";
+      }
+    }
+    return { row, piece };
+  });
+
+  const selectedFormats: string[] = Array.isArray(project.selected_formats)
+    ? (project.selected_formats as string[])
+    : [];
+  const isReelOnly = selectedFormats.length === 1 && selectedFormats[0] === "reel";
 
   const allPiecesText = pieces
     .map(({ piece }) => (piece ? pieceToPlainText(piece) : ""))
