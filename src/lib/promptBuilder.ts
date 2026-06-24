@@ -492,7 +492,7 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
         ``,
         `Use exatamente este texto como legenda da publicação. NÃO gerar imagem para esta peça.`,
         ``,
-        piece.caption || piece.mainText || "[PREENCHER legenda]",
+        piece.mainText || "[PREENCHER legenda]",
       ].join("\n");
     }
   }
