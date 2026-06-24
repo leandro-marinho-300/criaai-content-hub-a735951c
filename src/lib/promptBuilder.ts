@@ -7,7 +7,14 @@
 // • monta um prompt operacional ENXUTO por página.
 
 import type { Tables } from "@/integrations/supabase/types";
-import { composeCopy, summarizeAudience, type ComposedCopy, type CopyAngle, ALL_ANGLES, variationByAngle } from "./copyComposer";
+import {
+  composeCopy,
+  summarizeAudience,
+  type ComposedCopy,
+  type CopyAngle,
+  ALL_ANGLES,
+  variationByAngle,
+} from "./copyComposer";
 import {
   checkCopyQuality,
   pickBestCopy,
@@ -16,8 +23,20 @@ import {
   type QualityIssue,
   type CopyStatus,
 } from "./copyQuality";
-import { FORMAT_RULES, extractCaptionMode, classifyOutput, reelKeyFromRole, type OutputKind } from "./formatOutputRules";
+import {
+  FORMAT_RULES,
+  extractCaptionMode,
+  classifyOutput,
+  reelKeyFromRole,
+  type OutputKind,
+} from "./formatOutputRules";
 import { detectEditorialIntent, buildEditorialItems, type EditorialIntent } from "./editorialIntent";
+import {
+  buildReelCaption,
+  buildReelScriptRequest,
+  buildPublicationContext,
+  validateCaptionCoverage,
+} from "./reelContent";
 
 export type Brand = Tables<"brands">;
 export type Project = Tables<"content_projects">;
@@ -55,6 +74,16 @@ export interface Piece {
   supportTextOptions: string[];
   /** Classificação da peça: publicável, texto da publicação, material interno. */
   outputKind?: OutputKind;
+  /** Escopo da informação: publicação inteira ou item interno. */
+  sourceScope?: "campaign" | "publication" | "scene" | "asset" | "page" | "screen";
+  /** Estado editorial do conteúdo, especialmente para roteiro de Reel. */
+  contentStage?: "brief" | "script_request" | "script_outline" | "script_complete" | "publication_copy";
+  /** Pontos da campanha usados como base para roteiro e legenda. */
+  campaignPoints?: string[];
+  /** Origem do CTA aplicado à publicação. */
+  ctaSource?: "project" | "campaign" | "brand" | "fallback";
+  /** Cobertura dos pontos da campanha pela legenda. */
+  captionCoverage?: { coveredPoints: string[]; missingPoints: string[]; coveragePercentage: number };
   /** Origem da copy atual. */
   copySource?: "deterministic" | "manual" | "external_chatgpt";
   /** Histórico curto (últimas 3) de versões anteriores para restauração. */
@@ -196,7 +225,13 @@ interface RoleTemplate {
 }
 
 const ROLE_TEMPLATES: Record<string, RoleTemplate[]> = {
-  post: [{ role: "apresentacao", name: "Post Feed — Apresentação", objective: "apresentar a mensagem central com impacto visual e CTA claro" }],
+  post: [
+    {
+      role: "apresentacao",
+      name: "Post Feed — Apresentação",
+      objective: "apresentar a mensagem central com impacto visual e CTA claro",
+    },
+  ],
   // carrossel é DINÂMICO, baseado em editorialIntent — não usa este array
   carrossel: [],
   story: [{ role: "unico", name: "Story — Peça única", objective: "comunicar a mensagem central em um único Story" }],
@@ -209,13 +244,25 @@ const ROLE_TEMPLATES: Record<string, RoleTemplate[]> = {
   ],
   status_whatsapp: [
     { role: "gancho", name: "Status WhatsApp 1 — Gancho", objective: "abrir com curiosidade ou impacto" },
-    { role: "principal", name: "Status WhatsApp 2 — Mensagem principal", objective: "comunicar a oferta de forma direta e curta" },
+    {
+      role: "principal",
+      name: "Status WhatsApp 2 — Mensagem principal",
+      objective: "comunicar a oferta de forma direta e curta",
+    },
     { role: "cta", name: "Status WhatsApp 3 — CTA", objective: "reforçar o CTA e gerar resposta imediata" },
   ],
   reel: [
     { role: "capa", name: "Reel — Capa", objective: "capa estática atrativa que represente o vídeo" },
-    { role: "roteiro", name: "Reel — Roteiro (15-30s)", objective: "roteiro completo do vídeo com falas e cenas" },
-    { role: "legenda", name: "Reel — Legenda + CTA", objective: "legenda otimizada para alcance com CTA" },
+    {
+      role: "roteiro",
+      name: "Reel — Pedido de roteiro",
+      objective: "pedido estruturado para desenvolver o roteiro completo com falas e cenas",
+    },
+    {
+      role: "legenda",
+      name: "Reel — Legenda + CTA",
+      objective: "legenda da publicação baseada na campanha completa e no CTA estratégico",
+    },
   ],
   capa_reel: [{ role: "capa", name: "Capa de Reel", objective: "criar capa estática para o Reel" }],
   comunicado: [{ role: "unico", name: "Comunicado — Peça única", objective: "comunicar de forma objetiva e clara" }],
@@ -257,7 +304,11 @@ interface DerivedTexts {
   qualityStatus: CopyStatus;
 }
 
-function evaluateAndCollect(text: string, opts: Parameters<typeof checkCopyQuality>[1], label: string): { issues: QualityIssue[]; status: CopyStatus } {
+function evaluateAndCollect(
+  text: string,
+  opts: Parameters<typeof checkCopyQuality>[1],
+  label: string,
+): { issues: QualityIssue[]; status: CopyStatus } {
   if (!text) return { issues: [], status: "approved" };
   const q = checkCopyQuality(text, opts);
   return {
@@ -358,15 +409,21 @@ function deriveTextsFromComposed(role: string, composed: ComposedCopy, brand: Br
 
 // -------- legenda ÚNICA por publicação --------
 
-function buildCaptionForCarousel(brand: Brand, project: Project, composed: ComposedCopy, intent: EditorialIntent): string {
+function buildCaptionForCarousel(
+  brand: Brand,
+  project: Project,
+  composed: ComposedCopy,
+  intent: EditorialIntent,
+): string {
   const lines: string[] = [];
   const audience = summarizeAudience(project.specific_audience ?? brand.audience, "você");
   // gancho
   if (composed.headline_options[0]) lines.push(composed.headline_options[0]);
   // resumo
-  const summary = intent.expectedItems > 0
-    ? `Reunimos ${intent.expectedItems} ${intent.itemNounPlural} para ajudar ${audience} a decidir com mais clareza.`
-    : (composed.support_text_options[0] || composed.key_promise);
+  const summary =
+    intent.expectedItems > 0
+      ? `Reunimos ${intent.expectedItems} ${intent.itemNounPlural} para ajudar ${audience} a decidir com mais clareza.`
+      : composed.support_text_options[0] || composed.key_promise;
   if (summary) lines.push("", summary);
   // conexão com a marca
   if (composed.trust_angle) lines.push("", composed.trust_angle);
@@ -377,7 +434,12 @@ function buildCaptionForCarousel(brand: Brand, project: Project, composed: Compo
   return lines.join("\n").trim();
 }
 
-function buildCaptionSimple(brand: Brand, project: Project, composed: ComposedCopy, piece: { mainText: string; cta: string }): string {
+function buildCaptionSimple(
+  brand: Brand,
+  project: Project,
+  composed: ComposedCopy,
+  piece: { mainText: string; cta: string },
+): string {
   const lines: string[] = [];
   if (piece.mainText) lines.push(piece.mainText);
   if (composed.support_text_options[0]) lines.push("", composed.support_text_options[0]);
@@ -401,13 +463,18 @@ function buildHashtags(brand: Brand, project: Project): string[] {
   push(brand.name);
   if (brand.segment) push(brand.segment);
   if (brand.service_region) push(brand.service_region);
-  const themeWords = txt(project.theme).split(/\s+/).filter((w) => w.length >= 5 && w.length <= 15).slice(0, 4);
+  const themeWords = txt(project.theme)
+    .split(/\s+/)
+    .filter((w) => w.length >= 5 && w.length <= 15)
+    .slice(0, 4);
   themeWords.forEach((w) => push(w));
-  arr(brand.recommended_words).slice(0, 6).forEach((w) => {
-    // se vier "frase inteira", pega só primeiras 2 palavras
-    const short = w.split(/\s+/).slice(0, 2).join(" ");
-    push(short);
-  });
+  arr(brand.recommended_words)
+    .slice(0, 6)
+    .forEach((w) => {
+      // se vier "frase inteira", pega só primeiras 2 palavras
+      const short = w.split(/\s+/).slice(0, 2).join(" ");
+      push(short);
+    });
   const out = Array.from(tags).slice(0, 12);
   if (out.length < 5) {
     // garante mínimo de 5 com seeds genéricos do segmento
@@ -444,7 +511,7 @@ function buildProductionNotes(role: string, brand: Brand, project: Project): str
 // -------- prompt operacional ENXUTO --------
 
 export interface PromptBuildCtx {
-  piece: Omit<Piece, "readyPrompt" | "caption" | "hashtags" | "warning">;
+  piece: Omit<Piece, "readyPrompt" | "hashtags" | "warning">;
   brand: Brand;
   project: Project;
   mode: GenerationMode;
@@ -469,30 +536,19 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
     ].join("\n");
   }
 
-  // ----- REEL: roteiro/legenda/CTA não devem gerar prompt visual -----
+  // ----- REEL: roteiro e legenda são textos, nunca prompts visuais -----
   if (piece.formatKey === "reel") {
     if (piece.role === "roteiro") {
-      return [
-        `Material interno — Roteiro do Reel.`,
-        ``,
-        `Este conteúdo orienta a gravação e edição. NÃO deve ser publicado como uma arte.`,
-        ``,
-        `Estrutura sugerida (15-30s):`,
-        `[0-2s] Gancho — ${piece.mainText || "[PREENCHER gancho]"}`,
-        `[2-15s] Desenvolvimento em 2-3 cortes — ${piece.supportText || "[PREENCHER desenvolvimento]"}`,
-        `[15-25s] Virada / prova / benefício`,
-        `[25-30s] CTA — ${piece.cta || "[PREENCHER CTA]"}`,
-        ``,
-        `Para cada bloco descreva: FALA, TEXTO NA TELA, AÇÃO.`,
-      ].join("\n");
+      return buildReelScriptRequest(brand, project, piece.cta);
     }
     if (piece.role === "legenda") {
+      const caption = piece.caption || piece.mainText || "[PREENCHER legenda]";
       return [
         `Texto da publicação — Legenda do Reel.`,
         ``,
-        `Use exatamente este texto como legenda da publicação. NÃO gerar imagem para esta peça.`,
+        `Este conteúdo deve ser usado como texto da publicação. NÃO gerar imagem para esta saída.`,
         ``,
-        piece.mainText || "[PREENCHER legenda]",
+        caption,
       ].join("\n");
     }
   }
@@ -502,7 +558,9 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
     brand.primary_color ? `cor principal ${brand.primary_color}` : null,
     brand.secondary_color ? `cor secundária ${brand.secondary_color}` : null,
     brand.fonts ? `tipografia ${brand.fonts}` : null,
-  ].filter(Boolean).join(", ");
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   const block: string[] = [];
   // Cabeçalho: capa de Reel ganha frase específica.
@@ -551,7 +609,10 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
 export function summarizeRestrictions(brand: Brand, avoidTerms: string[] = []): string {
   const parts: string[] = [];
   if (brand.forbidden_inventions) {
-    const f = brand.forbidden_inventions.split(/[.;\n]/)[0].trim().slice(0, 120);
+    const f = brand.forbidden_inventions
+      .split(/[.;\n]/)[0]
+      .trim()
+      .slice(0, 120);
     if (f) parts.push(f);
   }
   const prohibited = arr(brand.prohibited_words).concat(avoidTerms.filter(Boolean));
@@ -578,13 +639,13 @@ function projectImported(project: Project): {
   return raw as ReturnType<typeof projectImported>;
 }
 
-
 // -------- avaliação de informações parciais --------
 
 function pieceWarning(role: string, project: Project): string | undefined {
   const missing: string[] = [];
   if (!txt(project.main_message)) missing.push("mensagem principal");
-  if ((role === "cta" || role === "reforco" || role === "principal") && !txt(project.call_to_action)) missing.push("CTA");
+  if ((role === "cta" || role === "reforco" || role === "principal") && !txt(project.call_to_action))
+    missing.push("CTA");
   if (!missing.length) return undefined;
   return `Esta peça foi gerada com base em informações parciais (${missing.join(", ")}). Revise antes de publicar.`;
 }
@@ -611,7 +672,11 @@ function buildCarouselPieces(args: {
   const capaDerived = deriveTextsFromComposed("capa", composed, brand);
   const capaName = "Carrossel — Página 1 (Capa)";
   const capaBase: Omit<Piece, "readyPrompt" | "caption" | "hashtags" | "warning"> = {
-    index, formatKey: "carrossel", role: "capa", name: capaName, formatLabel: fmtLabel,
+    index,
+    formatKey: "carrossel",
+    role: "capa",
+    name: capaName,
+    formatLabel: fmtLabel,
     objective: "gancho e promessa que justifique avançar",
     communicationAngle: angle,
     mainPromise: composed.key_promise,
@@ -629,7 +694,14 @@ function buildCarouselPieces(args: {
   };
   const capaPiece: Piece = {
     ...capaBase,
-    readyPrompt: buildReadyPrompt({ piece: capaBase, brand, project, mode, productionNotes: capaBase.productionNotes, restrictionsBrief }),
+    readyPrompt: buildReadyPrompt({
+      piece: capaBase,
+      brand,
+      project,
+      mode,
+      productionNotes: capaBase.productionNotes,
+      restrictionsBrief,
+    }),
   };
   // legenda ÚNICA da publicação fica na capa
   capaPiece.caption = buildCaptionForCarousel(brand, project, composed, intent);
@@ -646,8 +718,16 @@ function buildCarouselPieces(args: {
       const mainText = enforceLimit(rawTitle, itemLims.headlineMax);
       const supportText = enforceLimit(it.support, itemLims.supportMax);
 
-      const mainEval = evaluateAndCollect(mainText, { isHeadline: true, prohibited: arr(brand.prohibited_words), minLen: 3, maxLen: itemLims.headlineMax }, "Texto principal");
-      const suppEval = evaluateAndCollect(supportText, { prohibited: arr(brand.prohibited_words), minLen: 15, maxLen: itemLims.supportMax }, "Texto de apoio");
+      const mainEval = evaluateAndCollect(
+        mainText,
+        { isHeadline: true, prohibited: arr(brand.prohibited_words), minLen: 3, maxLen: itemLims.headlineMax },
+        "Texto principal",
+      );
+      const suppEval = evaluateAndCollect(
+        supportText,
+        { prohibited: arr(brand.prohibited_words), minLen: 15, maxLen: itemLims.supportMax },
+        "Texto de apoio",
+      );
       const status = worseStatus(mainEval.status, suppEval.status);
       const issues = [...mainEval.issues, ...suppEval.issues];
 
@@ -657,7 +737,9 @@ function buildCarouselPieces(args: {
         : `Apresentar o ${intent.itemNounSingular} ${num} com base em informações do briefing`;
 
       const base: Omit<Piece, "readyPrompt" | "caption" | "hashtags" | "warning"> = {
-        index, formatKey: "carrossel", role,
+        index,
+        formatKey: "carrossel",
+        role,
         name: `Carrossel — Página ${num + 1} (${cap(intent.itemNounSingular)} ${num})`,
         formatLabel: fmtLabel,
         objective,
@@ -677,7 +759,14 @@ function buildCarouselPieces(args: {
       };
       const piece: Piece = {
         ...base,
-        readyPrompt: buildReadyPrompt({ piece: base, brand, project, mode, productionNotes: base.productionNotes, restrictionsBrief }),
+        readyPrompt: buildReadyPrompt({
+          piece: base,
+          brand,
+          project,
+          mode,
+          productionNotes: base.productionNotes,
+          restrictionsBrief,
+        }),
       };
       if (it.generic) {
         piece.warning = "Orientação geral segura — confirme com a marca antes de publicar.";
@@ -696,7 +785,9 @@ function buildCarouselPieces(args: {
       index += 1;
       const derived = deriveTextsFromComposed(c.role, composed, brand);
       const base: Omit<Piece, "readyPrompt" | "caption" | "hashtags" | "warning"> = {
-        index, formatKey: "carrossel", role: c.role,
+        index,
+        formatKey: "carrossel",
+        role: c.role,
         name: `Carrossel — Página ${i + 2} (${c.nameSuffix})`,
         formatLabel: fmtLabel,
         objective: c.objective,
@@ -716,7 +807,14 @@ function buildCarouselPieces(args: {
       };
       pieces.push({
         ...base,
-        readyPrompt: buildReadyPrompt({ piece: base, brand, project, mode, productionNotes: base.productionNotes, restrictionsBrief }),
+        readyPrompt: buildReadyPrompt({
+          piece: base,
+          brand,
+          project,
+          mode,
+          productionNotes: base.productionNotes,
+          restrictionsBrief,
+        }),
       });
     });
   }
@@ -725,7 +823,9 @@ function buildCarouselPieces(args: {
   index += 1;
   const ctaDerived = deriveTextsFromComposed("cta", composed, brand);
   const ctaBase: Omit<Piece, "readyPrompt" | "caption" | "hashtags" | "warning"> = {
-    index, formatKey: "carrossel", role: "cta",
+    index,
+    formatKey: "carrossel",
+    role: "cta",
     name: `Carrossel — Página ${pieces.length + 1} (CTA)`,
     formatLabel: fmtLabel,
     objective: "chamar a ação com clareza e incentivo direto",
@@ -745,7 +845,14 @@ function buildCarouselPieces(args: {
   };
   pieces.push({
     ...ctaBase,
-    readyPrompt: buildReadyPrompt({ piece: ctaBase, brand, project, mode, productionNotes: ctaBase.productionNotes, restrictionsBrief }),
+    readyPrompt: buildReadyPrompt({
+      piece: ctaBase,
+      brand,
+      project,
+      mode,
+      productionNotes: ctaBase.productionNotes,
+      restrictionsBrief,
+    }),
   });
 
   return { pieces, nextIndex: index };
@@ -760,16 +867,20 @@ function cap(s: string): string {
 
 export function buildPieces(args: BuildArgs): Piece[] {
   const { brand, project, mode } = args;
-  const effectiveMode: GenerationMode = (mode ?? (project.generation_mode as GenerationMode) ?? "safe") as GenerationMode;
+  const effectiveMode: GenerationMode = (mode ??
+    (project.generation_mode as GenerationMode) ??
+    "safe") as GenerationMode;
 
   const composed: ComposedCopy = composeCopy({ brand, project });
   const obj = (project.objective ?? "").toLowerCase();
-  const angle: CopyAngle = obj.includes("vender") || obj.includes("contato")
-    ? "comercial"
-    : obj.includes("comunicado") || obj.includes("informar")
-      ? "institucional"
-      : "acolhedor";
-  void ALL_ANGLES; void variationByAngle;
+  const angle: CopyAngle =
+    obj.includes("vender") || obj.includes("contato")
+      ? "comercial"
+      : obj.includes("comunicado") || obj.includes("informar")
+        ? "institucional"
+        : "acolhedor";
+  void ALL_ANGLES;
+  void variationByAngle;
 
   const intent = detectEditorialIntent({
     internalTitle: project.internal_title,
@@ -787,7 +898,15 @@ export function buildPieces(args: BuildArgs): Piece[] {
 
   for (const formatKey of formats) {
     if (formatKey === "carrossel") {
-      const result = buildCarouselPieces({ indexStart: index, brand, project, composed, intent, angle, mode: effectiveMode });
+      const result = buildCarouselPieces({
+        indexStart: index,
+        brand,
+        project,
+        composed,
+        intent,
+        angle,
+        mode: effectiveMode,
+      });
       pieces.push(...result.pieces);
       index = result.nextIndex;
       continue;
@@ -801,7 +920,11 @@ export function buildPieces(args: BuildArgs): Piece[] {
       const productionNotes = buildProductionNotes(tmpl.role, brand, project);
 
       const base: Omit<Piece, "readyPrompt" | "caption" | "hashtags" | "warning"> = {
-        index, formatKey, role: tmpl.role, name: tmpl.name, formatLabel: fmtLabel,
+        index,
+        formatKey,
+        role: tmpl.role,
+        name: tmpl.name,
+        formatLabel: fmtLabel,
         objective: tmpl.objective,
         communicationAngle: angle,
         mainPromise: composed.key_promise,
@@ -818,18 +941,95 @@ export function buildPieces(args: BuildArgs): Piece[] {
         supportTextOptions: composed.support_text_options,
       };
 
-      const readyPrompt = buildReadyPrompt({ piece: base, brand, project, mode: effectiveMode, productionNotes, restrictionsBrief });
-      const piece: Piece = { ...base, readyPrompt };
+      let piece: Piece = {
+        ...base,
+        readyPrompt: buildReadyPrompt({
+          piece: base,
+          brand,
+          project,
+          mode: effectiveMode,
+          productionNotes,
+          restrictionsBrief,
+        }),
+      };
 
       const fmtRule = FORMAT_RULES[formatKey];
       const captionAllowedByFormat = fmtRule ? fmtRule.defaultCaption !== "none" : false;
       const captionMode = extractCaptionMode(arr(project.selected_outputs), "none");
 
-      const ROLES_WITH_SIMPLE_CAPTION = new Set(["apresentacao", "unico", "principal", "legenda"]);
-      if (ROLES_WITH_SIMPLE_CAPTION.has(tmpl.role) && captionAllowedByFormat && captionMode !== "none") {
-        piece.caption = buildCaptionSimple(brand, project, composed, { mainText: derived.mainText, cta: derived.cta });
-        if (captionMode === "short") {
-          piece.caption = piece.caption.split("\n").slice(0, 2).join("\n");
+      if (formatKey === "reel" && tmpl.role === "roteiro") {
+        const context = buildPublicationContext(brand, project, composed.cta_line);
+        piece = {
+          ...piece,
+          name: "Reel — Pedido de roteiro",
+          objective:
+            "pedido estruturado para desenvolver o roteiro completo com falas, cenas e orientações de produção",
+          mainPromise: "",
+          mainProblem: "",
+          mainBenefit: "",
+          mainText: context.theme || context.title,
+          supportText: context.centralConcept,
+          bullets: context.mainPoints,
+          cta: context.strategicCta,
+          productionNotes: [],
+          qualityIssues: undefined,
+          qualityStatus: "approved",
+          headlineOptions: [],
+          supportTextOptions: [],
+          sourceScope: "publication",
+          contentStage: "script_request",
+          campaignPoints: context.mainPoints,
+          ctaSource: context.ctaSource,
+        };
+        piece.readyPrompt = buildReadyPrompt({
+          piece,
+          brand,
+          project,
+          mode: effectiveMode,
+          productionNotes: [],
+          restrictionsBrief,
+        });
+      } else if (formatKey === "reel" && tmpl.role === "legenda") {
+        const captionData = buildReelCaption(brand, project, composed.cta_line);
+        piece = {
+          ...piece,
+          mainPromise: "",
+          mainProblem: "",
+          mainBenefit: "",
+          mainText: "",
+          supportText: "",
+          bullets: [],
+          cta: captionData.cta,
+          caption: captionData.text,
+          productionNotes: [],
+          qualityIssues: undefined,
+          qualityStatus: "approved",
+          headlineOptions: [],
+          supportTextOptions: [],
+          sourceScope: "publication",
+          contentStage: "publication_copy",
+          campaignPoints: captionData.points,
+          ctaSource: captionData.ctaSource,
+          captionCoverage: validateCaptionCoverage(captionData.text, captionData.points),
+        };
+        piece.readyPrompt = buildReadyPrompt({
+          piece,
+          brand,
+          project,
+          mode: effectiveMode,
+          productionNotes: [],
+          restrictionsBrief,
+        });
+      } else {
+        const ROLES_WITH_SIMPLE_CAPTION = new Set(["apresentacao", "unico", "principal"]);
+        if (ROLES_WITH_SIMPLE_CAPTION.has(tmpl.role) && captionAllowedByFormat && captionMode !== "none") {
+          piece.caption = buildCaptionSimple(brand, project, composed, {
+            mainText: derived.mainText,
+            cta: derived.cta,
+          });
+          if (captionMode === "short") {
+            piece.caption = piece.caption.split("\n").slice(0, 2).join("\n");
+          }
         }
       }
 
@@ -854,9 +1054,10 @@ export function buildPieces(args: BuildArgs): Piece[] {
     pieces.forEach((p) => {
       const fmtRule = FORMAT_RULES[p.formatKey];
       const hashtagsAllowed = fmtRule ? fmtRule.hashtags : false;
-      // Carrossel: hashtags só na capa (junto com a legenda única)
+      // Carrossel: hashtags só na capa. Reel: hashtags só na saída de legenda.
       const isCarouselNonCover = p.formatKey === "carrossel" && p.role !== "capa";
-      if (hashtagsAllowed && !isCarouselNonCover) {
+      const isReelNonCaption = p.formatKey === "reel" && p.role !== "legenda";
+      if (hashtagsAllowed && !isCarouselNonCover && !isReelNonCaption) {
         p.hashtags = tags;
       }
     });
@@ -868,6 +1069,8 @@ export function buildPieces(args: BuildArgs): Piece[] {
     const importedPieces = imported.pieces;
     const importedCaption = imported.caption;
     pieces.forEach((p, i) => {
+      // Roteiro e legenda de Reel usam a campanha completa, não uma peça isolada.
+      if (p.formatKey === "reel" && (p.role === "roteiro" || p.role === "legenda")) return;
       const src = importedPieces[i];
       if (!src) return;
       const headline = typeof src.headline === "string" ? src.headline.trim() : "";
@@ -895,10 +1098,37 @@ export function buildPieces(args: BuildArgs): Piece[] {
         restrictionsBrief,
       });
     });
-    // Substitui legenda da capa do carrossel se o ChatGPT mandou caption
+    // Aplica legenda importada à unidade de publicação correta.
     if (importedCaption?.text) {
       const cover = pieces.find((p) => p.formatKey === "carrossel" && p.role === "capa");
       if (cover) cover.caption = importedCaption.text;
+
+      const reelCaption = pieces.find((p) => p.formatKey === "reel" && p.role === "legenda");
+      if (reelCaption) {
+        const context = buildPublicationContext(brand, project, composed.cta_line);
+        const importedText = importedCaption.text.trim();
+        reelCaption.caption =
+          context.strategicCta && !importedText.includes(context.strategicCta)
+            ? `${importedText}
+
+${context.strategicCta}`
+            : importedText;
+        reelCaption.cta = context.strategicCta;
+        reelCaption.ctaSource = context.ctaSource;
+        reelCaption.captionCoverage = validateCaptionCoverage(
+          reelCaption.caption,
+          reelCaption.campaignPoints ?? context.mainPoints,
+        );
+        reelCaption.copySource = "external_chatgpt";
+        reelCaption.readyPrompt = buildReadyPrompt({
+          piece: reelCaption,
+          brand,
+          project,
+          mode: effectiveMode,
+          productionNotes: [],
+          restrictionsBrief,
+        });
+      }
     }
   }
 
@@ -910,7 +1140,7 @@ function buildSummary(brand: Brand, project: Project): CampaignSummary {
     brandName: brand.name,
     internalTitle: txt(project.internal_title),
     theme: txt(project.theme),
-    objective: project.objective ? OBJECTIVE_LABELS[project.objective] ?? project.objective : "",
+    objective: project.objective ? (OBJECTIVE_LABELS[project.objective] ?? project.objective) : "",
     formats: arr(project.selected_formats).map((f) => FORMAT_LABELS[f] ?? f),
     mainMessage: txt(project.main_message),
     callToAction: txt(project.call_to_action),
@@ -934,6 +1164,39 @@ function pieceToReadableText(p: Piece): string {
   lines.push(`# ${p.name}`);
   lines.push(`Formato: ${p.formatLabel}`);
   lines.push(`Objetivo: ${p.objective}`);
+
+  if (p.formatKey === "reel" && p.role === "roteiro") {
+    lines.push("");
+    lines.push("Classificação: MATERIAL INTERNO — PEDIDO DE ROTEIRO");
+    lines.push("Este material ainda não é o roteiro final. Use o pedido abaixo para desenvolver o roteiro completo.");
+    if (p.campaignPoints?.length) {
+      lines.push("", "Pontos que o roteiro deve desenvolver:");
+      p.campaignPoints.forEach((point, index) => lines.push(`${index + 1}. ${point}`));
+    }
+    if (p.cta) lines.push("", `CTA estratégico preservado: ${p.cta}`);
+    lines.push("", "Pedido para colar no ChatGPT:");
+    lines.push(p.readyPrompt);
+    return lines.join("\n");
+  }
+
+  if (p.formatKey === "reel" && p.role === "legenda") {
+    lines.push("");
+    lines.push("Classificação: USAR NA PUBLICAÇÃO");
+    lines.push("Legenda construída a partir da campanha completa, não de uma cena isolada.");
+    if (p.campaignPoints?.length) {
+      lines.push("", "Pontos considerados:");
+      p.campaignPoints.forEach((point) => lines.push(`- ${point}`));
+    }
+    lines.push("", "Legenda da publicação:");
+    lines.push(p.caption || p.mainText || "[PREENCHER legenda]");
+    if (p.cta) lines.push("", `CTA estratégico: ${p.cta}`);
+    if (p.hashtags?.length) lines.push("", `Hashtags: ${p.hashtags.join(" ")}`);
+    if (p.captionCoverage && p.captionCoverage.missingPoints.length) {
+      lines.push("", `⚠ Pontos ainda ausentes na legenda: ${p.captionCoverage.missingPoints.join("; ")}`);
+    }
+    return lines.join("\n");
+  }
+
   lines.push("");
   if (p.mainPromise) lines.push(`Promessa: ${p.mainPromise}`);
   if (p.mainProblem) lines.push(`Dor: ${p.mainProblem}`);
@@ -942,7 +1205,10 @@ function pieceToReadableText(p: Piece): string {
   if (p.supportText) lines.push(`Texto de apoio: ${p.supportText}`);
   if (p.bullets && p.bullets.length) lines.push(`Bullets: ${p.bullets.map((b) => `• ${b}`).join("  ")}`);
   if (p.cta) lines.push(`CTA: ${p.cta}`);
-  if (p.caption) { lines.push("", "Legenda da publicação:"); lines.push(p.caption); }
+  if (p.caption) {
+    lines.push("", "Legenda da publicação:");
+    lines.push(p.caption);
+  }
   if (p.hashtags && p.hashtags.length) lines.push("", `Hashtags: ${p.hashtags.join(" ")}`);
   if (p.productionNotes.length) {
     lines.push("", "Observações de produção:");
