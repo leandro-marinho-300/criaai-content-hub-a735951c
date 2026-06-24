@@ -881,5 +881,130 @@ function LegacyBlockCard({ block }: { block: Output }) {
   );
 }
 
+// ============ BADGE DE CLASSIFICAÇÃO ============
+
+function OutputKindBadge({ kind }: { kind: OutputKind }) {
+  const cls = kind === "publishable_asset"
+    ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/40 dark:text-emerald-300"
+    : kind === "publication_copy"
+      ? "bg-sky-500/15 text-sky-700 border-sky-500/40 dark:text-sky-300"
+      : kind === "production_material"
+        ? "bg-amber-500/15 text-amber-700 border-amber-500/40 dark:text-amber-300"
+        : "bg-muted text-muted-foreground border-border";
+  return (
+    <Badge variant="outline" className={`text-[10px] ${cls}`}>
+      {OUTPUT_KIND_LABEL[kind]}
+    </Badge>
+  );
+}
+
+// ============ ABAS DO REEL ============
+
+function ReelTabs({
+  pieces,
+  project,
+  assets,
+  userId,
+  onCopyAndOpen,
+  onAssetsChanged,
+}: {
+  pieces: { row: Output; piece: Piece | null }[];
+  project: Tables<"content_projects"> & { brands: Tables<"brands"> | null };
+  assets: PieceAsset[];
+  userId: string;
+  onCopyAndOpen: (text: string) => void;
+  onAssetsChanged: () => void;
+}) {
+  const allPieces = pieces.map((p) => p.piece).filter(Boolean) as Piece[];
+  const find = (role: string) => pieces.find((p) => p.piece?.role === role);
+  const roteiro = find("roteiro");
+  const capa = find("capa");
+  const legenda = find("legenda");
+  const publishables = pieces.filter((p) => p.piece && p.piece.outputKind === "publishable_asset");
+
+  const renderPiece = (entry: { row: Output; piece: Piece | null } | undefined, emptyHint: string) => {
+    if (!entry?.piece) {
+      return <p className="text-sm italic text-muted-foreground">{emptyHint}</p>;
+    }
+    return (
+      <PieceCard
+        row={entry.row}
+        piece={entry.piece}
+        brand={project.brands}
+        project={project}
+        allPieces={allPieces}
+        onCopyAndOpen={onCopyAndOpen}
+        userId={userId}
+        assets={assets.filter((a) => a.output_id === entry.row.id)}
+        onAssetsChanged={onAssetsChanged}
+      />
+    );
+  };
+
+  return (
+    <Tabs defaultValue="overview" className="w-full">
+      <TabsList className="flex w-full flex-wrap gap-1 overflow-x-auto">
+        <TabsTrigger value="overview">Visão geral</TabsTrigger>
+        <TabsTrigger value="roteiro">Roteiro</TabsTrigger>
+        <TabsTrigger value="capa">Capa</TabsTrigger>
+        <TabsTrigger value="legenda">Legenda e hashtags</TabsTrigger>
+        <TabsTrigger value="arquivos">Arquivos finais</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="overview" className="mt-4">
+        <Card>
+          <CardContent className="space-y-2 p-5 text-sm">
+            <p><b>Título:</b> {getProjectDisplayTitle(project)}</p>
+            <p><b>Marca:</b> {project.brands?.name ?? "—"}</p>
+            <p><b>Tema:</b> {project.theme || "—"}</p>
+            <p><b>Objetivo:</b> {project.objective || "—"}</p>
+            <p><b>Status:</b> {statusLabel(project.status)}</p>
+            <p className="text-xs text-muted-foreground">
+              Reel é uma publicação única no calendário (vídeo + capa + legenda).
+              Roteiro e storyboard são materiais internos de produção.
+            </p>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="roteiro" className="mt-4 space-y-3">
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+          <b>MATERIAL INTERNO.</b> Este roteiro orienta a gravação e não deve ser publicado como uma arte.
+        </div>
+        {renderPiece(roteiro, "Nenhum roteiro registrado para este Reel.")}
+      </TabsContent>
+
+      <TabsContent value="capa" className="mt-4 space-y-3">
+        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-900 dark:text-emerald-200">
+          <b>PUBLICAR.</b> Capa estática do Reel — gere a arte a partir do prompt e anexe abaixo.
+        </div>
+        {renderPiece(capa, "Nenhuma capa registrada para este Reel.")}
+      </TabsContent>
+
+      <TabsContent value="legenda" className="mt-4 space-y-3">
+        <div className="rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-xs text-sky-900 dark:text-sky-200">
+          <b>USAR NA PUBLICAÇÃO.</b> Texto da legenda + hashtags. Não há arte para esta peça.
+        </div>
+        {renderPiece(legenda, "Nenhuma legenda registrada para este Reel.")}
+      </TabsContent>
+
+      <TabsContent value="arquivos" className="mt-4 space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Apenas peças publicáveis (vídeo final e capa) aparecem aqui e no PDF para o cliente.
+        </p>
+        {publishables.length === 0 && (
+          <p className="text-sm italic text-muted-foreground">
+            Nenhum arquivo publicável anexado ainda.
+          </p>
+        )}
+        {publishables.map((entry) => (
+          <div key={entry.row.id}>{renderPiece(entry, "")}</div>
+        ))}
+      </TabsContent>
+    </Tabs>
+  );
+}
+
 // silencia imports não usados em alguns paths
 void Copy;
+
