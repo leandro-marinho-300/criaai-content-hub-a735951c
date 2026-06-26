@@ -1,3 +1,4 @@
+import { MAX_HASHTAGS, normalizeHashtags } from "@/lib/hashtags";
 // Tela "PDF para o cliente": modelos compacto (3 páginas) e detalhado,
 // upload em lote, planejamento de publicação, validação textual e geração via html2canvas+jsPDF.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -5,8 +6,17 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Download, FileText, RotateCcw, Image as ImageIcon, AlertTriangle,
-  ChevronUp, ChevronDown, Upload, Eye, EyeOff,
+  ArrowLeft,
+  Download,
+  FileText,
+  RotateCcw,
+  Image as ImageIcon,
+  AlertTriangle,
+  ChevronUp,
+  ChevronDown,
+  Upload,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,13 +27,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { fetchAssetsForProject, getSignedUrl, toggleIncludeInPdf, type PieceAsset } from "@/lib/pieceAssets";
 import {
-  generateClientPdf, buildPdfFileName,
-  type ClientPdfPiece, type PdfModel, type ScheduleMode, type PdfScheduleData,
+  fetchAssetsForProject,
+  getSignedUrl,
+  toggleIncludeInPdf,
+  type PieceAsset,
+} from "@/lib/pieceAssets";
+import {
+  generateClientPdf,
+  buildPdfFileName,
+  type ClientPdfPiece,
+  type PdfModel,
+  type ScheduleMode,
+  type PdfScheduleData,
 } from "@/lib/clientPdf";
 import { parsePiece, type Piece } from "@/lib/promptBuilder";
-import { normalizeForPdf, suggestShortTitle, validatePdfTextIntegrity } from "@/lib/pdfTextIntegrity";
+import {
+  normalizeForPdf,
+  suggestShortTitle,
+  validatePdfTextIntegrity,
+} from "@/lib/pdfTextIntegrity";
 import { BatchAssetUploadDialog } from "@/components/batch-asset-upload-dialog";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -40,12 +63,7 @@ interface PieceConfig {
   order: number;
 }
 
-const STATUS_OPTIONS = [
-  "Para aprovação",
-  "Aprovado",
-  "Aprovado com ajustes",
-  "Agendado",
-];
+const STATUS_OPTIONS = ["Para aprovação", "Aprovado", "Aprovado com ajustes", "Agendado"];
 
 function ClientPdfPage() {
   const { projectId } = Route.useParams();
@@ -56,14 +74,24 @@ function ClientPdfPage() {
     queryKey: ["client-pdf-data", projectId],
     queryFn: async () => {
       const { data: project, error } = await supabase
-        .from("content_projects").select("*, brands(*)").eq("id", projectId).single();
+        .from("content_projects")
+        .select("*, brands(*)")
+        .eq("id", projectId)
+        .single();
       if (error) throw error;
       const { data: outputs, error: e2 } = await supabase
-        .from("content_outputs").select("*").eq("project_id", projectId).order("display_order");
+        .from("content_outputs")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("display_order");
       if (e2) throw e2;
       const assets = await fetchAssetsForProject(projectId);
       const { data: schedule } = await supabase
-        .from("publication_schedule_items").select("*").eq("project_id", projectId).limit(1).maybeSingle();
+        .from("publication_schedule_items")
+        .select("*")
+        .eq("project_id", projectId)
+        .limit(1)
+        .maybeSingle();
       return {
         project: project as Tables<"content_projects"> & { brands: Tables<"brands"> | null },
         outputs: outputs as Tables<"content_outputs">[],
@@ -86,7 +114,9 @@ function ClientPdfPage() {
 
   const assetsByOutput = useMemo(() => {
     const map: Record<string, PieceAsset[]> = {};
-    (data?.assets ?? []).forEach((a) => { (map[a.output_id] ||= []).push(a); });
+    (data?.assets ?? []).forEach((a) => {
+      (map[a.output_id] ||= []).push(a);
+    });
     return map;
   }, [data]);
 
@@ -121,7 +151,14 @@ function ClientPdfPage() {
 
   // Defaults
   const initialTitle = useMemo(() => {
-    const project = data?.project as { display_title?: string | null; internal_title?: string | null; theme?: string | null; main_message?: string | null } | undefined;
+    const project = data?.project as
+      | {
+          display_title?: string | null;
+          internal_title?: string | null;
+          theme?: string | null;
+          main_message?: string | null;
+        }
+      | undefined;
     const display = (project?.display_title || "").trim();
     if (display && display.length <= 100) return display;
     const internal = (project?.internal_title || "").trim();
@@ -144,9 +181,13 @@ function ClientPdfPage() {
     if (!hashtags) setHashtags(initialHashtags);
     if (!accentColor) setAccentColor(data.project.brands?.primary_color ?? "");
     if (data.schedule) {
-      setScheduleMode((data.schedule.schedule_status === "agendado" || data.schedule.schedule_status === "aprovado")
-        ? "confirmed"
-        : data.schedule.suggested_date ? "suggested" : "client_defines");
+      setScheduleMode(
+        data.schedule.schedule_status === "agendado" || data.schedule.schedule_status === "aprovado"
+          ? "confirmed"
+          : data.schedule.suggested_date
+            ? "suggested"
+            : "client_defines",
+      );
       setChannel(data.schedule.channel ?? "");
       setSuggestedDate(data.schedule.suggested_date ?? "");
       setSuggestedTime(data.schedule.suggested_time ?? "");
@@ -169,7 +210,7 @@ function ClientPdfPage() {
             };
           }),
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, pieces.length]);
 
   // Pré-carrega thumbs
@@ -179,11 +220,17 @@ function ClientPdfPage() {
     (async () => {
       const out: Record<string, string> = {};
       for (const a of data.assets) {
-        try { out[a.id] = await getSignedUrl(a.storage_path, 1800); } catch { /* skip */ }
+        try {
+          out[a.id] = await getSignedUrl(a.storage_path, 1800);
+        } catch {
+          /* skip */
+        }
       }
       if (!cancelled) setPreviewByAsset(out);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [data]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
@@ -191,10 +238,16 @@ function ClientPdfPage() {
 
   const orderedPieces = [...pieceCfg].sort((a, b) => a.order - b.order);
   const visiblePieces = orderedPieces.filter((p) => !p.hidden);
-  const includedAssets = visiblePieces.flatMap((c) => (assetsByOutput[c.outputId] ?? []).filter((a) => a.include_in_client_pdf !== false));
-  const piecesWithoutArt = visiblePieces.filter((c) => (assetsByOutput[c.outputId] ?? []).length === 0).length;
+  const includedAssets = visiblePieces.flatMap((c) =>
+    (assetsByOutput[c.outputId] ?? []).filter((a) => a.include_in_client_pdf !== false),
+  );
+  const piecesWithoutArt = visiblePieces.filter(
+    (c) => (assetsByOutput[c.outputId] ?? []).length === 0,
+  ).length;
   const totalAssets = includedAssets.length;
-  const lowResAssets = includedAssets.filter((a) => (a.image_width || 0) > 0 && (a.image_width || 0) < 720).length;
+  const lowResAssets = includedAssets.filter(
+    (a) => (a.image_width || 0) > 0 && (a.image_width || 0) < 720,
+  ).length;
 
   const movePiece = (idx: number, dir: -1 | 1) => {
     setPieceCfg((prev) => {
@@ -207,11 +260,19 @@ function ClientPdfPage() {
   };
 
   const togglePieceHidden = (outputId: string) => {
-    setPieceCfg((prev) => prev.map((p) => (p.outputId === outputId ? { ...p, hidden: !p.hidden } : p)));
+    setPieceCfg((prev) =>
+      prev.map((p) => (p.outputId === outputId ? { ...p, hidden: !p.hidden } : p)),
+    );
   };
 
   const updateLabel = (outputId: string, label: string) => {
-    setPieceCfg((prev) => prev.map((p) => (p.outputId === outputId ? { ...p, label, shortLabel: label.replace(/^Página\s+\d+\s+de\s+\d+\s+—\s+/i, "") } : p)));
+    setPieceCfg((prev) =>
+      prev.map((p) =>
+        p.outputId === outputId
+          ? { ...p, label, shortLabel: label.replace(/^Página\s+\d+\s+de\s+\d+\s+—\s+/i, "") }
+          : p,
+      ),
+    );
   };
 
   const handleToggleIncludeAsset = async (asset: PieceAsset) => {
@@ -239,18 +300,24 @@ function ClientPdfPage() {
     setAccentColor(data?.project.brands?.primary_color ?? "");
     setScheduleMode("client_defines");
     setChannel("");
-    setSuggestedDate(""); setSuggestedTime(""); setConfirmedDate(""); setConfirmedTime("");
-    setResponsible(""); setNotes("");
-    setPieceCfg(pieces.map((p, i) => {
-      const role = (p.piece.role || p.piece.name || "Peça").trim();
-      return {
-        outputId: p.row.id,
-        label: `Página ${i + 1} de ${pieces.length} — ${role}`,
-        shortLabel: role,
-        hidden: false,
-        order: i,
-      };
-    }));
+    setSuggestedDate("");
+    setSuggestedTime("");
+    setConfirmedDate("");
+    setConfirmedTime("");
+    setResponsible("");
+    setNotes("");
+    setPieceCfg(
+      pieces.map((p, i) => {
+        const role = (p.piece.role || p.piece.name || "Peça").trim();
+        return {
+          outputId: p.row.id,
+          label: `Página ${i + 1} de ${pieces.length} — ${role}`,
+          shortLabel: role,
+          hidden: false,
+          order: i,
+        };
+      }),
+    );
     toast.success("Configuração restaurada.");
   };
 
@@ -269,9 +336,11 @@ function ClientPdfPage() {
       confirmed_date: confirmedDate || null,
       confirmed_time: confirmedTime || null,
       schedule_status:
-        scheduleMode === "confirmed" ? "agendado"
-        : scheduleMode === "suggested" ? "sugerido"
-        : "sem_data",
+        scheduleMode === "confirmed"
+          ? "agendado"
+          : scheduleMode === "suggested"
+            ? "sugerido"
+            : "sem_data",
       client_notes: notes || null,
       approved_by: responsible || null,
     };
@@ -288,7 +357,9 @@ function ClientPdfPage() {
       return;
     }
     if (piecesWithoutArt > 0) {
-      const ok = confirm(`${piecesWithoutArt} peça(s) ainda não possuem arte final. Gerar o PDF somente com as artes anexadas?`);
+      const ok = confirm(
+        `${piecesWithoutArt} peça(s) ainda não possuem arte final. Gerar o PDF somente com as artes anexadas?`,
+      );
       if (!ok) return;
     }
     // Validação textual
@@ -299,7 +370,10 @@ function ClientPdfPage() {
     ]);
     const errors = integrity.filter((i) => i.severity === "error");
     if (errors.length) {
-      toast.error("Não foi possível preservar corretamente parte do texto: " + errors.map((e) => `${e.field}: ${e.message}`).join("; "));
+      toast.error(
+        "Não foi possível preservar corretamente parte do texto: " +
+          errors.map((e) => `${e.field}: ${e.message}`).join("; "),
+      );
       return;
     }
 
@@ -313,12 +387,19 @@ function ClientPdfPage() {
         hidden: c.hidden,
         assets: (assetsByOutput[c.outputId] ?? [])
           .filter((a) => a.include_in_client_pdf !== false)
-          .slice().sort((a, b) => a.display_order - b.display_order),
+          .slice()
+          .sort((a, b) => a.display_order - b.display_order),
       }));
 
       const schedule: PdfScheduleData = {
-        mode: scheduleMode, channel, suggestedDate, suggestedTime,
-        confirmedDate, confirmedTime, responsible, notes,
+        mode: scheduleMode,
+        channel,
+        suggestedDate,
+        suggestedTime,
+        confirmedDate,
+        confirmedTime,
+        responsible,
+        notes,
       };
 
       const blob = await generateClientPdf({
@@ -334,7 +415,7 @@ function ClientPdfPage() {
         versionLabel: normalizeForPdf(versionLabel) || undefined,
         statusLabel: chosenModel === "compact" ? statusLabel : undefined,
         caption: normalizeForPdf(caption),
-        hashtags: hashtags.split(/\s+/).map((s) => s.trim()).filter(Boolean).map(normalizeForPdf),
+        hashtags: normalizeHashtags(hashtags).map(normalizeForPdf),
         pieces: piecesInput,
         schedule,
         options: { theme, showLogo, showPieceNumber, includeCover, includeFinalPage },
@@ -344,10 +425,16 @@ function ClientPdfPage() {
       if (autoDownload) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url; a.download = fileName; a.click();
+        a.href = url;
+        a.download = fileName;
+        a.click();
         URL.revokeObjectURL(url);
       }
-      toast.success(chosenModel === "compact" ? "PDF para aprovação criado com sucesso." : "PDF detalhado criado com sucesso.");
+      toast.success(
+        chosenModel === "compact"
+          ? "PDF para aprovação criado com sucesso."
+          : "PDF detalhado criado com sucesso.",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao gerar PDF.");
     } finally {
@@ -362,7 +449,8 @@ function ClientPdfPage() {
   }));
 
   const alerts: string[] = [];
-  if (piecesWithoutArt > 0) alerts.push(`${piecesWithoutArt} peça(s) sem arte final — serão omitidas.`);
+  if (piecesWithoutArt > 0)
+    alerts.push(`${piecesWithoutArt} peça(s) sem arte final — serão omitidas.`);
   if (!title.trim()) alerts.push("O título está vazio.");
   if (title.length > 90) alerts.push("Título muito longo — pode quebrar a capa.");
   if (lowResAssets > 0) alerts.push(`${lowResAssets} imagem(ns) com resolução baixa (<720px).`);
@@ -377,7 +465,8 @@ function ClientPdfPage() {
         </Button>
         <h1 className="font-display text-2xl font-bold">PDF para o cliente</h1>
         <p className="text-sm text-muted-foreground">
-          O modelo compacto reúne conteúdo, peças e planejamento em três páginas. Os textos aprovados são preservados (acentos, emojis e quebras).
+          O modelo compacto reúne conteúdo, peças e planejamento em três páginas. Os textos
+          aprovados são preservados (acentos, emojis e quebras).
         </p>
       </header>
 
@@ -389,12 +478,14 @@ function ClientPdfPage() {
               <h2 className="font-display text-base font-semibold">Modelo do documento</h2>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ModelOption
-                  active={model === "compact"} title="Compacto para aprovação"
+                  active={model === "compact"}
+                  title="Compacto para aprovação"
                   desc="Reúne conteúdo, peças e planejamento de publicação em um documento compacto."
                   onClick={() => setModel("compact")}
                 />
                 <ModelOption
-                  active={model === "detailed"} title="Detalhado"
+                  active={model === "detailed"}
+                  title="Detalhado"
                   desc="Apresenta uma arte por página, indicado para análise ampliada ou arquivo interno."
                   onClick={() => setModel("detailed")}
                 />
@@ -409,19 +500,38 @@ function ClientPdfPage() {
               <div className="grid gap-3">
                 <div>
                   <Label htmlFor="title">Título da campanha</Label>
-                  <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
+                  <Input
+                    id="title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    maxLength={120}
+                  />
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    {title.length > 80 ? "Aviso: título longo pode quebrar a capa." : "Mantenha curto (até 2 linhas)."}
+                    {title.length > 80
+                      ? "Aviso: título longo pode quebrar a capa."
+                      : "Mantenha curto (até 2 linhas)."}
                   </p>
                 </div>
                 <div>
                   <Label htmlFor="subtitle">Subtítulo (opcional)</Label>
-                  <Input id="subtitle" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} placeholder="Ex.: Carrossel para Instagram" maxLength={120} />
+                  <Input
+                    id="subtitle"
+                    value={subtitle}
+                    onChange={(e) => setSubtitle(e.target.value)}
+                    placeholder="Ex.: Carrossel para Instagram"
+                    maxLength={120}
+                  />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="version">Data ou versão</Label>
-                    <Input id="version" value={versionLabel} onChange={(e) => setVersionLabel(e.target.value)} placeholder="Versão 1 — 19/06/2026" maxLength={60} />
+                    <Input
+                      id="version"
+                      value={versionLabel}
+                      onChange={(e) => setVersionLabel(e.target.value)}
+                      placeholder="Versão 1 — 19/06/2026"
+                      maxLength={60}
+                    />
                   </div>
                   <div>
                     <Label htmlFor="status">Status</Label>
@@ -431,7 +541,9 @@ function ClientPdfPage() {
                       value={statusLabel}
                       onChange={(e) => setStatusLabel(e.target.value)}
                     >
-                      {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -443,7 +555,9 @@ function ClientPdfPage() {
           <Card>
             <CardContent className="space-y-3 p-5">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="font-display text-base font-semibold">Peças ({visiblePieces.length} de {pieces.length})</h2>
+                <h2 className="font-display text-base font-semibold">
+                  Peças ({visiblePieces.length} de {pieces.length})
+                </h2>
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">{totalAssets} arte(s) no PDF</Badge>
                   <Button size="sm" variant="outline" onClick={() => setShowBatch(true)}>
@@ -456,15 +570,30 @@ function ClientPdfPage() {
               )}
               <div className="space-y-2">
                 {orderedPieces.map((c, idx) => {
-                  const assets = (assetsByOutput[c.outputId] ?? []);
+                  const assets = assetsByOutput[c.outputId] ?? [];
                   return (
-                    <div key={c.outputId} className={`rounded-md border border-border/60 p-3 ${c.hidden ? "opacity-50" : ""}`}>
+                    <div
+                      key={c.outputId}
+                      className={`rounded-md border border-border/60 p-3 ${c.hidden ? "opacity-50" : ""}`}
+                    >
                       <div className="flex flex-wrap items-start gap-2">
                         <div className="flex flex-col gap-0.5">
-                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => movePiece(idx, -1)} disabled={idx === 0}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6"
+                            onClick={() => movePiece(idx, -1)}
+                            disabled={idx === 0}
+                          >
                             <ChevronUp className="h-3.5 w-3.5" />
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => movePiece(idx, 1)} disabled={idx === orderedPieces.length - 1}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6"
+                            onClick={() => movePiece(idx, 1)}
+                            disabled={idx === orderedPieces.length - 1}
+                          >
                             <ChevronDown className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -480,11 +609,21 @@ function ClientPdfPage() {
                                   key={a.id}
                                   onClick={() => handleToggleIncludeAsset(a)}
                                   className="relative h-16 w-16 overflow-hidden rounded border border-border/40"
-                                  title={a.include_in_client_pdf !== false ? "Remover do PDF" : "Incluir no PDF"}
+                                  title={
+                                    a.include_in_client_pdf !== false
+                                      ? "Remover do PDF"
+                                      : "Incluir no PDF"
+                                  }
                                 >
                                   {previewByAsset[a.id] ? (
-                                    <img src={previewByAsset[a.id]} alt="" className="h-full w-full object-cover" />
-                                  ) : <div className="h-full w-full bg-muted" />}
+                                    <img
+                                      src={previewByAsset[a.id]}
+                                      alt=""
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="h-full w-full bg-muted" />
+                                  )}
                                   {a.include_in_client_pdf === false && (
                                     <div className="absolute inset-0 grid place-items-center bg-black/50 text-white">
                                       <EyeOff className="h-4 w-4" />
@@ -493,12 +632,18 @@ function ClientPdfPage() {
                                 </button>
                               ))}
                               {assets.length > 4 && (
-                                <div className="grid h-16 w-16 place-items-center rounded bg-muted text-xs">+{assets.length - 4}</div>
+                                <div className="grid h-16 w-16 place-items-center rounded bg-muted text-xs">
+                                  +{assets.length - 4}
+                                </div>
                               )}
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <Input value={c.label} onChange={(e) => updateLabel(c.outputId, e.target.value)} className="h-8 text-sm" />
+                            <Input
+                              value={c.label}
+                              onChange={(e) => updateLabel(c.outputId, e.target.value)}
+                              className="h-8 text-sm"
+                            />
                             <p className="mt-1 text-[11px] text-muted-foreground">
                               {assets.length === 0
                                 ? "Sem arte — peça será omitida."
@@ -507,7 +652,10 @@ function ClientPdfPage() {
                           </div>
                           <div className="flex items-center gap-1">
                             <Label className="text-[11px] text-muted-foreground">Incluir</Label>
-                            <Switch checked={!c.hidden} onCheckedChange={() => togglePieceHidden(c.outputId)} />
+                            <Switch
+                              checked={!c.hidden}
+                              onCheckedChange={() => togglePieceHidden(c.outputId)}
+                            />
                           </div>
                         </div>
                       </div>
@@ -516,7 +664,8 @@ function ClientPdfPage() {
                 })}
               </div>
               <p className="text-xs text-muted-foreground">
-                Para anexar artes individuais, use "Anexar arte final" no card da peça em "Resultado".
+                Para anexar artes individuais, use "Anexar arte final" no card da peça em
+                "Resultado".
               </p>
             </CardContent>
           </Card>
@@ -525,7 +674,12 @@ function ClientPdfPage() {
           <Card>
             <CardContent className="space-y-3 p-5">
               <h2 className="font-display text-base font-semibold">Legenda</h2>
-              <Textarea rows={7} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Legenda da publicação" />
+              <Textarea
+                rows={7}
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                placeholder="Legenda da publicação"
+              />
               <Button variant="ghost" size="sm" onClick={() => setCaption(initialCaption)}>
                 <RotateCcw className="mr-2 h-3.5 w-3.5" /> Restaurar legenda aprovada
               </Button>
@@ -536,8 +690,16 @@ function ClientPdfPage() {
           <Card>
             <CardContent className="space-y-3 p-5">
               <h2 className="font-display text-base font-semibold">Hashtags</h2>
-              <Textarea rows={3} value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="#exemplo #marca" />
-              <p className="text-xs text-muted-foreground">Separe por espaço. Mantenha o # — não quebram dentro de uma hashtag.</p>
+              <Textarea
+                rows={3}
+                value={hashtags}
+                onChange={(e) => setHashtags(normalizeHashtags(e.target.value).join(" "))}
+                placeholder="#exemplo #marca"
+              />
+              <p className="text-xs text-muted-foreground">Máximo de {MAX_HASHTAGS} hashtags.</p>
+              <p className="text-xs text-muted-foreground">
+                Separe por espaço. Mantenha o # — não quebram dentro de uma hashtag.
+              </p>
             </CardContent>
           </Card>
 
@@ -546,14 +708,36 @@ function ClientPdfPage() {
             <CardContent className="space-y-3 p-5">
               <h2 className="font-display text-base font-semibold">Planejamento da publicação</h2>
               <div className="flex flex-wrap gap-1">
-                <Button size="sm" variant={scheduleMode === "client_defines" ? "default" : "outline"} onClick={() => setScheduleMode("client_defines")}>Cliente define</Button>
-                <Button size="sm" variant={scheduleMode === "suggested" ? "default" : "outline"} onClick={() => setScheduleMode("suggested")}>Calendário sugerido</Button>
-                <Button size="sm" variant={scheduleMode === "confirmed" ? "default" : "outline"} onClick={() => setScheduleMode("confirmed")}>Calendário confirmado</Button>
+                <Button
+                  size="sm"
+                  variant={scheduleMode === "client_defines" ? "default" : "outline"}
+                  onClick={() => setScheduleMode("client_defines")}
+                >
+                  Cliente define
+                </Button>
+                <Button
+                  size="sm"
+                  variant={scheduleMode === "suggested" ? "default" : "outline"}
+                  onClick={() => setScheduleMode("suggested")}
+                >
+                  Calendário sugerido
+                </Button>
+                <Button
+                  size="sm"
+                  variant={scheduleMode === "confirmed" ? "default" : "outline"}
+                  onClick={() => setScheduleMode("confirmed")}
+                >
+                  Calendário confirmado
+                </Button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <Label>Canal</Label>
-                  <Input value={channel} onChange={(e) => setChannel(e.target.value)} placeholder="Instagram Feed" />
+                  <Input
+                    value={channel}
+                    onChange={(e) => setChannel(e.target.value)}
+                    placeholder="Instagram Feed"
+                  />
                 </div>
                 <div>
                   <Label>Responsável</Label>
@@ -562,19 +746,31 @@ function ClientPdfPage() {
                 {scheduleMode !== "client_defines" && (
                   <>
                     <div>
-                      <Label>{scheduleMode === "confirmed" ? "Data confirmada" : "Data sugerida"}</Label>
+                      <Label>
+                        {scheduleMode === "confirmed" ? "Data confirmada" : "Data sugerida"}
+                      </Label>
                       <Input
                         type="date"
                         value={scheduleMode === "confirmed" ? confirmedDate : suggestedDate}
-                        onChange={(e) => scheduleMode === "confirmed" ? setConfirmedDate(e.target.value) : setSuggestedDate(e.target.value)}
+                        onChange={(e) =>
+                          scheduleMode === "confirmed"
+                            ? setConfirmedDate(e.target.value)
+                            : setSuggestedDate(e.target.value)
+                        }
                       />
                     </div>
                     <div>
-                      <Label>{scheduleMode === "confirmed" ? "Horário confirmado" : "Horário sugerido"}</Label>
+                      <Label>
+                        {scheduleMode === "confirmed" ? "Horário confirmado" : "Horário sugerido"}
+                      </Label>
                       <Input
                         type="time"
                         value={scheduleMode === "confirmed" ? confirmedTime : suggestedTime}
-                        onChange={(e) => scheduleMode === "confirmed" ? setConfirmedTime(e.target.value) : setSuggestedTime(e.target.value)}
+                        onChange={(e) =>
+                          scheduleMode === "confirmed"
+                            ? setConfirmedTime(e.target.value)
+                            : setSuggestedTime(e.target.value)
+                        }
                       />
                     </div>
                   </>
@@ -595,20 +791,52 @@ function ClientPdfPage() {
                 <div className="flex items-center justify-between rounded-md border border-border/60 p-2">
                   <span className="text-sm">Tema</span>
                   <div className="flex gap-1">
-                    <Button size="sm" variant={theme === "light" ? "default" : "outline"} onClick={() => setTheme("light")}>Claro</Button>
-                    <Button size="sm" variant={theme === "dark" ? "default" : "outline"} onClick={() => setTheme("dark")}>Escuro</Button>
+                    <Button
+                      size="sm"
+                      variant={theme === "light" ? "default" : "outline"}
+                      onClick={() => setTheme("light")}
+                    >
+                      Claro
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={theme === "dark" ? "default" : "outline"}
+                      onClick={() => setTheme("dark")}
+                    >
+                      Escuro
+                    </Button>
                   </div>
                 </div>
                 <div className="flex items-center justify-between rounded-md border border-border/60 p-2">
-                  <Label htmlFor="accent" className="text-sm">Cor de destaque</Label>
-                  <Input id="accent" type="color" value={accentColor || "#ea580c"} onChange={(e) => setAccentColor(e.target.value)} className="h-8 w-16" />
+                  <Label htmlFor="accent" className="text-sm">
+                    Cor de destaque
+                  </Label>
+                  <Input
+                    id="accent"
+                    type="color"
+                    value={accentColor || "#ea580c"}
+                    onChange={(e) => setAccentColor(e.target.value)}
+                    className="h-8 w-16"
+                  />
                 </div>
                 <ToggleRow label="Usar logo da marca" checked={showLogo} onChange={setShowLogo} />
-                <ToggleRow label="Mostrar número das peças" checked={showPieceNumber} onChange={setShowPieceNumber} />
+                <ToggleRow
+                  label="Mostrar número das peças"
+                  checked={showPieceNumber}
+                  onChange={setShowPieceNumber}
+                />
                 {model === "detailed" && (
                   <>
-                    <ToggleRow label="Incluir capa" checked={includeCover} onChange={setIncludeCover} />
-                    <ToggleRow label="Incluir planejamento" checked={includeFinalPage} onChange={setIncludeFinalPage} />
+                    <ToggleRow
+                      label="Incluir capa"
+                      checked={includeCover}
+                      onChange={setIncludeCover}
+                    />
+                    <ToggleRow
+                      label="Incluir planejamento"
+                      checked={includeFinalPage}
+                      onChange={setIncludeFinalPage}
+                    />
                   </>
                 )}
               </div>
@@ -622,9 +850,22 @@ function ClientPdfPage() {
             <CardContent className="space-y-3 p-5">
               <h2 className="font-display text-base font-semibold">Prévia</h2>
               <div className="space-y-1 text-sm">
-                <div><strong>Modelo:</strong> {model === "compact" ? "Compacto (3 páginas)" : "Detalhado"}</div>
-                <div><strong>Peças no PDF:</strong> {totalAssets} imagem(ns) em {visiblePieces.length} peça(s)</div>
-                <div><strong>Planejamento:</strong> {scheduleMode === "confirmed" ? "Confirmado" : scheduleMode === "suggested" ? "Sugerido" : "Cliente define"}</div>
+                <div>
+                  <strong>Modelo:</strong>{" "}
+                  {model === "compact" ? "Compacto (3 páginas)" : "Detalhado"}
+                </div>
+                <div>
+                  <strong>Peças no PDF:</strong> {totalAssets} imagem(ns) em {visiblePieces.length}{" "}
+                  peça(s)
+                </div>
+                <div>
+                  <strong>Planejamento:</strong>{" "}
+                  {scheduleMode === "confirmed"
+                    ? "Confirmado"
+                    : scheduleMode === "suggested"
+                      ? "Sugerido"
+                      : "Cliente define"}
+                </div>
               </div>
 
               {alerts.length > 0 && (
@@ -633,27 +874,50 @@ function ClientPdfPage() {
                     <AlertTriangle className="h-3.5 w-3.5" /> Avisos
                   </p>
                   <ul className="ml-4 list-disc space-y-0.5 text-amber-900 dark:text-amber-100">
-                    {alerts.map((a, i) => <li key={i}>{a}</li>)}
+                    {alerts.map((a, i) => (
+                      <li key={i}>{a}</li>
+                    ))}
                   </ul>
                 </div>
               )}
 
               <div className="space-y-2 pt-2">
-                <Button className="w-full" onClick={() => handleGenerate(true, model)} disabled={generating}>
+                <Button
+                  className="w-full"
+                  onClick={() => handleGenerate(true, model)}
+                  disabled={generating}
+                >
                   <Download className="mr-2 h-4 w-4" />
-                  {generating ? "Gerando..." : model === "compact" ? "Gerar PDF compacto" : "Gerar PDF detalhado"}
+                  {generating
+                    ? "Gerando..."
+                    : model === "compact"
+                      ? "Gerar PDF compacto"
+                      : "Gerar PDF detalhado"}
                 </Button>
-                <Button variant="outline" className="w-full" onClick={() => handleGenerate(true, model === "compact" ? "detailed" : "compact")} disabled={generating}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => handleGenerate(true, model === "compact" ? "detailed" : "compact")}
+                  disabled={generating}
+                >
                   <FileText className="mr-2 h-4 w-4" />
                   Gerar também o {model === "compact" ? "detalhado" : "compacto"}
                 </Button>
                 <Button variant="ghost" className="w-full" onClick={restoreDefaults}>
                   <RotateCcw className="mr-2 h-4 w-4" /> Restaurar padrão
                 </Button>
-                <Button variant="ghost" className="w-full" onClick={() => navigate({ to: "/app/content/$projectId/result", params: { projectId } })}>
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() =>
+                    navigate({ to: "/app/content/$projectId/result", params: { projectId } })
+                  }
+                >
                   <Eye className="mr-2 h-4 w-4" /> Voltar e editar
                 </Button>
-                <Button variant="ghost" className="w-full" onClick={() => refetch()}>Recarregar artes</Button>
+                <Button variant="ghost" className="w-full" onClick={() => refetch()}>
+                  Recarregar artes
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -674,7 +938,15 @@ function ClientPdfPage() {
   );
 }
 
-function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function ToggleRow({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <div className="flex items-center justify-between rounded-md border border-border/60 p-2">
       <span className="text-sm">{label}</span>
@@ -683,7 +955,17 @@ function ToggleRow({ label, checked, onChange }: { label: string; checked: boole
   );
 }
 
-function ModelOption({ active, title, desc, onClick }: { active: boolean; title: string; desc: string; onClick: () => void }) {
+function ModelOption({
+  active,
+  title,
+  desc,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  desc: string;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"

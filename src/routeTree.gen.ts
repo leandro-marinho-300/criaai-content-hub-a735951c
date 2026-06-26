@@ -17,6 +17,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApprovalTokenRouteImport } from './routes/approval.$token'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
+import { Route as AuthenticatedAppTrendsRouteImport } from './routes/_authenticated/app.trends'
 import { Route as AuthenticatedAppTemplatesRouteImport } from './routes/_authenticated/app.templates'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppLibraryRouteImport } from './routes/_authenticated/app.library'
@@ -68,6 +69,11 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppTrendsRoute = AuthenticatedAppTrendsRouteImport.update({
+  id: '/trends',
+  path: '/trends',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
 const AuthenticatedAppTemplatesRoute =
@@ -158,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/app/library': typeof AuthenticatedAppLibraryRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/templates': typeof AuthenticatedAppTemplatesRoute
+  '/app/trends': typeof AuthenticatedAppTrendsRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/app/content/new': typeof AuthenticatedAppContentNewRoute
@@ -179,6 +186,7 @@ export interface FileRoutesByTo {
   '/app/library': typeof AuthenticatedAppLibraryRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/templates': typeof AuthenticatedAppTemplatesRoute
+  '/app/trends': typeof AuthenticatedAppTrendsRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/app/content/new': typeof AuthenticatedAppContentNewRoute
@@ -203,6 +211,7 @@ export interface FileRoutesById {
   '/_authenticated/app/library': typeof AuthenticatedAppLibraryRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/templates': typeof AuthenticatedAppTemplatesRoute
+  '/_authenticated/app/trends': typeof AuthenticatedAppTrendsRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/brands/new': typeof AuthenticatedAppBrandsNewRoute
   '/_authenticated/app/content/new': typeof AuthenticatedAppContentNewRoute
@@ -227,6 +236,7 @@ export interface FileRouteTypes {
     | '/app/library'
     | '/app/settings'
     | '/app/templates'
+    | '/app/trends'
     | '/app/'
     | '/app/brands/new'
     | '/app/content/new'
@@ -248,6 +258,7 @@ export interface FileRouteTypes {
     | '/app/library'
     | '/app/settings'
     | '/app/templates'
+    | '/app/trends'
     | '/app'
     | '/app/brands/new'
     | '/app/content/new'
@@ -271,6 +282,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/library'
     | '/_authenticated/app/settings'
     | '/_authenticated/app/templates'
+    | '/_authenticated/app/trends'
     | '/_authenticated/app/'
     | '/_authenticated/app/brands/new'
     | '/_authenticated/app/content/new'
@@ -347,6 +359,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/app/'
       preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/trends': {
+      id: '/_authenticated/app/trends'
+      path: '/trends'
+      fullPath: '/app/trends'
+      preLoaderRoute: typeof AuthenticatedAppTrendsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/templates': {
@@ -450,6 +469,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppLibraryRoute: typeof AuthenticatedAppLibraryRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppTemplatesRoute: typeof AuthenticatedAppTemplatesRoute
+  AuthenticatedAppTrendsRoute: typeof AuthenticatedAppTrendsRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppBrandsNewRoute: typeof AuthenticatedAppBrandsNewRoute
   AuthenticatedAppContentNewRoute: typeof AuthenticatedAppContentNewRoute
@@ -466,6 +486,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppLibraryRoute: AuthenticatedAppLibraryRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppTemplatesRoute: AuthenticatedAppTemplatesRoute,
+  AuthenticatedAppTrendsRoute: AuthenticatedAppTrendsRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppBrandsNewRoute: AuthenticatedAppBrandsNewRoute,
   AuthenticatedAppContentNewRoute: AuthenticatedAppContentNewRoute,
@@ -504,3 +525,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

@@ -270,6 +270,14 @@ export function ReelScriptView({ script, onImportNewVersion }: ReelScriptViewPro
               </div>
             ))}
           </div>
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Legenda completa para inserir no vídeo
+            </p>
+            <p className="mt-2 whitespace-pre-wrap text-sm">
+              {script.short_version.full_video_caption}
+            </p>
+          </div>
           <p className="text-sm">
             <b>Fechamento:</b> {script.short_version.closing}
           </p>

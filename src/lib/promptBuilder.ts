@@ -7,6 +7,7 @@
 // • monta um prompt operacional ENXUTO por página.
 
 import type { Tables } from "@/integrations/supabase/types";
+import { MAX_HASHTAGS, normalizeHashtags } from "@/lib/hashtags";
 import {
   composeCopy,
   summarizeAudience,
@@ -30,7 +31,11 @@ import {
   reelKeyFromRole,
   type OutputKind,
 } from "./formatOutputRules";
-import { detectEditorialIntent, buildEditorialItems, type EditorialIntent } from "./editorialIntent";
+import {
+  detectEditorialIntent,
+  buildEditorialItems,
+  type EditorialIntent,
+} from "./editorialIntent";
 import {
   buildReelCaption,
   buildReelScriptRequest,
@@ -77,13 +82,22 @@ export interface Piece {
   /** Escopo da informação: publicação inteira ou item interno. */
   sourceScope?: "campaign" | "publication" | "scene" | "asset" | "page" | "screen";
   /** Estado editorial do conteúdo, especialmente para roteiro de Reel. */
-  contentStage?: "brief" | "script_request" | "script_outline" | "script_complete" | "publication_copy";
+  contentStage?:
+    | "brief"
+    | "script_request"
+    | "script_outline"
+    | "script_complete"
+    | "publication_copy";
   /** Pontos da campanha usados como base para roteiro e legenda. */
   campaignPoints?: string[];
   /** Origem do CTA aplicado à publicação. */
   ctaSource?: "project" | "campaign" | "brand" | "fallback";
   /** Cobertura dos pontos da campanha pela legenda. */
-  captionCoverage?: { coveredPoints: string[]; missingPoints: string[]; coveragePercentage: number };
+  captionCoverage?: {
+    coveredPoints: string[];
+    missingPoints: string[];
+    coveragePercentage: number;
+  };
   /** Origem da copy atual. */
   copySource?: "deterministic" | "manual" | "external_chatgpt";
   /** Histórico curto (últimas 3) de versões anteriores para restauração. */
@@ -183,10 +197,12 @@ export const OUTPUT_LABELS: Record<string, string> = {
 // -------- helpers --------
 
 const blank = (v: unknown): boolean => v == null || (typeof v === "string" && v.trim() === "");
-const arr = (v: string[] | null | undefined): string[] => (Array.isArray(v) ? v.filter((s) => s && s.trim()) : []);
+const arr = (v: string[] | null | undefined): string[] =>
+  Array.isArray(v) ? v.filter((s) => s && s.trim()) : [];
 const list = (v: string[] | null | undefined, sep = ", "): string => arr(v).join(sep);
-const txt = (v: string | null | undefined, fallback = ""): string => (blank(v) ? fallback : String(v).trim());
-const unique = <T,>(xs: T[]): T[] => Array.from(new Set(xs));
+const txt = (v: string | null | undefined, fallback = ""): string =>
+  blank(v) ? fallback : String(v).trim();
+const unique = <T>(xs: T[]): T[] => Array.from(new Set(xs));
 
 const slug = (s: string): string =>
   (s ?? "")
@@ -214,7 +230,8 @@ const FORMAT_RATIO: Record<string, string> = {
   outro: "conforme uso",
 };
 
-const formatLabel = (key: string): string => `${FORMAT_LABELS[key] ?? key} · ${FORMAT_RATIO[key] ?? "conforme uso"}`;
+const formatLabel = (key: string): string =>
+  `${FORMAT_LABELS[key] ?? key} · ${FORMAT_RATIO[key] ?? "conforme uso"}`;
 
 // -------- templates de papéis (formatos NÃO-carrossel) --------
 
@@ -234,25 +251,51 @@ const ROLE_TEMPLATES: Record<string, RoleTemplate[]> = {
   ],
   // carrossel é DINÂMICO, baseado em editorialIntent — não usa este array
   carrossel: [],
-  story: [{ role: "unico", name: "Story — Peça única", objective: "comunicar a mensagem central em um único Story" }],
+  story: [
+    {
+      role: "unico",
+      name: "Story — Peça única",
+      objective: "comunicar a mensagem central em um único Story",
+    },
+  ],
   sequencia_stories: [
     { role: "gancho", name: "Story 1 — Gancho", objective: "gerar curiosidade imediata" },
-    { role: "contexto", name: "Story 2 — Contexto", objective: "contextualizar o tema para o público" },
+    {
+      role: "contexto",
+      name: "Story 2 — Contexto",
+      objective: "contextualizar o tema para o público",
+    },
     { role: "beneficio", name: "Story 3 — Benefício", objective: "destacar o benefício principal" },
-    { role: "prova", name: "Story 4 — Prova / Diferencial", objective: "reforçar credibilidade ou diferencial" },
+    {
+      role: "prova",
+      name: "Story 4 — Prova / Diferencial",
+      objective: "reforçar credibilidade ou diferencial",
+    },
     { role: "cta", name: "Story 5 — CTA", objective: "incentivar a ação esperada" },
   ],
   status_whatsapp: [
-    { role: "gancho", name: "Status WhatsApp 1 — Gancho", objective: "abrir com curiosidade ou impacto" },
+    {
+      role: "gancho",
+      name: "Status WhatsApp 1 — Gancho",
+      objective: "abrir com curiosidade ou impacto",
+    },
     {
       role: "principal",
       name: "Status WhatsApp 2 — Mensagem principal",
       objective: "comunicar a oferta de forma direta e curta",
     },
-    { role: "cta", name: "Status WhatsApp 3 — CTA", objective: "reforçar o CTA e gerar resposta imediata" },
+    {
+      role: "cta",
+      name: "Status WhatsApp 3 — CTA",
+      objective: "reforçar o CTA e gerar resposta imediata",
+    },
   ],
   reel: [
-    { role: "capa", name: "Reel — Capa", objective: "capa estática atrativa que represente o vídeo" },
+    {
+      role: "capa",
+      name: "Reel — Capa",
+      objective: "capa estática atrativa que represente o vídeo",
+    },
     {
       role: "roteiro",
       name: "Reel — Pedido de roteiro",
@@ -265,9 +308,21 @@ const ROLE_TEMPLATES: Record<string, RoleTemplate[]> = {
     },
   ],
   capa_reel: [{ role: "capa", name: "Capa de Reel", objective: "criar capa estática para o Reel" }],
-  comunicado: [{ role: "unico", name: "Comunicado — Peça única", objective: "comunicar de forma objetiva e clara" }],
+  comunicado: [
+    {
+      role: "unico",
+      name: "Comunicado — Peça única",
+      objective: "comunicar de forma objetiva e clara",
+    },
+  ],
   banner: [{ role: "unico", name: "Banner", objective: "comunicar a mensagem em formato banner" }],
-  texto_grupo: [{ role: "unico", name: "Texto para Grupo", objective: "mensagem para enviar em grupo de WhatsApp" }],
+  texto_grupo: [
+    {
+      role: "unico",
+      name: "Texto para Grupo",
+      objective: "mensagem para enviar em grupo de WhatsApp",
+    },
+  ],
   impresso: [{ role: "unico", name: "Material Impresso", objective: "peça para impressão" }],
   outro: [{ role: "unico", name: "Peça Personalizada", objective: "peça conforme briefing" }],
 };
@@ -393,7 +448,11 @@ function deriveTextsFromComposed(role: string, composed: ComposedCopy, brand: Br
   supportText = enforceLimit(supportText, lims.supportMax);
   useBullets = useBullets.map((b) => enforceLimit(b, lims.bulletMax)).filter(Boolean);
 
-  const mainEval = evaluateAndCollect(mainText, { ...headOpts, isHeadline: true }, "Texto principal");
+  const mainEval = evaluateAndCollect(
+    mainText,
+    { ...headOpts, isHeadline: true },
+    "Texto principal",
+  );
   const suppEval = evaluateAndCollect(supportText, paraOpts, "Texto de apoio");
 
   const status = worseStatus(mainEval.status, suppEval.status);
@@ -450,7 +509,7 @@ function buildCaptionSimple(
   return lines.join("\n").trim();
 }
 
-// -------- HASHTAGS limpas (5 a 12) --------
+// -------- HASHTAGS limpas (máximo 5) --------
 
 function buildHashtags(brand: Brand, project: Project): string[] {
   const tags = new Set<string>();
@@ -475,16 +534,16 @@ function buildHashtags(brand: Brand, project: Project): string[] {
       const short = w.split(/\s+/).slice(0, 2).join(" ");
       push(short);
     });
-  const out = Array.from(tags).slice(0, 12);
-  if (out.length < 5) {
-    // garante mínimo de 5 com seeds genéricos do segmento
+  const out = Array.from(tags);
+  if (out.length < MAX_HASHTAGS) {
+    // completa somente quando necessário, sem ultrapassar cinco hashtags.
     const seeds = ["#Marca", "#Conteudo", "#Comunicacao", "#Negocios", "#Atendimento"];
-    for (const s of seeds) {
-      if (out.length >= 5) break;
-      if (!out.includes(s)) out.push(s);
+    for (const seed of seeds) {
+      if (out.length >= MAX_HASHTAGS) break;
+      if (!out.includes(seed)) out.push(seed);
     }
   }
-  return out;
+  return normalizeHashtags(out);
 }
 
 // -------- observações de produção --------
@@ -495,13 +554,24 @@ function buildProductionNotes(role: string, brand: Brand, project: Project): str
   if (style) notes.push(`Estilo visual: ${style}.`);
   if (brand.primary_color) notes.push(`Cor principal: ${brand.primary_color}.`);
   if (brand.fonts) notes.push(`Tipografia: ${brand.fonts}.`);
-  if (role === "capa" || role === "gancho" || role === "apresentacao" || role === "unico" || role === "principal") {
+  if (
+    role === "capa" ||
+    role === "gancho" ||
+    role === "apresentacao" ||
+    role === "unico" ||
+    role === "principal"
+  ) {
     notes.push("Respiro no topo para o título; logo discreta no canto.");
   }
   if (role === "cta" || role === "reforco") {
     notes.push("CTA em destaque, com contraste alto.");
   }
-  if (role.startsWith("item_") || role === "contexto" || role === "prova" || role === "fechamento") {
+  if (
+    role.startsWith("item_") ||
+    role === "contexto" ||
+    role === "prova" ||
+    role === "fechamento"
+  ) {
     notes.push("Prioridade para legibilidade; evitar excesso de elementos.");
   }
   if (brand.graphic_elements) notes.push(`Elementos gráficos: ${brand.graphic_elements}.`);
@@ -553,7 +623,8 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
     }
   }
 
-  const style = txt(project.desired_style) || txt(brand.visual_style) || "alinhado à identidade da marca";
+  const style =
+    txt(project.desired_style) || txt(brand.visual_style) || "alinhado à identidade da marca";
   const identityBits = [
     brand.primary_color ? `cor principal ${brand.primary_color}` : null,
     brand.secondary_color ? `cor secundária ${brand.secondary_color}` : null,
@@ -565,9 +636,13 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
   const block: string[] = [];
   // Cabeçalho: capa de Reel ganha frase específica.
   if (piece.formatKey === "reel" && piece.role === "capa") {
-    block.push(`Crie uma capa estática publicável para um Reel da empresa "${brand.name}", no estilo ${style}.`);
+    block.push(
+      `Crie uma capa estática publicável para um Reel da empresa "${brand.name}", no estilo ${style}.`,
+    );
   } else {
-    block.push(`Crie a arte para ${piece.formatLabel} da empresa "${brand.name}", no estilo ${style}.`);
+    block.push(
+      `Crie a arte para ${piece.formatLabel} da empresa "${brand.name}", no estilo ${style}.`,
+    );
   }
   block.push("");
   block.push(`Função desta página: ${piece.objective}.`);
@@ -601,6 +676,30 @@ export function buildReadyPrompt(args: PromptBuildCtx): string {
   block.push("- Preferir camadas de texto legíveis a textos longos sobre a imagem.");
   if (restrictionsBrief) block.push(`- Restrições da marca: ${restrictionsBrief}.`);
   if (mode === "safe") block.push("- Em caso de dúvida, escrever [PREENCHER] em vez de inventar.");
+
+  const normalizedBrandName = brand.name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (normalizedBrandName.includes("solidare") && normalizedBrandName.includes("travel")) {
+    block.push("");
+    block.push("LOGO OFICIAL — REGRA OBRIGATÓRIA:");
+    if (brand.logo_url) {
+      block.push(
+        "- Use obrigatoriamente o logo oficial da Solidare Travel cadastrado/anexado, preservando proporção, cores e legibilidade.",
+      );
+      block.push("- Não redesenhe, não recrie e não substitua o logo por texto digitado.");
+      block.push(
+        "- Se o arquivo do logo não estiver disponível nesta conversa, peça que ele seja anexado antes de gerar a imagem.",
+      );
+    } else {
+      block.push("- O logo oficial da Solidare Travel é obrigatório nesta arte.");
+      block.push(
+        "- Como o arquivo não está disponível no pedido, solicite o envio do logo oficial antes de gerar a imagem.",
+      );
+      block.push("- Não improvise, não redesenhe e não substitua o logo por texto digitado.");
+    }
+  }
 
   return block.join("\n");
 }
@@ -644,7 +743,10 @@ function projectImported(project: Project): {
 function pieceWarning(role: string, project: Project): string | undefined {
   const missing: string[] = [];
   if (!txt(project.main_message)) missing.push("mensagem principal");
-  if ((role === "cta" || role === "reforco" || role === "principal") && !txt(project.call_to_action))
+  if (
+    (role === "cta" || role === "reforco" || role === "principal") &&
+    !txt(project.call_to_action)
+  )
     missing.push("CTA");
   if (!missing.length) return undefined;
   return `Esta peça foi gerada com base em informações parciais (${missing.join(", ")}). Revise antes de publicar.`;
@@ -720,7 +822,12 @@ function buildCarouselPieces(args: {
 
       const mainEval = evaluateAndCollect(
         mainText,
-        { isHeadline: true, prohibited: arr(brand.prohibited_words), minLen: 3, maxLen: itemLims.headlineMax },
+        {
+          isHeadline: true,
+          prohibited: arr(brand.prohibited_words),
+          minLen: 3,
+          maxLen: itemLims.headlineMax,
+        },
         "Texto principal",
       );
       const suppEval = evaluateAndCollect(
@@ -776,10 +883,22 @@ function buildCarouselPieces(args: {
   } else {
     // sem promessa numérica: usa estrutura clássica (contexto + desenvolvimento + fechamento)
     const classic: { role: string; nameSuffix: string; objective: string }[] = [
-      { role: "contexto", nameSuffix: "Contexto", objective: "contextualizar o problema, desejo ou cenário" },
-      { role: "beneficio", nameSuffix: "Benefício", objective: "apresentar o benefício principal de forma direta" },
+      {
+        role: "contexto",
+        nameSuffix: "Contexto",
+        objective: "contextualizar o problema, desejo ou cenário",
+      },
+      {
+        role: "beneficio",
+        nameSuffix: "Benefício",
+        objective: "apresentar o benefício principal de forma direta",
+      },
       { role: "prova", nameSuffix: "Prova", objective: "reforçar credibilidade ou diferencial" },
-      { role: "fechamento", nameSuffix: "Fechamento", objective: "sintetizar a mensagem em frase de impacto" },
+      {
+        role: "fechamento",
+        nameSuffix: "Fechamento",
+        objective: "sintetizar a mensagem em frase de impacto",
+      },
     ];
     classic.forEach((c, i) => {
       index += 1;
@@ -1022,7 +1141,11 @@ export function buildPieces(args: BuildArgs): Piece[] {
         });
       } else {
         const ROLES_WITH_SIMPLE_CAPTION = new Set(["apresentacao", "unico", "principal"]);
-        if (ROLES_WITH_SIMPLE_CAPTION.has(tmpl.role) && captionAllowedByFormat && captionMode !== "none") {
+        if (
+          ROLES_WITH_SIMPLE_CAPTION.has(tmpl.role) &&
+          captionAllowedByFormat &&
+          captionMode !== "none"
+        ) {
           piece.caption = buildCaptionSimple(brand, project, composed, {
             mainText: derived.mainText,
             cta: derived.cta,
@@ -1084,8 +1207,16 @@ export function buildPieces(args: BuildArgs): Piece[] {
       p.copySource = "external_chatgpt";
       // re-avalia qualidade considerando avoid_terms
       const prohibited = arr(brand.prohibited_words).concat(avoidTerms);
-      const headEval = evaluateAndCollect(p.mainText, { isHeadline: true, prohibited, minLen: 3 }, "Texto principal");
-      const suppEval = evaluateAndCollect(p.supportText, { prohibited, minLen: 15 }, "Texto de apoio");
+      const headEval = evaluateAndCollect(
+        p.mainText,
+        { isHeadline: true, prohibited, minLen: 3 },
+        "Texto principal",
+      );
+      const suppEval = evaluateAndCollect(
+        p.supportText,
+        { prohibited, minLen: 15 },
+        "Texto de apoio",
+      );
       p.qualityStatus = worseStatus(headEval.status, suppEval.status);
       p.qualityIssues = [...headEval.issues, ...suppEval.issues];
       // reconstrói o prompt operacional com a copy nova
@@ -1168,7 +1299,9 @@ function pieceToReadableText(p: Piece): string {
   if (p.formatKey === "reel" && p.role === "roteiro") {
     lines.push("");
     lines.push("Classificação: MATERIAL INTERNO — PEDIDO DE ROTEIRO");
-    lines.push("Este material ainda não é o roteiro final. Use o pedido abaixo para desenvolver o roteiro completo.");
+    lines.push(
+      "Este material ainda não é o roteiro final. Use o pedido abaixo para desenvolver o roteiro completo.",
+    );
     if (p.campaignPoints?.length) {
       lines.push("", "Pontos que o roteiro deve desenvolver:");
       p.campaignPoints.forEach((point, index) => lines.push(`${index + 1}. ${point}`));
@@ -1192,7 +1325,10 @@ function pieceToReadableText(p: Piece): string {
     if (p.cta) lines.push("", `CTA estratégico: ${p.cta}`);
     if (p.hashtags?.length) lines.push("", `Hashtags: ${p.hashtags.join(" ")}`);
     if (p.captionCoverage && p.captionCoverage.missingPoints.length) {
-      lines.push("", `⚠ Pontos ainda ausentes na legenda: ${p.captionCoverage.missingPoints.join("; ")}`);
+      lines.push(
+        "",
+        `⚠ Pontos ainda ausentes na legenda: ${p.captionCoverage.missingPoints.join("; ")}`,
+      );
     }
     return lines.join("\n");
   }
@@ -1203,7 +1339,8 @@ function pieceToReadableText(p: Piece): string {
   if (p.mainBenefit) lines.push(`Benefício: ${p.mainBenefit}`);
   if (p.mainText) lines.push(`Texto principal: ${p.mainText}`);
   if (p.supportText) lines.push(`Texto de apoio: ${p.supportText}`);
-  if (p.bullets && p.bullets.length) lines.push(`Bullets: ${p.bullets.map((b) => `• ${b}`).join("  ")}`);
+  if (p.bullets && p.bullets.length)
+    lines.push(`Bullets: ${p.bullets.map((b) => `• ${b}`).join("  ")}`);
   if (p.cta) lines.push(`CTA: ${p.cta}`);
   if (p.caption) {
     lines.push("", "Legenda da publicação:");
@@ -1232,7 +1369,9 @@ export function buildPrompts(args: BuildArgs): PromptBuildResult {
   const summary = buildSummary(brand, project);
 
   const masterParts: string[] = [];
-  masterParts.push(`# Pacote de produção — ${brand.name}${summary.internalTitle ? ` · ${summary.internalTitle}` : ""}`);
+  masterParts.push(
+    `# Pacote de produção — ${brand.name}${summary.internalTitle ? ` · ${summary.internalTitle}` : ""}`,
+  );
   masterParts.push(summaryToText(summary));
   masterParts.push("");
   masterParts.push(`Total de peças geradas: ${pieces.length}.`);
@@ -1257,7 +1396,12 @@ export function buildPrompts(args: BuildArgs): PromptBuildResult {
 export function parsePiece(content: string): Piece | null {
   try {
     const obj = JSON.parse(content);
-    if (obj && typeof obj === "object" && typeof obj.name === "string" && typeof obj.readyPrompt === "string") {
+    if (
+      obj &&
+      typeof obj === "object" &&
+      typeof obj.name === "string" &&
+      typeof obj.readyPrompt === "string"
+    ) {
       // backfill para peças antigas sem qualityStatus
       if (!obj.qualityStatus) obj.qualityStatus = "approved";
       return obj as Piece;

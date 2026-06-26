@@ -326,8 +326,12 @@ export function buildReelScriptRequest(brand: Brand, project: Project, fallbackC
     "Transforme cada ponto obrigatório em uma orientação concreta dentro de uma ou mais cenas.",
   );
   lines.push(
-    "A legenda deve representar o conteúdo completo do Reel e contemplar todos os pontos obrigatórios.",
+    "A legenda da publicação deve representar o conteúdo completo do Reel e contemplar todos os pontos obrigatórios.",
   );
+  lines.push(
+    "A versão reduzida também deve trazer uma legenda completa para inserir no vídeo, reunindo todas as falas em ordem e sem omitir o fechamento ou o CTA.",
+  );
+  lines.push("Use no máximo 5 hashtags relevantes e específicas.");
   lines.push("O CTA deve ser preservado exatamente como foi informado, inclusive na versão curta.");
   lines.push("Não invente fatos, datas, condições, preços ou benefícios.");
   lines.push("");
@@ -388,7 +392,7 @@ export function buildReelScriptRequest(brand: Brand, project: Project, fallbackC
   lines.push("  },");
   lines.push('  "publication": {');
   lines.push('    "caption": "Legenda completa baseada em toda a campanha",');
-  lines.push('    "hashtags": []');
+  lines.push('    "hashtags": ["#Hashtag1", "#Hashtag2"]');
   lines.push("  },");
   lines.push('  "short_version": {');
   lines.push('    "duration_seconds": 15,');
@@ -403,6 +407,9 @@ export function buildReelScriptRequest(brand: Brand, project: Project, fallbackC
   lines.push('        "recording_direction": ""');
   lines.push("      }");
   lines.push("    ],");
+  lines.push(
+    '    "full_video_caption": "Texto integral das falas da versão reduzida, em ordem, para inserir como legenda no vídeo",',
+  );
   lines.push('    "closing": "",');
   lines.push(`    "cta": ${JSON.stringify(context.strategicCta || "")}`);
   lines.push("  },");

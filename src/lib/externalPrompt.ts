@@ -1,3 +1,4 @@
+import { normalizeHashtags } from "@/lib/hashtags";
 // Cria Aí — Construtor do PEDIDO EXTERNO para ChatGPT e parser do JSON de resposta.
 // 100% determinístico, sem chamadas a IA. Cópia e colagem manual.
 
@@ -45,21 +46,27 @@ export function buildExternalCampaignPrompt(args: BuildExternalPromptArgs): stri
   const { brand, project, selectedDifferentiators, avoidTerms, campaign } = args;
 
   const formats = arr(project.selected_formats).map((f) => FORMAT_LABELS[f] ?? f);
-  const objective = project.objective ? OBJECTIVE_LABELS[project.objective] ?? project.objective : "—";
+  const objective = project.objective
+    ? (OBJECTIVE_LABELS[project.objective] ?? project.objective)
+    : "—";
 
   const differentiatorsAvailable = txt(brand.differentiators)
-    ? txt(brand.differentiators).split(/[\n;•]/).map((s) => s.trim()).filter(Boolean)
+    ? txt(brand.differentiators)
+        .split(/[\n;•]/)
+        .map((s) => s.trim())
+        .filter(Boolean)
     : [];
   const differentiatorsChosen = arr(selectedDifferentiators);
-  const avoid = Array.from(
-    new Set([
-      ...arr(avoidTerms),
-      ...arr(brand.prohibited_words),
-    ]),
-  );
+  const avoid = Array.from(new Set([...arr(avoidTerms), ...arr(brand.prohibited_words)]));
 
   const mandatory: string[] = [];
-  if (project.mandatory_information) mandatory.push(...project.mandatory_information.split(/\n+/).map((s) => s.trim()).filter(Boolean));
+  if (project.mandatory_information)
+    mandatory.push(
+      ...project.mandatory_information
+        .split(/\n+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
   if (project.event_date) mandatory.push(`Data do evento: ${project.event_date}`);
   if (project.event_time) mandatory.push(`Horário: ${project.event_time}`);
   if (project.location) mandatory.push(`Local: ${project.location}`);
@@ -78,15 +85,20 @@ export function buildExternalCampaignPrompt(args: BuildExternalPromptArgs): stri
     project.main_message,
     project.audience_problem,
     project.notes,
-  ].filter(Boolean).join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   // Campos já preenchidos manualmente, se houver
   const preset: string[] = [];
   if (campaign?.angle) preset.push(`Ângulo definido: ${campaign.angle}`);
-  if (campaign?.central_message) preset.push(`Mensagem central definida: ${campaign.central_message}`);
+  if (campaign?.central_message)
+    preset.push(`Mensagem central definida: ${campaign.central_message}`);
   if (campaign?.main_cta) preset.push(`CTA já definido: ${campaign.main_cta}`);
 
-  const formatsForJson = arr(project.selected_formats).map((f) => `"${f}"`).join(", ");
+  const formatsForJson = arr(project.selected_formats)
+    .map((f) => `"${f}"`)
+    .join(", ");
 
   const lines: string[] = [];
   lines.push("Desenvolva o conteúdo da campanha abaixo e devolva SOMENTE JSON válido.");
@@ -125,9 +137,13 @@ export function buildExternalCampaignPrompt(args: BuildExternalPromptArgs): stri
   lines.push("=== TAREFA ===");
   lines.push("Desenvolva a campanha de forma ORIGINAL e ESPECÍFICA para o tema do projeto.");
   lines.push("- Não use os diferenciais da marca como assunto principal das peças.");
-  lines.push("- Não repita 'atendimento humano', 'suporte', 'orçamento' ou frases institucionais salvo quando forem realmente relevantes ou estiverem em DIFERENCIAIS SELECIONADOS.");
+  lines.push(
+    "- Não repita 'atendimento humano', 'suporte', 'orçamento' ou frases institucionais salvo quando forem realmente relevantes ou estiverem em DIFERENCIAIS SELECIONADOS.",
+  );
   lines.push("- Respeite a lista EVITAR estritamente.");
-  lines.push("- Se o tema/título contiver promessa numérica (ex.: '5 pontos'), entregue exatamente essa quantidade de itens.");
+  lines.push(
+    "- Se o tema/título contiver promessa numérica (ex.: '5 pontos'), entregue exatamente essa quantidade de itens.",
+  );
   lines.push("- Para Carrossel: uma entrada por página (capa + N itens + CTA).");
   lines.push("- Para Sequência de Stories / Status do WhatsApp: uma entrada por tela.");
   lines.push("- Para Reel: blocos do roteiro (capa, cenas, CTA).");
@@ -153,15 +169,20 @@ export function buildExternalCampaignPrompt(args: BuildExternalPromptArgs): stri
   lines.push("  },");
   lines.push('  "pieces": [');
   lines.push("    {");
-  lines.push(`      "id": "p1", "format": ${formatsForJson ? `one of [${formatsForJson}]` : '""'}, "role": "capa | item_1 | cta | gancho | principal | …",`);
+  lines.push(
+    `      "id": "p1", "format": ${formatsForJson ? `one of [${formatsForJson}]` : '""'}, "role": "capa | item_1 | cta | gancho | principal | …",`,
+  );
   lines.push('      "objective": "", "angle": "", "headline": "", "support_text": "",');
-  lines.push('      "bullets": [], "cta": "", "visual_focus": "", "continuity_note": "", "warnings": []');
+  lines.push(
+    '      "bullets": [], "cta": "", "visual_focus": "", "continuity_note": "", "warnings": []',
+  );
   lines.push("    }");
   lines.push("  ],");
-  lines.push('  "caption": { "text": "", "hashtags": [] },');
+  lines.push('  "caption": { "text": "", "hashtags": ["#Hashtag1", "#Hashtag2"] },');
   lines.push('  "warnings": []');
   lines.push("}");
   lines.push("");
+  lines.push("Use no máximo 5 hashtags relevantes e específicas.");
   lines.push("Responda APENAS com o JSON. Sem texto antes ou depois. Sem blocos de markdown.");
   return lines.join("\n");
 }
@@ -183,7 +204,10 @@ const ALLOWED_INTENSITY = new Set(["none", "light", "moderate", "direct"]);
 function stripMarkdownFence(raw: string): string {
   let s = raw.trim();
   // remove blocos ```json ... ``` ou ``` ... ```
-  s = s.replace(/^```(?:json|JSON)?\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
+  s = s
+    .replace(/^```(?:json|JSON)?\s*\n?/, "")
+    .replace(/\n?```\s*$/, "")
+    .trim();
   // Se vier com texto fora do JSON, tenta encontrar o primeiro { ... } balanceado
   if (!s.startsWith("{")) {
     const first = s.indexOf("{");
@@ -227,9 +251,9 @@ function parseCampaignFields(input: unknown): CampaignFields {
     key_points: sanitizeStringArray(o.key_points, 15, 200),
     selected_differentiators: sanitizeStringArray(o.selected_differentiators, 15, 120),
     terms_to_avoid: sanitizeStringArray(o.terms_to_avoid, 30, 80),
-    commercial_intensity: (ALLOWED_INTENSITY.has(intensity)
+    commercial_intensity: ALLOWED_INTENSITY.has(intensity)
       ? (intensity as CampaignFields["commercial_intensity"])
-      : undefined),
+      : undefined,
     cta_strategy: sanitizeString(o.cta_strategy, 300),
     main_cta: sanitizeString(o.main_cta, 180),
     narrative_structure: sanitizeString(o.narrative_structure, 300),
@@ -239,7 +263,8 @@ function parseCampaignFields(input: unknown): CampaignFields {
 
 export function parseCampaignJSON(raw: string): ParseResult {
   if (!raw || typeof raw !== "string") return { ok: false, error: "Resposta vazia." };
-  if (raw.length > MAX_RAW_SIZE) return { ok: false, error: "Resposta muito grande (limite 200 KB)." };
+  if (raw.length > MAX_RAW_SIZE)
+    return { ok: false, error: "Resposta muito grande (limite 200 KB)." };
   const cleaned = stripMarkdownFence(raw);
   let parsed: unknown;
   try {
@@ -260,7 +285,7 @@ export function parseCampaignJSON(raw: string): ParseResult {
     pieces,
     caption: {
       text: sanitizeString(captionInput.text, 1500),
-      hashtags: sanitizeStringArray(captionInput.hashtags, 30, 40),
+      hashtags: normalizeHashtags(sanitizeStringArray(captionInput.hashtags, 30, 40)),
     },
     warnings: sanitizeStringArray(obj.warnings, 10, 280),
     source: "external_chatgpt",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_HASHTAGS, normalizeHashtags } from "@/lib/hashtags";
 
 const MAX_RAW_SIZE = 300_000;
 
@@ -65,12 +66,13 @@ export const reelScriptSchema = z.object({
   }),
   publication: z.object({
     caption: z.string().min(1).max(4000),
-    hashtags: z.array(z.string().min(1).max(80)).max(40),
+    hashtags: z.array(z.string().min(1).max(80)).max(MAX_HASHTAGS),
   }),
   short_version: z.object({
     duration_seconds: z.number().int().positive().max(90),
     hook: z.string().min(1).max(500),
     scenes: z.array(shortSceneSchema).min(2).max(30),
+    full_video_caption: z.string().max(5000).optional().default(""),
     closing: z.string().min(1).max(500),
     cta: z.string().min(1).max(320),
   }),
@@ -166,6 +168,62 @@ function zodIssueMessage(issue: z.ZodIssue): string {
   return `${path}: ${issue.message}`;
 }
 
+function normalizeForComparison(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function appendIfMissing(parts: string[], value: unknown): void {
+  if (typeof value !== "string" || !value.trim()) return;
+  const normalized = normalizeForComparison(value);
+  const combined = normalizeForComparison(parts.join(" "));
+  if (!normalized || combined.includes(normalized)) return;
+  parts.push(value.trim());
+}
+
+function normalizeReelScriptInput(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const root = { ...(value as Record<string, unknown>) };
+
+  const publication =
+    root.publication && typeof root.publication === "object" && !Array.isArray(root.publication)
+      ? { ...(root.publication as Record<string, unknown>) }
+      : {};
+  publication.hashtags = normalizeHashtags(publication.hashtags);
+  root.publication = publication;
+
+  const shortVersion =
+    root.short_version &&
+    typeof root.short_version === "object" &&
+    !Array.isArray(root.short_version)
+      ? { ...(root.short_version as Record<string, unknown>) }
+      : null;
+  if (shortVersion) {
+    const existingCaption =
+      typeof shortVersion.full_video_caption === "string"
+        ? shortVersion.full_video_caption.trim()
+        : "";
+    if (!existingCaption) {
+      const parts: string[] = [];
+      const scenes = Array.isArray(shortVersion.scenes) ? shortVersion.scenes : [];
+      for (const scene of scenes) {
+        if (!scene || typeof scene !== "object" || Array.isArray(scene)) continue;
+        appendIfMissing(parts, (scene as Record<string, unknown>).speech_or_narration);
+      }
+      appendIfMissing(parts, shortVersion.closing);
+      appendIfMissing(parts, shortVersion.cta);
+      shortVersion.full_video_caption = parts.join(" ").trim();
+    }
+    root.short_version = shortVersion;
+  }
+
+  return root;
+}
+
 export function parseAndValidateReelScript(
   raw: string,
   expectations: ReelScriptExpectations = {},
@@ -192,7 +250,13 @@ export function parseAndValidateReelScript(
     return { ...empty, errors: [`JSON inválido: ${(error as Error).message}`] };
   }
 
-  const schemaResult = reelScriptSchema.safeParse(parsed);
+  const originalHashtagCount =
+    parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? Array.isArray((parsed as Record<string, any>).publication?.hashtags)
+        ? (parsed as Record<string, any>).publication.hashtags.length
+        : 0
+      : 0;
+  const schemaResult = reelScriptSchema.safeParse(normalizeReelScriptInput(parsed));
   if (!schemaResult.success) {
     return {
       ...empty,
@@ -203,6 +267,9 @@ export function parseAndValidateReelScript(
   const script = schemaResult.data;
   const errors: string[] = [];
   const warnings = [...script.validation.warnings];
+  if (originalHashtagCount > MAX_HASHTAGS) {
+    warnings.push(`As hashtags foram limitadas às ${MAX_HASHTAGS} primeiras.`);
+  }
   const scenes = [...script.scenes].sort((a, b) => a.start_second - b.start_second);
 
   scenes.forEach((scene, index) => {
@@ -332,7 +399,7 @@ export function parseAndValidateReelScript(
 }
 
 export function getStoredReelScript(value: unknown): ReelScript | null {
-  const result = reelScriptSchema.safeParse(value);
+  const result = reelScriptSchema.safeParse(normalizeReelScriptInput(value));
   return result.success ? result.data : null;
 }
 
@@ -395,6 +462,7 @@ export function reelScriptToPlainText(script: ReelScript): string {
       `${scene.start_second}-${scene.end_second}s — ${scene.speech_or_narration} | Tela: ${scene.on_screen_text} | ${scene.recording_direction}`,
     );
   });
+  lines.push(`Legenda completa para o vídeo: ${script.short_version.full_video_caption}`);
   lines.push(`Fechamento: ${script.short_version.closing}`);
   lines.push(`CTA: ${script.short_version.cta}`);
   return lines.join("\n");

@@ -51,6 +51,7 @@ import { ReelScriptVisualPanel } from "@/components/reel-script-visual-panel";
 import { getStoredReelScript, reelScriptToPlainText, type ReelScript } from "@/lib/reelScript";
 import { attachReelScriptVisualMeta, getStoredReelScriptVisualMeta } from "@/lib/reelScriptVisual";
 import { inferReelDurationSeconds } from "@/lib/reelContent";
+import { MAX_HASHTAGS, normalizeHashtags } from "@/lib/hashtags";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
@@ -93,7 +94,10 @@ function ResultPage() {
 
   const updateStatus = useMutation({
     mutationFn: async (status: string) => {
-      const { error } = await supabase.from("content_projects").update({ status }).eq("id", projectId);
+      const { error } = await supabase
+        .from("content_projects")
+        .update({ status })
+        .eq("id", projectId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -118,9 +122,13 @@ function ResultPage() {
 
   const summaryRow = useMemo(() => data?.outputs.find((o) => o.output_type === "summary"), [data]);
   const masterRow = useMemo(() => data?.outputs.find((o) => o.output_type === "master"), [data]);
-  const pieceRows = useMemo(() => data?.outputs.filter((o) => o.output_type === "piece") ?? [], [data]);
+  const pieceRows = useMemo(
+    () => data?.outputs.filter((o) => o.output_type === "piece") ?? [],
+    [data],
+  );
   const legacyRows = useMemo(
-    () => data?.outputs.filter((o) => !["summary", "master", "piece"].includes(o.output_type)) ?? [],
+    () =>
+      data?.outputs.filter((o) => !["summary", "master", "piece"].includes(o.output_type)) ?? [],
     [data],
   );
 
@@ -152,13 +160,15 @@ function ResultPage() {
   const selectedFormats: string[] = Array.isArray(project.selected_formats)
     ? (project.selected_formats as string[])
     : [];
-  const hasReel = selectedFormats.includes("reel") || pieces.some(({ piece }) => piece?.formatKey === "reel");
+  const hasReel =
+    selectedFormats.includes("reel") || pieces.some(({ piece }) => piece?.formatKey === "reel");
   const reelPieces = pieces.filter(({ piece }) => piece?.formatKey === "reel");
   const nonReelPieces = pieces.filter(({ piece }) => piece?.formatKey !== "reel");
   const isReelOnly = hasReel && nonReelPieces.length === 0;
 
   const storedReelScriptForExport = getStoredReelScript(
-    pieces.find(({ piece }) => piece?.formatKey === "reel" && piece.role === "roteiro")?.row.imported_content,
+    pieces.find(({ piece }) => piece?.formatKey === "reel" && piece.role === "roteiro")?.row
+      .imported_content,
   );
   const allPiecesText = pieces
     .map(({ piece }) => {
@@ -172,7 +182,9 @@ function ResultPage() {
     .join("\n\n---\n\n");
 
   const fullExport = [
-    summaryRow ? `# Resumo da campanha\n${summaryRow.edited_content ?? summaryRow.original_content}` : "",
+    summaryRow
+      ? `# Resumo da campanha\n${summaryRow.edited_content ?? summaryRow.original_content}`
+      : "",
     allPiecesText,
     masterRow ? `# Prompt mestre\n${masterRow.edited_content ?? masterRow.original_content}` : "",
   ]
@@ -216,13 +228,15 @@ function ResultPage() {
               </Badge>
               <Badge
                 variant={
-                  (project as unknown as { content_source?: string }).content_source === "external_chatgpt"
+                  (project as unknown as { content_source?: string }).content_source ===
+                  "external_chatgpt"
                     ? "default"
                     : "secondary"
                 }
               >
                 Fonte da copy:{" "}
-                {(project as unknown as { content_source?: string }).content_source === "external_chatgpt"
+                {(project as unknown as { content_source?: string }).content_source ===
+                "external_chatgpt"
                   ? "ChatGPT externo"
                   : (project as unknown as { content_source?: string }).content_source === "manual"
                     ? "Edição manual"
@@ -248,8 +262,8 @@ function ResultPage() {
               </Button>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {pieces.length} peça{pieces.length === 1 ? "" : "s"} gerada{pieces.length === 1 ? "" : "s"} · ordem
-              sugerida de publicação abaixo.
+              {pieces.length} peça{pieces.length === 1 ? "" : "s"} gerada
+              {pieces.length === 1 ? "" : "s"} · ordem sugerida de publicação abaixo.
             </p>
           </div>
           <Button
@@ -259,7 +273,9 @@ function ResultPage() {
             onClick={() => toggleFavorite.mutate()}
             aria-label="Favoritar"
           >
-            <Heart className={`h-5 w-5 ${project.is_favorite ? "fill-primary text-primary" : ""}`} />
+            <Heart
+              className={`h-5 w-5 ${project.is_favorite ? "fill-primary text-primary" : ""}`}
+            />
           </Button>
         </div>
 
@@ -272,8 +288,9 @@ function ResultPage() {
               <div className="min-w-0">
                 <p className="font-semibold">Seu pacote de produção está pronto</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Cada peça abaixo já tem texto sugerido, legenda, hashtags e um <b>prompt operacional pronto</b>. Copie
-                  o prompt da peça desejada e cole no ChatGPT (ou outra IA) para gerar a arte final.
+                  Cada peça abaixo já tem texto sugerido, legenda, hashtags e um{" "}
+                  <b>prompt operacional pronto</b>. Copie o prompt da peça desejada e cole no
+                  ChatGPT (ou outra IA) para gerar a arte final.
                 </p>
               </div>
             </div>
@@ -363,7 +380,9 @@ function ResultPage() {
               (data.assets ?? []).forEach((a) => {
                 (assetsByOutput[a.output_id] ||= []).push(a);
               });
-              const publishablePieces = pieces.filter((p) => p.piece && p.piece.outputKind === "publishable_asset");
+              const publishablePieces = pieces.filter(
+                (p) => p.piece && p.piece.outputKind === "publishable_asset",
+              );
               const denom = hasReel ? publishablePieces.length : pieces.length;
               const withArt = (hasReel ? publishablePieces : pieces).filter(
                 (p) => (assetsByOutput[p.row.id] ?? []).length > 0,
@@ -375,12 +394,19 @@ function ResultPage() {
               );
             })()}
             {pieces.length > 0 && (
-              <CopyButton text={allPiecesText} label="Copiar todas as peças" variant="outline" size="sm" />
+              <CopyButton
+                text={allPiecesText}
+                label="Copiar todas as peças"
+                variant="outline"
+                size="sm"
+              />
             )}
           </div>
         </div>
         {pieces.length === 0 && (
-          <p className="text-sm text-muted-foreground">Nenhuma peça foi gerada para este projeto.</p>
+          <p className="text-sm text-muted-foreground">
+            Nenhuma peça foi gerada para este projeto.
+          </p>
         )}
 
         {hasReel ? (
@@ -392,9 +418,10 @@ function ResultPage() {
               assets={data.assets ?? []}
               userId={user?.id ?? ""}
               onCopyAndOpen={copyAndOpenChatGPT}
-              onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
+              onAssetsChanged={() =>
+                qc.invalidateQueries({ queryKey: ["project-result", projectId] })
+              }
             />
-
           </div>
         ) : (
           pieces.map(({ row, piece }) =>
@@ -409,7 +436,9 @@ function ResultPage() {
                 onCopyAndOpen={copyAndOpenChatGPT}
                 userId={user?.id ?? ""}
                 assets={(data.assets ?? []).filter((a) => a.output_id === row.id)}
-                onAssetsChanged={() => qc.invalidateQueries({ queryKey: ["project-result", projectId] })}
+                onAssetsChanged={() =>
+                  qc.invalidateQueries({ queryKey: ["project-result", projectId] })
+                }
               />
             ) : (
               <LegacyBlockCard key={row.id} block={row} />
@@ -437,8 +466,8 @@ function ResultPage() {
             </summary>
             <div className="space-y-3 p-4 pt-0">
               <p className="text-xs text-muted-foreground">
-                Use somente se quiser passar todas as peças de uma vez para a IA. O fluxo recomendado é copiar peça por
-                peça.
+                Use somente se quiser passar todas as peças de uma vez para a IA. O fluxo
+                recomendado é copiar peça por peça.
               </p>
               <CopyButton
                 text={masterRow.edited_content ?? masterRow.original_content}
@@ -453,8 +482,17 @@ function ResultPage() {
           </details>
         </section>
       )}
-      <AddToCalendarDialog open={addToCalOpen} onOpenChange={setAddToCalOpen} projectId={projectId} />
-      <RenameTitleDialog open={renameOpen} onOpenChange={setRenameOpen} projectId={projectId} project={project} />
+      <AddToCalendarDialog
+        open={addToCalOpen}
+        onOpenChange={setAddToCalOpen}
+        projectId={projectId}
+      />
+      <RenameTitleDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        projectId={projectId}
+        project={project}
+      />
       <SendForApprovalDialog
         open={approvalOpen}
         onOpenChange={setApprovalOpen}
@@ -509,18 +547,24 @@ function PieceCard({
   const [draft, setDraft] = useState<Piece>(piece);
   const [variationIdx, setVariationIdx] = useState(0);
   const [adjustOpen, setAdjustOpen] = useState(false);
-  const [adjustFocus, setAdjustFocus] = useState<"mainText" | "supportText" | "cta" | "bullets" | undefined>(undefined);
+  const [adjustFocus, setAdjustFocus] = useState<
+    "mainText" | "supportText" | "cta" | "bullets" | undefined
+  >(undefined);
 
   const cycleVariation = () => {
     const heads = piece.headlineOptions ?? [];
     const supports = piece.supportTextOptions ?? [];
     if (heads.length <= 1 && supports.length <= 1) {
-      toast.info("Sem variações alternativas disponíveis. Enriqueça o briefing para gerar mais opções.");
+      toast.info(
+        "Sem variações alternativas disponíveis. Enriqueça o briefing para gerar mais opções.",
+      );
       return;
     }
     const next = variationIdx + 1;
     const newMain = heads.length ? heads[next % heads.length] : draft.mainText;
-    const newSupport = supports.length ? supports[next % Math.max(supports.length, 1)] : draft.supportText;
+    const newSupport = supports.length
+      ? supports[next % Math.max(supports.length, 1)]
+      : draft.supportText;
     const newPrompt = draft.readyPrompt
       .replace(`"${draft.mainText}"`, `"${newMain}"`)
       .replace(`"${draft.supportText}"`, `"${newSupport}"`);
@@ -549,7 +593,10 @@ function PieceCard({
 
   const restore = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("content_outputs").update({ edited_content: null }).eq("id", row.id);
+      const { error } = await supabase
+        .from("content_outputs")
+        .update({ edited_content: null })
+        .eq("id", row.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -574,7 +621,10 @@ function PieceCard({
 
   const markProduced = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("content_outputs").update({ is_favorite: true }).eq("id", row.id);
+      const { error } = await supabase
+        .from("content_outputs")
+        .update({ is_favorite: true })
+        .eq("id", row.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -621,7 +671,12 @@ function PieceCard({
             <Button variant="ghost" size="icon" onClick={() => fav.mutate()} aria-label="Favoritar">
               <Star className={`h-4 w-4 ${row.is_favorite ? "fill-primary text-primary" : ""}`} />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => setExpanded((v) => !v)} aria-label="Expandir">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setExpanded((v) => !v)}
+              aria-label="Expandir"
+            >
               {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
           </div>
@@ -667,37 +722,40 @@ function PieceCard({
               </ul>
             )}
             <p className="mt-1 text-[11px] opacity-80">
-              Clique em um aviso para abrir o editor com o campo destacado, ou use "Ajustar esta peça".
+              Clique em um aviso para abrir o editor com o campo destacado, ou use "Ajustar esta
+              peça".
             </p>
           </div>
         )}
-        {draft.qualityStatus !== "blocked" && piece.qualityIssues && piece.qualityIssues.length > 0 && (
-          <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-900 dark:text-amber-200">
-            <p className="flex items-center gap-1.5 font-semibold">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              Avisos de copy (não bloqueia o prompt)
-            </p>
-            <ul className="ml-5 list-disc space-y-0.5">
-              {piece.qualityIssues.map((q, i) => (
-                <li key={i}>
-                  <button
-                    type="button"
-                    className="underline-offset-2 hover:underline"
-                    onClick={() => {
-                      setAdjustFocus(focusFromIssue(q.code));
-                      setAdjustOpen(true);
-                    }}
-                  >
-                    {q.message}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-1 text-[11px] opacity-80">
-              Clique no aviso para ajustar, ou use "Gerar variação de copy".
-            </p>
-          </div>
-        )}
+        {draft.qualityStatus !== "blocked" &&
+          piece.qualityIssues &&
+          piece.qualityIssues.length > 0 && (
+            <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-900 dark:text-amber-200">
+              <p className="flex items-center gap-1.5 font-semibold">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Avisos de copy (não bloqueia o prompt)
+              </p>
+              <ul className="ml-5 list-disc space-y-0.5">
+                {piece.qualityIssues.map((q, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      className="underline-offset-2 hover:underline"
+                      onClick={() => {
+                        setAdjustFocus(focusFromIssue(q.code));
+                        setAdjustOpen(true);
+                      }}
+                    >
+                      {q.message}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-[11px] opacity-80">
+                Clique no aviso para ajustar, ou use "Gerar variação de copy".
+              </p>
+            </div>
+          )}
 
         {expanded && (
           <div className="mt-4 space-y-4">
@@ -732,7 +790,9 @@ function PieceCard({
               />
               {draft.bullets && draft.bullets.length > 0 && (
                 <div>
-                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Destaques</span>
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Destaques
+                  </span>
                   <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm">
                     {draft.bullets.map((b, i) => (
                       <li key={i}>{b}</li>
@@ -753,24 +813,36 @@ function PieceCard({
                   editing={editing}
                   multiline
                   onChange={(v) => setDraft({ ...draft, caption: v })}
-                  extra={<CopyButton text={draft.caption ?? ""} label="Copiar legenda" variant="ghost" size="sm" />}
+                  extra={
+                    <CopyButton
+                      text={draft.caption ?? ""}
+                      label="Copiar legenda"
+                      variant="ghost"
+                      size="sm"
+                    />
+                  }
                 />
               )}
               {piece.hashtags?.length || draft.hashtags?.length ? (
                 <div>
                   <div className="mb-1 flex items-center justify-between">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Hashtags</span>
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Hashtags
+                    </span>
                     <CopyButton
                       text={(draft.hashtags ?? []).join(" ")}
                       label="Copiar hashtags"
                       variant="ghost"
                       size="sm"
                     />
+                    <span className="text-xs text-muted-foreground">Máximo {MAX_HASHTAGS}</span>
                   </div>
                   {editing ? (
                     <Input
                       value={(draft.hashtags ?? []).join(" ")}
-                      onChange={(e) => setDraft({ ...draft, hashtags: e.target.value.split(/\s+/).filter(Boolean) })}
+                      onChange={(e) =>
+                        setDraft({ ...draft, hashtags: normalizeHashtags(e.target.value) })
+                      }
                     />
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
@@ -798,43 +870,50 @@ function PieceCard({
             </div>
 
             {/* Prompt pronto — não publicável esconde como "Material interno / Texto da publicação". */}
-            {piece.outputKind === "production_material" && piece.formatKey === "reel" && piece.role === "roteiro" && (
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                      Pedido de roteiro — material interno
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Este ainda não é o roteiro final. Copie o pedido abaixo para desenvolver um roteiro completo no
-                      ChatGPT.
-                    </p>
+            {piece.outputKind === "production_material" &&
+              piece.formatKey === "reel" &&
+              piece.role === "roteiro" && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                        Pedido de roteiro — material interno
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Este ainda não é o roteiro final. Copie o pedido abaixo para desenvolver um
+                        roteiro completo no ChatGPT.
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      <CopyButton
+                        text={draft.readyPrompt}
+                        label="Copiar pedido"
+                        variant="default"
+                        size="sm"
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => onCopyAndOpen(draft.readyPrompt)}
+                        className="gap-1.5"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Abrir ChatGPT
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <CopyButton text={draft.readyPrompt} label="Copiar pedido" variant="default" size="sm" />
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => onCopyAndOpen(draft.readyPrompt)}
-                      className="gap-1.5"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Abrir ChatGPT
-                    </Button>
-                  </div>
+                  {draft.campaignPoints && draft.campaignPoints.length > 0 && (
+                    <ol className="mt-3 list-decimal space-y-0.5 rounded-md border border-border/60 bg-background/60 p-3 pl-8 text-xs text-muted-foreground">
+                      {draft.campaignPoints.map((point, index) => (
+                        <li key={`${point}-${index}`}>{point}</li>
+                      ))}
+                    </ol>
+                  )}
+                  <pre className="mt-3 max-h-[460px] overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-3 text-xs leading-relaxed">
+                    {draft.readyPrompt}
+                  </pre>
                 </div>
-                {draft.campaignPoints && draft.campaignPoints.length > 0 && (
-                  <ol className="mt-3 list-decimal space-y-0.5 rounded-md border border-border/60 bg-background/60 p-3 pl-8 text-xs text-muted-foreground">
-                    {draft.campaignPoints.map((point, index) => (
-                      <li key={`${point}-${index}`}>{point}</li>
-                    ))}
-                  </ol>
-                )}
-                <pre className="mt-3 max-h-[460px] overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-3 text-xs leading-relaxed">
-                  {draft.readyPrompt}
-                </pre>
-              </div>
-            )}
+              )}
             {piece.outputKind === "production_material" &&
               !(piece.formatKey === "reel" && piece.role === "roteiro") && (
                 <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
@@ -842,8 +921,8 @@ function PieceCard({
                     Material interno
                   </p>
                   <p className="mt-1 text-muted-foreground">
-                    Este conteúdo orienta a gravação / edição e <b>não deve ser publicado</b> como uma arte. Não há
-                    prompt visual para esta peça.
+                    Este conteúdo orienta a gravação / edição e <b>não deve ser publicado</b> como
+                    uma arte. Não há prompt visual para esta peça.
                   </p>
                 </div>
               )}
@@ -920,7 +999,9 @@ function PieceCard({
                     className="font-mono text-xs"
                   />
                 ) : (
-                  <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">{draft.readyPrompt}</pre>
+                  <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">
+                    {draft.readyPrompt}
+                  </pre>
                 )}
               </div>
             )}
@@ -960,7 +1041,12 @@ function PieceCard({
                 </>
               )}
               {!row.is_favorite && (
-                <Button size="sm" variant="ghost" onClick={() => markProduced.mutate()} className="ml-auto">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => markProduced.mutate()}
+                  className="ml-auto"
+                >
                   <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
                   Marcar como produzida
                 </Button>
@@ -990,7 +1076,9 @@ function PieceCard({
           project={project}
           otherPieces={allPieces}
           initialFocus={adjustFocus}
-          prohibited={Array.isArray(brand.prohibited_words) ? brand.prohibited_words.filter(Boolean) : []}
+          prohibited={
+            Array.isArray(brand.prohibited_words) ? brand.prohibited_words.filter(Boolean) : []
+          }
           onSave={async (updated) => {
             const { error } = await supabase
               .from("content_outputs")
@@ -1009,7 +1097,8 @@ function PieceCard({
 function focusFromIssue(code: string): "mainText" | "supportText" | "cta" | "bullets" | undefined {
   // heurística simples para destacar o campo provavelmente problemático
   if (/headline|too_short|no_verb|missing_subject/.test(code)) return "mainText";
-  if (/raw_list|too_long|too_many_semicolons|placeholder|empty|incomplete/.test(code)) return "supportText";
+  if (/raw_list|too_long|too_many_semicolons|placeholder|empty|incomplete/.test(code))
+    return "supportText";
   if (/cta/i.test(code)) return "cta";
   return "supportText";
 }
@@ -1032,7 +1121,9 @@ function PieceField({
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
         <div className="flex items-center gap-1">
           {extra}
           {!editing && value && <CopyButton text={value} variant="ghost" size="sm" label="" />}
@@ -1045,7 +1136,9 @@ function PieceField({
           <Input value={value} onChange={(e) => onChange(e.target.value)} />
         )
       ) : value ? (
-        <p className="whitespace-pre-wrap break-words rounded-md bg-muted/40 px-3 py-2 text-sm">{value}</p>
+        <p className="whitespace-pre-wrap break-words rounded-md bg-muted/40 px-3 py-2 text-sm">
+          {value}
+        </p>
       ) : (
         <p className="text-xs italic text-muted-foreground">— não informado —</p>
       )}
@@ -1056,7 +1149,9 @@ function PieceField({
 function SemRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[120px_minmax(0,1fr)] items-baseline gap-2">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
       <span className="text-xs leading-snug">{value}</span>
     </div>
   );
@@ -1072,7 +1167,10 @@ function LegacyBlockCard({ block }: { block: Output }) {
 
   const save = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("content_outputs").update({ edited_content: draft }).eq("id", block.id);
+      const { error } = await supabase
+        .from("content_outputs")
+        .update({ edited_content: draft })
+        .eq("id", block.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1229,7 +1327,7 @@ function ReelTabs({
           bullets: [],
           cta: script.closing.cta,
           caption: script.publication.caption,
-          hashtags: script.publication.hashtags,
+          hashtags: normalizeHashtags(script.publication.hashtags),
           campaignPoints: script.required_points.length ? script.required_points : expectedPoints,
           captionCoverage,
           contentStage: "publication_copy",
@@ -1242,7 +1340,9 @@ function ReelTabs({
             "Este conteúdo deve ser usado como texto da publicação. NÃO gerar imagem para esta saída.",
             "",
             script.publication.caption,
-            script.publication.hashtags.length ? `\n${script.publication.hashtags.join(" ")}` : "",
+            normalizeHashtags(script.publication.hashtags).length
+              ? `\n${normalizeHashtags(script.publication.hashtags).join(" ")}`
+              : "",
           ]
             .join("\n")
             .trim(),
@@ -1253,7 +1353,7 @@ function ReelTabs({
           .update({
             imported_content: {
               caption: script.publication.caption,
-              hashtags: script.publication.hashtags,
+              hashtags: normalizeHashtags(script.publication.hashtags),
               cta: script.closing.cta,
               source_schema: script.schema_version,
             } as Json,
@@ -1281,10 +1381,14 @@ function ReelTabs({
       qc.invalidateQueries({ queryKey: ["project-result", project.id] });
       qc.invalidateQueries({ queryKey: ["library"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Não foi possível importar o roteiro."),
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Não foi possível importar o roteiro."),
   });
 
-  const renderPiece = (entry: { row: Output; piece: Piece | null } | undefined, emptyHint: string) => {
+  const renderPiece = (
+    entry: { row: Output; piece: Piece | null } | undefined,
+    emptyHint: string,
+  ) => {
     if (!entry?.piece) {
       return <p className="text-sm italic text-muted-foreground">{emptyHint}</p>;
     }
@@ -1342,8 +1446,8 @@ function ReelTabs({
                   : "Aguardando desenvolvimento externo"}
               </p>
               <p className="text-xs text-muted-foreground">
-                Reel é uma publicação única no calendário (vídeo + capa + legenda). Roteiro e storyboard são materiais
-                internos de produção.
+                Reel é uma publicação única no calendário (vídeo + capa + legenda). Roteiro e
+                storyboard são materiais internos de produção.
               </p>
             </CardContent>
           </Card>
@@ -1363,7 +1467,10 @@ function ReelTabs({
           </div>
           {storedScript ? (
             <>
-              <ReelScriptView script={storedScript} onImportNewVersion={() => setImportScriptOpen(true)} />
+              <ReelScriptView
+                script={storedScript}
+                onImportNewVersion={() => setImportScriptOpen(true)}
+              />
               {roteiro && (
                 <ReelScriptVisualPanel
                   userId={userId}
@@ -1406,7 +1513,9 @@ function ReelTabs({
             Apenas peças publicáveis (vídeo final e capa) aparecem aqui e no PDF para o cliente.
           </p>
           {publishables.length === 0 && (
-            <p className="text-sm italic text-muted-foreground">Nenhum arquivo publicável anexado ainda.</p>
+            <p className="text-sm italic text-muted-foreground">
+              Nenhum arquivo publicável anexado ainda.
+            </p>
           )}
           {publishables.map((entry) => (
             <div key={entry.row.id}>{renderPiece(entry, "")}</div>

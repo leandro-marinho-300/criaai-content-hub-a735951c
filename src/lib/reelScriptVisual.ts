@@ -195,7 +195,7 @@ Tipografia: ${fonts}
 Tom: ${tone}
 Estilo visual: ${style}
 Elementos gráficos: ${elements}
-Logo: utilize o logo oficial que será anexado na conversa, sem redesenhá-lo e preservando sua proporção.
+Logo: utilize exclusivamente o logo oficial que será anexado na conversa, sem redesenhá-lo e preservando sua proporção. Se o arquivo do logo oficial não estiver anexado ou disponível, solicite-o antes de criar o PDF.
 Referência visual: caso um PDF de exemplo seja anexado, use-o como referência de organização, hierarquia e acabamento, sem copiar textos ou substituir a identidade da marca.
 
 PÁGINA 1 — ROTEIRO PRINCIPAL
@@ -229,7 +229,8 @@ Divida a página em duas áreas.
 Lado esquerdo:
 - título “Linha do tempo — versão de ${script.short_version.duration_seconds} segundos”;
 - todas as cenas da versão reduzida;
-- número, tempo, título ou função, fala e texto na tela.
+- número, tempo, título ou função, fala e texto na tela;
+- legenda completa da versão reduzida para inserir no vídeo.
 
 Lado direito, criar cards para:
 1. Clima e edição;
@@ -249,7 +250,7 @@ REGRAS DE INTEGRIDADE
 - Não inserir placeholders no PDF final.
 - Não cortar a legenda nem qualquer orientação de produção.
 - Não usar imagens com dados pessoais, documentos reais legíveis ou marcas de terceiros.
-- Usar somente o logo oficial anexado.
+- Usar somente o logo oficial anexado. Se ele não estiver disponível, pedir o arquivo antes de gerar o documento.
 
 DADOS DO ROTEIRO
 
@@ -311,6 +312,9 @@ ${shortVersionBlock(script)}
 Fechamento reduzido: ${script.short_version.closing}
 CTA reduzido — preservar exatamente: ${script.short_version.cta}
 
+LEGENDA COMPLETA PARA INSERIR NO VÍDEO — VERSÃO REDUZIDA
+${script.short_version.full_video_caption}
+
 PUBLICAÇÃO
 
 Legenda:
@@ -324,6 +328,7 @@ VALIDAÇÃO ANTES DA ENTREGA
 Confirme que:
 - todas as ${script.scenes.length} cenas principais estão presentes;
 - todas as ${script.short_version.scenes.length} cenas reduzidas estão presentes;
+- a legenda completa da versão reduzida está presente e corresponde às falas;
 - os tempos foram preservados;
 - nenhuma fala foi alterada;
 - o CTA está idêntico;

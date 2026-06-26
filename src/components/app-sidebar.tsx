@@ -1,5 +1,19 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Wand2, Library, FileText, Settings, LogOut, Moon, Sun, Sparkles, Lightbulb, CalendarCheck } from "lucide-react";
+import {
+  LayoutDashboard,
+  Briefcase,
+  Wand2,
+  Library,
+  FileText,
+  Settings,
+  LogOut,
+  Moon,
+  Sun,
+  Sparkles,
+  Lightbulb,
+  CalendarCheck,
+  TrendingUp,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +35,7 @@ const items = [
   { title: "Início", url: "/app", icon: LayoutDashboard, exact: true },
   { title: "Minhas Marcas", url: "/app/brands", icon: Briefcase },
   { title: "Laboratório de Ideias", url: "/app/ideas", icon: Lightbulb },
+  { title: "Radar de Tendências", url: "/app/trends", icon: TrendingUp },
   { title: "Criar conteúdo", url: "/app/create", icon: Wand2 },
   { title: "Calendário", url: "/app/calendar", icon: CalendarCheck },
   { title: "Biblioteca", url: "/app/library", icon: Library },
@@ -32,7 +47,8 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isActive = (url: string, exact?: boolean) => (exact ? pathname === url : pathname === url || pathname.startsWith(url + "/"));
+  const isActive = (url: string, exact?: boolean) =>
+    exact ? pathname === url : pathname === url || pathname.startsWith(url + "/");
 
   const onLogout = async () => {
     await supabase.auth.signOut();
@@ -60,7 +76,11 @@ export function AppSidebar() {
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url, item.exact)} tooltip={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url, item.exact)}
+                    tooltip={item.title}
+                  >
                     <Link to={item.url}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
@@ -78,7 +98,12 @@ export function AppSidebar() {
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             {theme === "dark" ? "Modo claro" : "Modo escuro"}
           </Button>
-          <Button variant="ghost" size="sm" className="justify-start gap-2 text-destructive hover:text-destructive" onClick={onLogout}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start gap-2 text-destructive hover:text-destructive"
+            onClick={onLogout}
+          >
             <LogOut className="h-4 w-4" />
             Sair
           </Button>
