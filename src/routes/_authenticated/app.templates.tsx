@@ -32,11 +32,12 @@ function TemplatesPage() {
       // System templates: listed via catalog view (template_content not exposed).
       // Own templates: fetched directly so editing can show template_content.
       const [sysRes, ownRes] = await Promise.all([
-        supabase
+        (supabase as any)
           .from("prompt_templates_catalog")
           .select("*")
           .eq("is_system_template", true)
           .order("name"),
+
         supabase
           .from("prompt_templates")
           .select("*")
