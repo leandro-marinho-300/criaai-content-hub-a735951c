@@ -29,15 +29,28 @@ function TemplatesPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["prompt_templates"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("prompt_templates")
-        .select("*")
-        .order("is_system_template", { ascending: false })
-        .order("name");
-      if (error) throw error;
-      return (data ?? []) as Template[];
+      // System templates: listed via catalog view (template_content not exposed).
+      // Own templates: fetched directly so editing can show template_content.
+      const [sysRes, ownRes] = await Promise.all([
+        (supabase as any)
+          .from("prompt_templates_catalog")
+          .select("*")
+          .eq("is_system_template", true)
+          .order("name"),
+
+        supabase
+          .from("prompt_templates")
+          .select("*")
+          .eq("is_system_template", false)
+          .order("name"),
+      ]);
+      if (sysRes.error) throw sysRes.error;
+      if (ownRes.error) throw ownRes.error;
+      return [...(sysRes.data ?? []), ...(ownRes.data ?? [])] as Template[];
     },
   });
+
+
 
   const del = useMutation({
     mutationFn: async (id: string) => {
