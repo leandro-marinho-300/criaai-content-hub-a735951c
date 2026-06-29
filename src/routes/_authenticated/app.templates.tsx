@@ -30,7 +30,7 @@ function TemplatesPage() {
     queryKey: ["prompt_templates"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("prompt_templates")
+        .from("prompt_templates_catalog")
         .select("*")
         .order("is_system_template", { ascending: false })
         .order("name");
@@ -38,6 +38,7 @@ function TemplatesPage() {
       return (data ?? []) as Template[];
     },
   });
+
 
   const del = useMutation({
     mutationFn: async (id: string) => {
