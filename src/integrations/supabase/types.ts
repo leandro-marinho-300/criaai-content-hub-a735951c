@@ -1054,7 +1054,45 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      prompt_templates_catalog: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string | null
+          is_system_template: boolean | null
+          name: string | null
+          objective: string | null
+          recommended_formats: string[] | null
+          suggested_fields: string[] | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_system_template?: boolean | null
+          name?: string | null
+          objective?: string | null
+          recommended_formats?: string[] | null
+          suggested_fields?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_system_template?: boolean | null
+          name?: string | null
+          objective?: string | null
+          recommended_formats?: string[] | null
+          suggested_fields?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
