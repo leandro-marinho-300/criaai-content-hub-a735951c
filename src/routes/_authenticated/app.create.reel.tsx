@@ -46,8 +46,9 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getAllPresets } from "@/lib/contentPresets";
 import {
-  DEFAULT_REEL2_DRAFT,
-  REEL2_DRAFT_KEY,
+  createReel2Draft,
+  getReel2BrandExamples,
+  resetReel2GeneratedFields,
   REEL2_ENTRY_OPTIONS,
   REEL2_OBJECTIVES,
   REEL2_TYPES,
@@ -95,7 +96,15 @@ const entryIconMap: Record<Reel2EntryMode, typeof Lightbulb> = {
 export function CreateReel2() {
   const navigate = useNavigate();
   const [step, setStep] = useState<StepIndex>(0);
-  const [draft, setDraft] = useState<Reel2Draft>(() => loadReel2Draft());
+  const [draft, setDraft] = useState<Reel2Draft>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("continuar") === "rascunho" || params.get("continueDraft") === "1") {
+        return loadReel2Draft();
+      }
+    }
+    return createReel2Draft();
+  });
   const [importOpen, setImportOpen] = useState(false);
 
   const { data: brands } = useQuery({
@@ -120,6 +129,7 @@ export function CreateReel2() {
   const selectedType = REEL2_TYPES.find((type) => type.id === draft.reel_type);
   const selectedHook = draft.selected_hook_index !== null ? draft.hook_options[draft.selected_hook_index] : null;
   const externalPrompt = useMemo(() => buildReel2ExternalPrompt(draft, selectedBrand), [draft, selectedBrand]);
+  const brandExamples = useMemo(() => getReel2BrandExamples(selectedBrand), [selectedBrand]);
 
   useEffect(() => saveReel2Draft(draft), [draft]);
 
@@ -207,7 +217,7 @@ export function CreateReel2() {
 
   const onReset = () => {
     clearReel2Draft();
-    setDraft(DEFAULT_REEL2_DRAFT);
+    setDraft(createReel2Draft());
     setStep(0);
     toast.success("Rascunho do Reel 2.0 limpo.");
   };
@@ -360,7 +370,16 @@ Estúdio de roteiro
                         value={draft.brand_id}
                         onValueChange={(brandId) => {
                           const brand = brands?.find((item) => item.id === brandId);
-                          patch({ brand_id: brandId, brand_snapshot: snapshotBrand(brand) });
+                          setDraft((current) => {
+                            const brandChanged = Boolean(current.brand_id && current.brand_id !== brandId);
+                            const base = {
+                              ...current,
+                              brand_id: brandId,
+                              brand_snapshot: snapshotBrand(brand),
+                            };
+                            return brandChanged ? resetReel2GeneratedFields(base) : base;
+                          });
+                          toast.success("Marca aplicada. Exemplos e próximas sugestões foram ajustados para este nicho.");
                         }}
                       >
                         <SelectTrigger>
@@ -483,7 +502,7 @@ Estúdio de roteiro
                       <Input
                         value={draft.central_idea}
                         onChange={(event) => patch({ central_idea: event.target.value })}
-                        placeholder="Ex.: meu cachorro não me respeita no passeio"
+                        placeholder={brandExamples.ideaPlaceholder}
                       />
                     </div>
                     <div className="space-y-2">
@@ -491,7 +510,7 @@ Estúdio de roteiro
                       <Textarea
                         value={draft.promise}
                         onChange={(event) => patch({ promise: event.target.value })}
-                        placeholder="Ex.: Você vai entender por que o problema no passeio quase nunca começa na rua."
+                        placeholder={brandExamples.promisePlaceholder}
                         rows={4}
                       />
                     </div>
@@ -500,7 +519,7 @@ Estúdio de roteiro
                       <Textarea
                         value={draft.extra_notes}
                         onChange={(event) => patch({ extra_notes: event.target.value })}
-                        placeholder="Regras da marca, cuidados, pontos obrigatórios ou restrições."
+                        placeholder={brandExamples.extraNotesPlaceholder}
                         rows={4}
                       />
                     </div>
@@ -515,6 +534,7 @@ Estúdio de roteiro
                     "Mostra o ganho de assistir até o final.",
                     "Não promete resultado impossível.",
                     "Combina com o objetivo escolhido.",
+                    `Exemplo para esta marca: ${brandExamples.promisePlaceholder.replace(/^Ex\.:\s*/i, "")}`,
                   ]}
                 />
               </div>

@@ -79,6 +79,80 @@ export interface Reel2Draft {
 export const REEL2_DRAFT_KEY = "cria-reel2-draft-v1";
 export const REEL2_WIZARD_PREFILL_KEY = "cria-wizard-prefill";
 
+export function createReel2Draft(overrides: Partial<Reel2Draft> = {}): Reel2Draft {
+  return normalizeReel2Draft({
+    ...DEFAULT_REEL2_DRAFT,
+    ...overrides,
+    hook_options: overrides.hook_options ?? [],
+    imported_script: overrides.imported_script ?? null,
+    imported_script_warnings: overrides.imported_script_warnings ?? [],
+  });
+}
+
+export function getReel2BrandExamples(brand?: Pick<Tables<"brands">, "name" | "segment" | "description" | "audience"> | null) {
+  const text = `${brand?.name ?? ""} ${brand?.segment ?? ""} ${brand?.description ?? ""} ${brand?.audience ?? ""}`.toLowerCase();
+
+  if (/cachorro|canino|adestra|comportamento animal|pet|tutor/.test(text)) {
+    return {
+      ideaPlaceholder: "Ex.: meu cachorro puxa muito no passeio",
+      promisePlaceholder: "Ex.: Você vai entender por que o problema no passeio quase nunca começa só na rua.",
+      extraNotesPlaceholder: "Ex.: evitar culpa no tutor, não prometer resultado imediato, trazer uma orientação prática e acolhedora.",
+      hookSeed: "Antes de dizer que seu cachorro não te respeita, observe isso.",
+    };
+  }
+
+  if (/viagem|turismo|travel|hotel|destino|férias|roteiro|passagem/.test(text)) {
+    return {
+      ideaPlaceholder: "Ex.: planejamento das férias de verão",
+      promisePlaceholder: "Ex.: Você vai saber o que organizar antes para viajar com mais tranquilidade e menos imprevistos.",
+      extraNotesPlaceholder: "Ex.: não prometer menor preço ou disponibilidade garantida; convidar para orçamento personalizado.",
+      hookSeed: "Antes de fechar sua próxima viagem, confira isso.",
+    };
+  }
+
+  if (/atelier|costura|bolsa|artesanal|moda|acessório/.test(text)) {
+    return {
+      ideaPlaceholder: "Ex.: detalhes que tornam uma bolsa artesanal mais especial",
+      promisePlaceholder: "Ex.: Você vai entender quais detalhes fazem uma peça artesanal durar mais e combinar melhor com sua rotina.",
+      extraNotesPlaceholder: "Ex.: valorizar processo manual, acabamento, materiais e exclusividade sem exagerar promessas.",
+      hookSeed: "Antes de escolher uma bolsa artesanal, repare neste detalhe.",
+    };
+  }
+
+  if (/contabilidade|contador|fiscal|imposto|empresa|mei|cnpj|serviço/.test(text)) {
+    return {
+      ideaPlaceholder: "Ex.: erro comum antes de emitir uma nota fiscal",
+      promisePlaceholder: "Ex.: Você vai entender um cuidado simples que evita retrabalho na rotina fiscal da empresa.",
+      extraNotesPlaceholder: "Ex.: não dar aconselhamento jurídico definitivo; orientar de forma prática e segura.",
+      hookSeed: "Antes de resolver isso no automático, confira este ponto.",
+    };
+  }
+
+  return {
+    ideaPlaceholder: "Ex.: uma dúvida real do seu público",
+    promisePlaceholder: "Ex.: Você vai entender um ponto importante para tomar uma decisão com mais clareza.",
+    extraNotesPlaceholder: "Regras da marca, cuidados, pontos obrigatórios ou restrições.",
+    hookSeed: "Antes de seguir com esse assunto, observe este ponto.",
+  };
+}
+
+export function resetReel2GeneratedFields(draft: Reel2Draft): Reel2Draft {
+  return {
+    ...draft,
+    promise: "",
+    hook_options: [],
+    selected_hook_index: null,
+    imported_script: null,
+    imported_script_raw: "",
+    imported_script_imported_at: "",
+    imported_script_source_schema: "",
+    imported_script_warnings: [],
+    imported_script_updated_at: "",
+    imported_script_needs_review: false,
+    cover_mode: "unsure",
+  };
+}
+
 export const REEL2_ENTRY_OPTIONS: Array<{
   id: Reel2EntryMode;
   title: string;
