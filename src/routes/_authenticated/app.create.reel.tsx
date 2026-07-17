@@ -106,6 +106,7 @@ export function CreateReel2() {
     return createReel2Draft();
   });
   const [importOpen, setImportOpen] = useState(false);
+  const [, setHookGenerationRound] = useState(0);
 
   const { data: brands } = useQuery({
     queryKey: ["brands-reel2"],
@@ -158,9 +159,13 @@ export function CreateReel2() {
   const goBack = () => setStep((current) => Math.max(0, current - 1) as StepIndex);
 
   const onGenerateHooks = () => {
-    const options = buildLocalHookOptions(draft, selectedBrand);
-    patch({ hook_options: options, selected_hook_index: 0 });
-    toast.success("3 opções de gancho foram preparadas para esta fase.");
+    setHookGenerationRound((currentRound) => {
+      const nextRound = currentRound + 1;
+      const options = buildLocalHookOptions(draft, selectedBrand, nextRound);
+      patch({ hook_options: options, selected_hook_index: 0 });
+      toast.success(nextRound === 1 ? "3 opções de gancho foram preparadas." : "Novas opções de gancho foram preparadas.");
+      return nextRound;
+    });
   };
 
   const onUsePreset = (presetId: string) => {
@@ -555,11 +560,11 @@ Estúdio de roteiro
                   </p>
                 </div>
                 <Button onClick={onGenerateHooks} className="gap-2">
-                  <Sparkles className="h-4 w-4" /> Gerar opções
+                  <Sparkles className="h-4 w-4" /> {draft.hook_options.length ? "Gerar novas opções" : "Gerar opções"}
                 </Button>
               </div>
 
-              <div className="grid gap-3 lg:grid-cols-3">
+              <div className="grid gap-4 xl:grid-cols-3">
                 {draft.hook_options.map((hook, index) => (
                   <HookCard
                     key={`${hook.mode}-${index}`}
@@ -590,8 +595,8 @@ Estúdio de roteiro
               title="Roteiro importado, editável e validado"
               description="Importe o JSON Reel 2.0 e revise gancho, promessa, cenas, versão reduzida, publicação e checklist antes de seguir."
             >
-              <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-                <div className="space-y-4">
+              <div className="space-y-4">
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg">Resumo do Reel</CardTitle>
@@ -608,40 +613,7 @@ Estúdio de roteiro
                     </CardContent>
                   </Card>
 
-                  <Card className="border-violet-500/30 bg-violet-500/5">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Braces className="h-5 w-5 text-violet-500" /> Pedido externo Reel 2.0
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <p className="text-sm text-muted-foreground">
-                        Copie este pedido, cole no ChatGPT e importe aqui o JSON devolvido. O app não usa IA interna nem API paga.
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <CopyButton text={externalPrompt} label="Copiar pedido" />
-                        <Button type="button" variant="outline" onClick={() => window.open("https://chatgpt.com", "_blank", "noopener,noreferrer")}>
-                          Abrir ChatGPT
-                        </Button>
-                        <Button type="button" onClick={() => setImportOpen(true)}>
-                          <FileJson2 className="mr-2 h-4 w-4" /> Importar JSON
-                        </Button>
-                      </div>
-                      <Textarea value={externalPrompt} readOnly rows={10} className="font-mono text-xs" />
-                    </CardContent>
-                  </Card>
-
-                  {draft.imported_script && (
-                    <Reel2ScriptStudio
-                      script={draft.imported_script}
-                      warnings={draft.imported_script_warnings || []}
-                      needsReview={Boolean(draft.imported_script_needs_review)}
-                      onChange={onUpdateImportedScript}
-                    />
-                  )}
-                </div>
-
-                <Card className="border-orange-500/30 bg-orange-500/5">
+                  <Card className="border-orange-500/30 bg-orange-500/5">
                   <CardContent className="space-y-3 p-5">
                     <div className="flex items-center gap-2 font-semibold">
                       <RouteIcon className="h-4 w-4 text-orange-500" /> Caminho de continuidade
@@ -657,6 +629,39 @@ Com o JSON importado e revisado, o wizard atual recebe gancho, promessa, roteiro
                     </Button>
                   </CardContent>
                 </Card>
+                </div>
+
+                <Card className="border-violet-500/30 bg-violet-500/5">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Braces className="h-5 w-5 text-violet-500" /> Pedido externo Reel 2.0
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Copie este pedido, cole no ChatGPT e importe aqui o JSON devolvido. O app não usa IA interna nem API paga.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <CopyButton text={externalPrompt} label="Copiar pedido" />
+                      <Button type="button" variant="outline" onClick={() => window.open("https://chatgpt.com", "_blank", "noopener,noreferrer")}>
+                        Abrir ChatGPT
+                      </Button>
+                      <Button type="button" onClick={() => setImportOpen(true)}>
+                        <FileJson2 className="mr-2 h-4 w-4" /> Importar JSON
+                      </Button>
+                    </div>
+                    <Textarea value={externalPrompt} readOnly rows={8} className="font-mono text-xs" />
+                  </CardContent>
+                </Card>
+
+                {draft.imported_script && (
+                  <Reel2ScriptStudio
+                    script={draft.imported_script}
+                    warnings={draft.imported_script_warnings || []}
+                    needsReview={Boolean(draft.imported_script_needs_review)}
+                    onChange={onUpdateImportedScript}
+                  />
+                )}
               </div>
             </StepShell>
           )}
@@ -947,7 +952,7 @@ function ReelTypeCard({ type, active, recommended, onClick }: { type: (typeof RE
 
 function HookCard({ hook, active, onSelect, onChange }: { hook: Reel2HookDraft; active: boolean; onSelect: () => void; onChange: (hook: Reel2HookDraft) => void }) {
   return (
-    <Card className={cn(active ? "border-orange-500 ring-2 ring-orange-500/20" : "border-border/70")}>
+    <Card className={cn("min-w-0", active ? "border-orange-500 ring-2 ring-orange-500/20" : "border-border/70")}>
       <CardContent className="space-y-3 p-4">
         <div className="flex items-center justify-between gap-2">
           <Badge variant={active ? "default" : "secondary"}>{hookModeLabel(hook.mode)}</Badge>
@@ -961,11 +966,11 @@ function HookCard({ hook, active, onSelect, onChange }: { hook: Reel2HookDraft; 
         </div>
         <div className="space-y-2">
           <Label>Texto na tela</Label>
-          <Input value={hook.on_screen_text} onChange={(event) => onChange({ ...hook, on_screen_text: event.target.value })} />
+          <Textarea value={hook.on_screen_text} onChange={(event) => onChange({ ...hook, on_screen_text: event.target.value })} rows={2} />
         </div>
         <div className="space-y-2">
           <Label>Cena sugerida</Label>
-          <Textarea value={hook.scene_suggestion} onChange={(event) => onChange({ ...hook, scene_suggestion: event.target.value })} rows={2} />
+          <Textarea value={hook.scene_suggestion} onChange={(event) => onChange({ ...hook, scene_suggestion: event.target.value })} rows={3} />
         </div>
         <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">Por que prende: </span>{hook.why_it_works}
@@ -1006,49 +1011,162 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function buildLocalHookOptions(draft: Reel2Draft, brand?: Tables<"brands"> | null): Reel2HookDraft[] {
+function buildLocalHookOptions(draft: Reel2Draft, brand?: Tables<"brands"> | null, round = 1): Reel2HookDraft[] {
   const idea = getEntryMainIdea(draft) || "este assunto";
-  const segment = brand?.segment?.toLowerCase() || "";
-  const canine = /cachorro|canino|adestra|comportamento/.test(segment + " " + idea.toLowerCase());
-  const travel = /viagem|turismo|travel|hotel|destino/.test(segment + " " + idea.toLowerCase());
-  const direct = canine
-    ? `Antes de dizer que seu cachorro não te respeita, observe isso.`
+  const ideaLower = idea.toLowerCase();
+  const text = `${brand?.name ?? ""} ${brand?.segment ?? ""} ${brand?.description ?? ""} ${brand?.audience ?? ""} ${idea}`.toLowerCase();
+  const canine = /cachorro|canino|adestra|comportamento animal|pet|tutor|passeio/.test(text);
+  const travel = /viagem|turismo|travel|hotel|destino|férias|roteiro|passagem|mala|bagagem/.test(text);
+  const atelier = /atelier|costura|bolsa|artesanal|moda|acessório/.test(text);
+  const accounting = /contabilidade|contador|fiscal|imposto|empresa|mei|cnpj|nota fiscal/.test(text);
+
+  const pick = (items: string[], offset = 0) => items[(Math.max(round, 1) + offset - 1) % items.length];
+
+  const directOptions = canine
+    ? [
+        `Antes de dizer que seu cachorro não te respeita, observe isto.`,
+        `Seu cachorro não está tentando te desafiar: talvez ele só tenha aprendido outra coisa.`,
+        `Se o passeio virou uma disputa, comece olhando para este ponto.`,
+        `O problema de ${shortIdea(ideaLower)} pode estar sendo reforçado sem você perceber.`,
+      ]
     : travel
-      ? `Antes de fechar sua próxima viagem, confira isso.`
-      : `Antes de seguir com ${idea}, veja este ponto.`;
-  const curious = canine
-    ? `O problema quase nunca começa onde você acha.`
+      ? [
+          `Antes de fechar sua próxima viagem, confira este detalhe.`,
+          `Se você está planejando viajar, não pule esta etapa.`,
+          `Viagem boa começa antes da reserva: veja o que conferir.`,
+          `Antes de escolher pelo menor preço, olhe isso com calma.`,
+        ]
+      : atelier
+        ? [
+            `Antes de escolher uma peça artesanal, repare neste detalhe.`,
+            `Uma peça bonita também precisa fazer sentido na sua rotina.`,
+            `O acabamento conta uma história antes mesmo da peça ser usada.`,
+          ]
+        : accounting
+          ? [
+              `Antes de resolver isso no automático, confira este ponto.`,
+              `Esse cuidado simples pode evitar retrabalho na rotina da empresa.`,
+              `Nem todo erro aparece na hora: alguns só surgem no fechamento.`,
+            ]
+          : [
+              `Antes de seguir com ${shortIdea(idea)}, veja este ponto.`,
+              `Se esse tema apareceu na sua rotina, comece por aqui.`,
+              `Tem um detalhe sobre ${shortIdea(idea)} que muita gente ignora.`,
+            ];
+
+  const curiousOptions = canine
+    ? [
+        `O problema quase nunca começa onde você acha.`,
+        `O passeio começa antes da guia sair do gancho.`,
+        `O comportamento que incomoda pode estar sendo recompensado sem querer.`,
+        `O que parece teimosia pode ser comunicação confusa.`,
+      ]
     : travel
-      ? `O detalhe que muita gente esquece antes de viajar.`
-      : `Quase ninguém percebe isso sobre ${idea}.`;
-  const alert = canine
-    ? `Você pode estar reforçando esse comportamento sem perceber.`
+      ? [
+          `O detalhe que muita gente esquece antes de viajar.`,
+          `A parte mais importante da viagem pode não ser o destino.`,
+          `O que quase ninguém confere antes de pedir orçamento.`,
+          `Uma viagem tranquila começa em uma pergunta simples.`,
+        ]
+      : atelier
+        ? [
+            `O detalhe que diferencia uma peça bonita de uma peça bem pensada.`,
+            `Quase ninguém olha para isto antes de escolher uma bolsa.`,
+            `O processo por trás da peça muda a forma como você enxerga o resultado.`,
+          ]
+        : accounting
+          ? [
+              `O detalhe que muita empresa só percebe quando dá problema.`,
+              `Esse erro parece pequeno, mas bagunça a rotina depois.`,
+              `A organização fiscal começa antes da guia aparecer.`,
+            ]
+          : [
+              `Quase ninguém percebe isso sobre ${shortIdea(idea)}.`,
+              `O detalhe escondido neste tema pode mudar sua decisão.`,
+              `Tem uma forma mais simples de olhar para ${shortIdea(idea)}.`,
+            ];
+
+  const alertOptions = canine
+    ? [
+        `Você pode estar reforçando esse comportamento sem perceber.`,
+        `Cuidado: corrigir na hora errada pode confundir ainda mais o cachorro.`,
+        `Não tente resolver ${shortIdea(ideaLower)} sem entender o que acontece antes.`,
+        `A bronca pode estar ensinando algo diferente do que você imagina.`,
+      ]
     : travel
-      ? `Cuidado: o menor preço pode esconder pontos importantes.`
-      : `Cuidado com este erro ao falar sobre ${idea}.`;
+      ? [
+          `Cuidado: o menor preço pode esconder pontos importantes.`,
+          `Não feche sua viagem sem entender o que está incluso.`,
+          `Um detalhe esquecido pode virar dor de cabeça durante a viagem.`,
+          `Nem todo orçamento de viagem compara as mesmas coisas.`,
+        ]
+      : atelier
+        ? [
+            `Cuidado: beleza sem funcionalidade pode frustrar no uso diário.`,
+            `Nem todo detalhe visual significa acabamento bem resolvido.`,
+            `Antes de comprar, pense em como essa peça vai viver com você.`,
+          ]
+        : accounting
+          ? [
+              `Cuidado: deixar isso para depois pode criar retrabalho.`,
+              `Não espere o problema aparecer para organizar esta rotina.`,
+              `Um campo preenchido errado pode mudar todo o fechamento.`,
+            ]
+          : [
+              `Cuidado com este erro ao falar sobre ${shortIdea(idea)}.`,
+              `Não avance nesse tema sem conferir este ponto.`,
+              `Uma decisão rápida demais pode atrapalhar o resultado.`,
+            ];
+
+  const direct = pick(directOptions, 0);
+  const curious = pick(curiousOptions, 1);
+  const alert = pick(alertOptions, 2);
+
   return [
     {
       mode: "direct",
       spoken_hook: direct,
-      on_screen_text: direct.replace(/\.$/, ""),
-      scene_suggestion: "Apresentador olhando para câmera, corte rápido e expressão clara nos primeiros segundos.",
+      on_screen_text: makeOnScreenText(direct),
+      scene_suggestion: pick([
+        "Apresentador olhando para a câmera, com corte rápido e expressão clara nos primeiros segundos.",
+        "Começar com uma cena real do problema e entrar com a fala logo no primeiro segundo.",
+        "Abrir com close no elemento principal do tema, seguido de fala direta para a câmera.",
+      ], 0),
       why_it_works: "Vai direto ao ponto e conecta o tema a uma situação reconhecível.",
     },
     {
       mode: "curious",
       spoken_hook: curious,
-      on_screen_text: curious.replace(/\.$/, ""),
-      scene_suggestion: "Começar com uma cena do problema antes de explicar a causa.",
+      on_screen_text: makeOnScreenText(curious),
+      scene_suggestion: pick([
+        "Começar mostrando a situação antes de explicar a causa, criando curiosidade visual.",
+        "Abrir com uma cena aparentemente comum e usar o texto na tela para provocar dúvida.",
+        "Mostrar rapidamente o antes/contexto e segurar a explicação para a cena seguinte.",
+      ], 1),
       why_it_works: "Abre uma lacuna de curiosidade e promete uma descoberta.",
     },
     {
       mode: "alert",
       spoken_hook: alert,
-      on_screen_text: alert.replace(/\.$/, ""),
-      scene_suggestion: "Texto forte na tela e corte para exemplo prático imediatamente depois.",
+      on_screen_text: makeOnScreenText(alert),
+      scene_suggestion: pick([
+        "Texto forte na tela e corte para exemplo prático imediatamente depois.",
+        "Iniciar com uma situação de erro comum e pausar rápido para chamar atenção.",
+        "Mostrar o risco ou a consequência de forma simples, sem dramatizar demais.",
+      ], 2),
       why_it_works: "Cria urgência sem depender de exagero ou promessa falsa.",
     },
   ];
+}
+
+function shortIdea(value: string) {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (!clean) return "este assunto";
+  return clean.length > 70 ? `${clean.slice(0, 67).trim()}...` : clean;
+}
+
+function makeOnScreenText(value: string) {
+  return value.replace(/[.!?]+$/, "").slice(0, 90);
 }
 
 function getEntryMainIdea(draft: Reel2Draft) {

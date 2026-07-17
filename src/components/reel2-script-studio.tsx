@@ -133,9 +133,9 @@ export function Reel2ScriptStudio({ script, warnings = [], needsReview = false, 
                   <Wand2 className="h-4 w-4 text-orange-500" /> Opções de gancho
                 </CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-3 lg:grid-cols-3">
+              <CardContent className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
                 {script.hook_options.map((hook, index) => (
-                  <Card key={`${hook.type}-${index}`} className={cn(index === selectedHookIndex ? "border-orange-500 ring-2 ring-orange-500/20" : "border-border/70")}>
+                  <Card key={`${hook.type}-${index}`} className={cn("min-w-0", index === selectedHookIndex ? "border-orange-500 ring-2 ring-orange-500/20" : "border-border/70")}>
                     <CardContent className="space-y-3 p-4">
                       <div className="flex items-center justify-between gap-2">
                         <Badge variant={index === selectedHookIndex ? "default" : "secondary"}>{hookLabel(hook.type)}</Badge>
