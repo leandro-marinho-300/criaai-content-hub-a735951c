@@ -6,11 +6,13 @@ import {
   ArrowRight,
   BadgeCheck,
   BookOpenCheck,
+  Braces,
   Check,
   ChevronDown,
   Clapperboard,
   CopyCheck,
   Film,
+  FileJson2,
   HelpCircle,
   Lightbulb,
   Megaphone,
@@ -27,6 +29,8 @@ import {
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CopyButton } from "@/components/copy-button";
+import { ImportReel2ScriptDialog } from "@/components/import-reel2-script-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +64,13 @@ import {
   type Reel2Objective,
   type Reel2Type,
 } from "@/lib/reel2";
+import {
+  buildReel2ExternalPrompt,
+  convertImportedScriptHooks,
+  findSelectedHookIndex,
+  type Reel2ImportedScript,
+  type Reel2ImportResult,
+} from "@/lib/reel2Script";
 
 export const Route = createFileRoute("/_authenticated/app/create/reel")({
   head: () => ({ meta: [{ title: "Criar Reel 2.0 — Cria Aí" }] }),
@@ -67,7 +78,7 @@ export const Route = createFileRoute("/_authenticated/app/create/reel")({
 });
 
 const STEP_LABELS = ["Entrada", "Marca", "Objetivo", "Tipo", "Promessa", "Gancho", "Resumo"] as const;
-const FUTURE_STEPS = ["Roteiro", "Capa", "Publicação", "Storyboard", "Aprovação"];
+const FUTURE_STEPS = ["Capa", "Publicação", "Storyboard", "Aprovação"];
 
 type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -84,6 +95,7 @@ export function CreateReel2() {
   const navigate = useNavigate();
   const [step, setStep] = useState<StepIndex>(0);
   const [draft, setDraft] = useState<Reel2Draft>(() => loadReel2Draft());
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data: brands } = useQuery({
     queryKey: ["brands-reel2"],
@@ -106,6 +118,7 @@ export function CreateReel2() {
   const selectedObjective = REEL2_OBJECTIVES.find((objective) => objective.id === draft.objective);
   const selectedType = REEL2_TYPES.find((type) => type.id === draft.reel_type);
   const selectedHook = draft.selected_hook_index !== null ? draft.hook_options[draft.selected_hook_index] : null;
+  const externalPrompt = useMemo(() => buildReel2ExternalPrompt(draft, selectedBrand), [draft, selectedBrand]);
 
   useEffect(() => saveReel2Draft(draft), [draft]);
 
@@ -146,6 +159,24 @@ export function CreateReel2() {
     toast.success("Preset aplicado ao rascunho do Reel.");
   };
 
+  const onImportScript = (script: Reel2ImportedScript, raw: string, result: Reel2ImportResult) => {
+    const hooks = convertImportedScriptHooks(script);
+    setDraft((current) => ({
+      ...current,
+      imported_script: script,
+      imported_script_raw: raw,
+      imported_script_imported_at: new Date().toISOString(),
+      imported_script_source_schema: result.sourceSchema || script.schema_version,
+      imported_script_warnings: result.warnings,
+      central_idea: script.central_idea || current.central_idea,
+      promise: script.promise || current.promise,
+      hook_options: hooks.length ? hooks : current.hook_options,
+      selected_hook_index: hooks.length ? findSelectedHookIndex(script) : current.selected_hook_index,
+      cover_mode: script.cover.needs_cover ? "custom" : current.cover_mode,
+    }));
+    toast.success("JSON Reel 2.0 importado para o rascunho.");
+  };
+
   const onContinueToClassicWizard = () => {
     try {
       localStorage.setItem(REEL2_WIZARD_PREFILL_KEY, JSON.stringify(buildReel2WizardPrefill(draft, selectedBrand)));
@@ -174,7 +205,7 @@ export function CreateReel2() {
                 Fase 1 · Cria Aí 2.0
               </Badge>
               <Badge variant="secondary" className="rounded-full">
-                Estrutura guiada
+                JSON e importação
               </Badge>
             </div>
             <div>
@@ -245,7 +276,7 @@ export function CreateReel2() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                Nesta primeira entrega, estamos criando a estrutura guiada. A geração do JSON Reel 2.0 entra nas próximas fases.
+                Nesta fase, o rascunho já gera um pedido externo e importa o JSON Reel 2.0 validado.
               </p>
             </CardContent>
           </Card>
@@ -518,26 +549,53 @@ export function CreateReel2() {
 
           {step === 6 && (
             <StepShell
-              eyebrow="Resumo da Fase 1"
-              title="Estrutura guiada pronta"
-              description="Este rascunho ainda não gera o JSON Reel 2.0 final. Ele organiza as decisões que alimentarão as próximas fases."
+              eyebrow="Resumo da Fase 2"
+              title="Roteiro pronto para importar"
+              description="Agora o rascunho gera o pedido externo, importa o JSON Reel 2.0 e guarda o roteiro validado para as próximas fases."
             >
-              <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Resumo do Reel</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 text-sm">
-                    <SummaryRow label="Marca" value={selectedBrand?.name || "Não selecionada"} />
-                    <SummaryRow label="Entrada" value={REEL2_ENTRY_OPTIONS.find((item) => item.id === draft.entry_mode)?.title || "Não definida"} />
-                    <SummaryRow label="Objetivo" value={selectedObjective?.title || "Não definido"} />
-                    <SummaryRow label="Tipo" value={selectedType?.title || "Não definido"} />
-                    <SummaryRow label="Ideia" value={getEntryMainIdea(draft) || "Não definida"} />
-                    <SummaryRow label="Promessa" value={draft.promise || "Não definida"} />
-                    <SummaryRow label="Gancho escolhido" value={selectedHook?.spoken_hook || selectedHook?.on_screen_text || "Não escolhido"} />
-                    <SummaryRow label="Capa" value={coverModeLabel(draft.cover_mode)} />
-                  </CardContent>
-                </Card>
+              <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Resumo do Reel</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4 text-sm">
+                      <SummaryRow label="Marca" value={selectedBrand?.name || "Não selecionada"} />
+                      <SummaryRow label="Entrada" value={REEL2_ENTRY_OPTIONS.find((item) => item.id === draft.entry_mode)?.title || "Não definida"} />
+                      <SummaryRow label="Objetivo" value={selectedObjective?.title || draft.imported_script?.objective || "Não definido"} />
+                      <SummaryRow label="Tipo" value={selectedType?.title || draft.imported_script?.reel_type || "Não definido"} />
+                      <SummaryRow label="Ideia" value={draft.imported_script?.central_idea || getEntryMainIdea(draft) || "Não definida"} />
+                      <SummaryRow label="Promessa" value={draft.imported_script?.promise || draft.promise || "Não definida"} />
+                      <SummaryRow label="Gancho escolhido" value={draft.imported_script?.selected_hook?.spoken_hook || selectedHook?.spoken_hook || selectedHook?.on_screen_text || "Não escolhido"} />
+                      <SummaryRow label="Capa" value={draft.imported_script?.cover?.needs_cover ? "Capa personalizada sugerida" : coverModeLabel(draft.cover_mode)} />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-violet-500/30 bg-violet-500/5">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Braces className="h-5 w-5 text-violet-500" /> Pedido externo Reel 2.0
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Copie este pedido, cole no ChatGPT e importe aqui o JSON devolvido. O app não usa IA interna nem API paga.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <CopyButton text={externalPrompt} label="Copiar pedido" />
+                        <Button type="button" variant="outline" onClick={() => window.open("https://chatgpt.com", "_blank", "noopener,noreferrer")}>
+                          Abrir ChatGPT
+                        </Button>
+                        <Button type="button" onClick={() => setImportOpen(true)}>
+                          <FileJson2 className="mr-2 h-4 w-4" /> Importar JSON
+                        </Button>
+                      </div>
+                      <Textarea value={externalPrompt} readOnly rows={10} className="font-mono text-xs" />
+                    </CardContent>
+                  </Card>
+
+                  {draft.imported_script && <ImportedScriptPreview script={draft.imported_script} warnings={draft.imported_script_warnings || []} />}
+                </div>
 
                 <Card className="border-orange-500/30 bg-orange-500/5">
                   <CardContent className="space-y-3 p-5">
@@ -545,10 +603,10 @@ export function CreateReel2() {
                       <RouteIcon className="h-4 w-4 text-orange-500" /> Caminho de continuidade
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Enquanto as fases 2 a 5 não entram, você pode mandar este rascunho para o wizard atual e continuar usando o fluxo estável.
+                      Com o JSON importado, o wizard atual recebe gancho, promessa, roteiro por cenas, legenda do vídeo, capa, CTA e hashtags no campo de observações.
                     </p>
                     <Button onClick={onContinueToClassicWizard} className="w-full gap-2">
-                      Continuar no wizard atual <ArrowRight className="h-4 w-4" />
+                      Usar no wizard atual <ArrowRight className="h-4 w-4" />
                     </Button>
                     <Button asChild variant="outline" className="w-full">
                       <Link to="/app/create">Voltar para Criar</Link>
@@ -580,6 +638,58 @@ export function CreateReel2() {
           </div>
         </main>
       </div>
+    <ImportReel2ScriptDialog open={importOpen} onOpenChange={setImportOpen} onImport={onImportScript} />
+    </div>
+  );
+}
+
+function ImportedScriptPreview({ script, warnings }: { script: Reel2ImportedScript; warnings: string[] }) {
+  return (
+    <Card className="border-emerald-500/30 bg-emerald-500/5">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <FileJson2 className="h-5 w-5 text-emerald-600" /> Roteiro Reel 2.0 importado
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        <div className="grid gap-2 sm:grid-cols-3">
+          <MiniMetric label="Duração" value={`${script.main_script.duration_seconds}s`} />
+          <MiniMetric label="Cenas" value={String(script.main_script.scenes.length)} />
+          <MiniMetric label="Hashtags" value={`${script.publication.hashtags.length}/5`} />
+        </div>
+        <SummaryRow label="Gancho" value={script.selected_hook.spoken_hook} />
+        <SummaryRow label="Legenda do vídeo" value={script.short_version.full_video_caption} />
+        <SummaryRow label="Legenda da publicação" value={script.publication.caption} />
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Primeiras cenas</p>
+          <div className="space-y-2">
+            {script.main_script.scenes.slice(0, 4).map((scene, index) => (
+              <div key={`${scene.start}-${scene.end}-${index}`} className="rounded-xl border bg-background p-3">
+                <p className="text-xs font-semibold text-muted-foreground">{scene.start}s–{scene.end}s · {scene.function}</p>
+                <p className="mt-1 font-medium">{scene.speech}</p>
+                {scene.on_screen_text && <p className="mt-1 text-xs text-muted-foreground">Texto na tela: {scene.on_screen_text}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+        {warnings.length > 0 && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
+            <p className="font-semibold text-amber-700 dark:text-amber-300">Avisos da importação</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+              {warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border bg-background p-3">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-lg font-bold">{value}</p>
     </div>
   );
 }
