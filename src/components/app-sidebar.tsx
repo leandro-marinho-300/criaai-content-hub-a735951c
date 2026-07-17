@@ -13,6 +13,7 @@ import {
   CalendarCheck,
   TrendingUp,
   SlidersHorizontal,
+  Film,
 } from "lucide-react";
 import {
   Sidebar,
@@ -36,7 +37,8 @@ const items = [
   { title: "Minhas Marcas", url: "/app/brands", icon: Briefcase },
   { title: "Laboratório de Ideias", url: "/app/ideas", icon: Lightbulb },
   { title: "Radar de Tendências", url: "/app/trends", icon: TrendingUp },
-  { title: "Criar conteúdo", url: "/app/create", icon: Wand2 },
+  { title: "Criar conteúdo", url: "/app/create", icon: Wand2, exact: true },
+  { title: "Criar Reel", url: "/app/create/reel", icon: Film },
   { title: "Calendário", url: "/app/calendar", icon: CalendarCheck },
   { title: "Biblioteca", url: "/app/library", icon: Library },
   { title: "Presets", url: "/app/templates", icon: SlidersHorizontal },

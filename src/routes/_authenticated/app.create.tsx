@@ -9,6 +9,7 @@ import {
   ArrowRight,
   ChevronRight,
   Sparkles,
+  Film,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -72,13 +73,14 @@ function CreateHub() {
 
   return <Hub onPick={(m) => {
     if (m === "ideias") navigate({ to: "/app/ideas" });
+    else if (m === "reel") navigate({ to: "/app/create/reel" });
     else setMode(m);
   }} />;
 }
 
-function Hub({ onPick }: { onPick: (m: "ideias" | "tema" | "adaptar" | "campanha") => void }) {
+function Hub({ onPick }: { onPick: (m: "ideias" | "tema" | "adaptar" | "campanha" | "reel") => void }) {
   const cards: Array<{
-    id: "ideias" | "tema" | "adaptar" | "campanha";
+    id: "ideias" | "tema" | "adaptar" | "campanha" | "reel";
     icon: typeof Lightbulb;
     title: string;
     desc: string;
@@ -89,6 +91,13 @@ function Hub({ onPick }: { onPick: (m: "ideias" | "tema" | "adaptar" | "campanha
       icon: Lightbulb,
       title: "Estou sem ideias",
       desc: "Escolha uma marca e receba caminhos de conteúdo para começar.",
+    },
+    {
+      id: "reel",
+      icon: Film,
+      title: "Criar Reel 2.0",
+      desc: "Fluxo guiado para construir gancho, promessa e estrutura antes do roteiro.",
+      badge: "Novo",
     },
     {
       id: "tema",
