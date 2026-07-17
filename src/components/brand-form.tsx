@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Upload, Trash2 } from "lucide-react";
+import { Loader2, Upload, Trash2, WandSparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TagInput } from "@/components/tag-input";
 import type { Tables } from "@/integrations/supabase/types";
+import { BrandJsonAssistantDialog } from "@/components/brand-json-assistant-dialog";
+import { mergeBrandJsonValues, type BrandJsonProfile } from "@/lib/brandJson";
 
 export type BrandFormValues = Partial<Tables<"brands">> & { name: string };
 
@@ -64,6 +66,7 @@ export function BrandForm({ initial, brandId }: Props) {
   const qc = useQueryClient();
   const [values, setValues] = useState<BrandFormValues>({ ...empty, ...(initial ?? {}), name: initial?.name ?? "" });
   const [uploading, setUploading] = useState(false);
+  const [jsonAssistantOpen, setJsonAssistantOpen] = useState(false);
 
   useEffect(() => {
     if (initial) setValues({ ...empty, ...initial, name: initial.name ?? "" });
@@ -71,6 +74,15 @@ export function BrandForm({ initial, brandId }: Props) {
 
   const set = <K extends keyof BrandFormValues>(k: K, v: BrandFormValues[K]) =>
     setValues((s) => ({ ...s, [k]: v }));
+
+  const applyJsonValues = (imported: Partial<BrandJsonProfile>, options: { overwriteFilled: boolean }) => {
+    setValues((current) => mergeBrandJsonValues(current, imported, options));
+    toast.success("Dados aplicados ao cadastro.", {
+      description: options.overwriteFilled
+        ? "Os campos do JSON foram aplicados, inclusive sobre dados existentes."
+        : "Somente os campos vazios foram preenchidos."
+    });
+  };
 
   const save = useMutation({
     mutationFn: async () => {
@@ -127,6 +139,29 @@ export function BrandForm({ initial, brandId }: Props) {
       }}
       className="space-y-6"
     >
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="flex items-center gap-2 font-semibold">
+              <WandSparkles className="h-4 w-4 text-primary" /> Preencher com ChatGPT usando o logo
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Copie um pedido, anexe o logo no ChatGPT e importe o JSON para preencher os campos do cliente/marca sem IA interna.
+            </p>
+          </div>
+          <Button type="button" variant="secondary" onClick={() => setJsonAssistantOpen(true)} className="shrink-0">
+            Preencher via JSON
+          </Button>
+        </CardContent>
+      </Card>
+
+      <BrandJsonAssistantDialog
+        open={jsonAssistantOpen}
+        onOpenChange={setJsonAssistantOpen}
+        values={values}
+        onApply={applyJsonValues}
+      />
+
       <Tabs defaultValue="general" className="space-y-4">
         <TabsList className="flex w-full flex-wrap gap-1">
           <TabsTrigger value="general">Dados gerais</TabsTrigger>
