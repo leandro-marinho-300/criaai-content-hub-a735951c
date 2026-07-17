@@ -73,8 +73,12 @@ function CreateHub() {
 
   return <Hub onPick={(m) => {
     if (m === "ideias") navigate({ to: "/app/ideas" });
-    else if (m === "reel") navigate({ to: "/app/create/reel" });
-    else setMode(m);
+    else if (m === "reel") {
+      // Navegação robusta: em alguns deploys do Lovable o navigate programático
+      // não resolve rotas recém-geradas sem refresh do bundle. O href absoluto
+      // garante que /app/create/reel seja carregado imediatamente.
+      window.location.assign("/app/create/reel");
+    } else setMode(m);
   }} />;
 }
 
@@ -137,7 +141,13 @@ function Hub({ onPick }: { onPick: (m: "ideias" | "tema" | "adaptar" | "campanha
           <button
             key={c.id}
             type="button"
-            onClick={() => onPick(c.id)}
+            onClick={() => {
+              if (c.id === "reel") {
+                window.location.assign("/app/create/reel");
+                return;
+              }
+              onPick(c.id);
+            }}
             className="group grid grid-cols-[auto_1fr_auto] items-start gap-4 rounded-2xl border border-border/60 bg-card p-5 text-left transition-all hover:border-primary/50 hover:shadow-lg"
           >
             <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary">

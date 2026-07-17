@@ -150,7 +150,8 @@ function CreateReel2() {
     try {
       localStorage.setItem(REEL2_WIZARD_PREFILL_KEY, JSON.stringify(buildReel2WizardPrefill(draft, selectedBrand)));
       toast.success("Rascunho enviado para o wizard atual.");
-      navigate({ to: "/app/content/new" });
+      // Navegação robusta para preservar o prefill em produção e evitar cliques sem efeito.
+      window.location.assign("/app/content/new");
     } catch {
       toast.error("Não foi possível preparar o wizard atual.");
     }
