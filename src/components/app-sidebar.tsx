@@ -4,7 +4,6 @@ import {
   Briefcase,
   Wand2,
   Library,
-  FileText,
   Settings,
   LogOut,
   Moon,
@@ -13,6 +12,7 @@ import {
   Lightbulb,
   CalendarCheck,
   TrendingUp,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   Sidebar,
@@ -39,7 +39,7 @@ const items = [
   { title: "Criar conteúdo", url: "/app/create", icon: Wand2 },
   { title: "Calendário", url: "/app/calendar", icon: CalendarCheck },
   { title: "Biblioteca", url: "/app/library", icon: Library },
-  { title: "Modelos", url: "/app/templates", icon: FileText },
+  { title: "Presets", url: "/app/templates", icon: SlidersHorizontal },
   { title: "Configurações", url: "/app/settings", icon: Settings },
 ];
 

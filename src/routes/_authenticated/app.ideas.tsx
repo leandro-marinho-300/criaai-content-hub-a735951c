@@ -59,6 +59,7 @@ import {
 } from "@/lib/ideaCompatibility";
 import { FIELD_TOOLTIPS } from "@/lib/ideaTaxonomy";
 import type { IdeaHistoryItem } from "@/lib/ideaNovelty";
+import { getPresetById, presetToWizardPrefill, presetsForBrand, type ContentPreset } from "@/lib/contentPresets";
 
 export const Route = createFileRoute("/_authenticated/app/ideas")({
   head: () => ({ meta: [{ title: "Laboratório de Ideias — Cria Aí" }] }),
@@ -81,6 +82,9 @@ function IdeasLab() {
   const [sessionHistory, setSessionHistory] = useState<IdeaHistoryItem[]>([]);
   const [surprise, setSurprise] = useState(false);
   const [allowFallback, setAllowFallback] = useState(true);
+  const [presetsVersion, setPresetsVersion] = useState(0);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("");
+  const [appliedPreset, setAppliedPreset] = useState<ContentPreset | null>(null);
   const [ideaForFormats, setIdeaForFormats] = useState<{
     idea: Idea;
     brandId: string;
@@ -97,6 +101,30 @@ function IdeasLab() {
   });
 
   const brand = useMemo(() => brands?.find((b) => b.id === brandId) ?? null, [brands, brandId]);
+  const availablePresets = useMemo(() => presetsForBrand(brandId), [brandId, presetsVersion]);
+
+  useEffect(() => {
+    const refresh = () => setPresetsVersion((n) => n + 1);
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
+
+  const applyPreset = (presetId: string) => {
+    setSelectedPresetId(presetId);
+    const preset = getPresetById(presetId);
+    setAppliedPreset(preset);
+    if (!preset) return;
+    if (preset.brand_id) setBrandId(preset.brand_id);
+    setObjective(preset.objective);
+    setFocus(preset.focus);
+    setApproach(preset.approach);
+    setTone(preset.tone);
+    setFormats(preset.idea_formats?.length ? preset.idea_formats : ["auto"]);
+    setAllowFallback(preset.allow_fallback);
+    setSurprise(false);
+    toast.success("Preset aplicado ao Laboratório.", { description: preset.name });
+  };
 
   // Limpar estado ao trocar de marca
   useEffect(() => {
@@ -104,6 +132,10 @@ function IdeasLab() {
     setSessionHistory([]);
     setSeedBump(0);
     setSurprise(false);
+    if (appliedPreset?.brand_id && appliedPreset.brand_id !== brandId) {
+      setSelectedPresetId("");
+      setAppliedPreset(null);
+    }
   }, [brandId]);
 
   const { data: history } = useQuery({
@@ -314,21 +346,43 @@ function IdeasLab() {
   });
 
   const continueWithIdea = (idea: Idea, brandIdForUse: string, selectedFormats: string[]) => {
+    const preset = appliedPreset;
+    const presetPrefill = preset ? presetToWizardPrefill(preset, brandIdForUse) : {};
+    const mandatory = [idea.required_information.join("\n"), preset?.mandatory_information]
+      .filter(Boolean)
+      .join("\n");
+    const desiredStyle = [
+      idea.visual_direction,
+      idea.tone ? `Tom: ${idea.tone}` : "",
+      preset?.desired_style,
+      preset?.visual_instructions,
+      preset?.reel_instructions ? `Roteiro: ${preset.reel_instructions}` : "",
+      preset?.caption_instructions ? `Legenda: ${preset.caption_instructions}` : "",
+    ]
+      .filter(Boolean)
+      .join(". ");
+    const notes = [
+      `Origem: Laboratório de Ideias. Pilar: ${idea.content_pillar}. Abordagem: ${idea.approach}. Gancho: ${idea.hook}`,
+      preset ? `Preset aplicado: ${preset.name}` : "",
+      preset?.notes,
+    ]
+      .filter(Boolean)
+      .join("\n");
     const prefill = {
+      ...presetPrefill,
       brand_id: brandIdForUse,
-      objective: idea.objective,
+      objective: preset && preset.objective !== "qualquer" ? preset.objective : idea.objective,
       selected_formats: selectedFormats,
       internal_title: idea.title,
       theme: idea.theme,
       specific_audience: idea.target_audience,
       audience_problem: idea.audience_problem,
       main_message: idea.central_message,
-      call_to_action: idea.suggested_cta,
-      mandatory_information: idea.required_information.join("\n"),
-      desired_style: [idea.visual_direction, idea.tone ? `Tom: ${idea.tone}` : ""]
-        .filter(Boolean)
-        .join(". "),
-      notes: `Origem: Laboratório de Ideias. Pilar: ${idea.content_pillar}. Abordagem: ${idea.approach}. Gancho: ${idea.hook}`,
+      call_to_action: preset?.cta || idea.suggested_cta,
+      mandatory_information: mandatory,
+      desired_style: desiredStyle,
+      restrictions: preset?.restrictions ?? "",
+      notes,
     };
     try {
       localStorage.setItem("cria-wizard-prefill", JSON.stringify(prefill));
@@ -344,11 +398,18 @@ function IdeasLab() {
     preferredFormats?: IdeaFormat[],
   ) => {
     const recommended = formatLabelToKey(idea.recommended_format);
+    const presetFormats = appliedPreset?.formats?.filter(Boolean) ?? [];
     const selectedFromLab = (preferredFormats ?? [])
       .filter((format) => format !== "auto")
       .map((format) => format as string);
     const initialFormats =
-      selectedFromLab.length > 0 ? selectedFromLab : recommended ? [recommended] : [];
+      presetFormats.length > 0
+        ? presetFormats
+        : selectedFromLab.length > 0
+          ? selectedFromLab
+          : recommended
+            ? [recommended]
+            : [];
 
     setIdeaForFormats({ idea, brandId: brandIdForUse, initialFormats });
   };
@@ -388,6 +449,36 @@ function IdeasLab() {
           </TabsList>
 
           <TabsContent value="generate" className="space-y-4">
+            <Card className="border-primary/25 bg-primary/5">
+              <CardContent className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_260px] md:items-center">
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium">Começar com um preset</p>
+                  <p className="text-xs text-muted-foreground">
+                    Presets preenchem objetivo, foco, abordagem, formatos, tom, CTA e orientações. Você ainda pode ajustar tudo antes de gerar.
+                  </p>
+                  {appliedPreset && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      <Badge variant="secondary">Preset: {appliedPreset.name}</Badge>
+                      {appliedPreset.cta && <Badge variant="outline">CTA: {appliedPreset.cta}</Badge>}
+                    </div>
+                  )}
+                </div>
+                <Select value={selectedPresetId || "none"} onValueChange={(value) => value === "none" ? (setSelectedPresetId(""), setAppliedPreset(null)) : applyPreset(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar preset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem preset</SelectItem>
+                    {availablePresets.map((preset) => (
+                      <SelectItem key={preset.id} value={preset.id}>
+                        {preset.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardContent className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
                 {/* Linha 1 */}

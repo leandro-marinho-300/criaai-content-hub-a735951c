@@ -23,6 +23,7 @@ import {
   Shuffle,
   CalendarCheck,
   ShieldCheck,
+  SlidersHorizontal,
 } from "lucide-react";
 import { SendForApprovalDialog } from "@/components/send-for-approval-dialog";
 import { ClientApprovalPanel } from "@/components/client-approval-panel";
@@ -52,6 +53,7 @@ import { getStoredReelScript, reelScriptToPlainText, type ReelScript } from "@/l
 import { attachReelScriptVisualMeta, getStoredReelScriptVisualMeta } from "@/lib/reelScriptVisual";
 import { inferReelDurationSeconds } from "@/lib/reelContent";
 import { MAX_HASHTAGS, normalizeHashtags } from "@/lib/hashtags";
+import { presetFromProject, saveUserPreset } from "@/lib/contentPresets";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
@@ -211,6 +213,20 @@ function ResultPage() {
     window.open("https://chat.openai.com/", "_blank", "noopener,noreferrer");
   };
 
+  const saveProjectAsPreset = () => {
+    const suggestedName = `${getProjectDisplayTitle(project)} — preset`;
+    const name = window.prompt("Nome do preset", suggestedName);
+    if (!name?.trim()) return;
+    try {
+      const preset = saveUserPreset(presetFromProject({ project, name: name.trim() }));
+      toast.success("Preset salvo.", { description: preset.name });
+    } catch (error) {
+      toast.error("Não foi possível salvar o preset", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  };
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="space-y-4">
@@ -313,6 +329,10 @@ function ResultPage() {
               <Button variant="outline" size="sm" onClick={exportTxt}>
                 <Download className="mr-2 h-4 w-4" />
                 Exportar TXT
+              </Button>
+              <Button variant="outline" size="sm" onClick={saveProjectAsPreset}>
+                <SlidersHorizontal className="mr-2 h-4 w-4" />
+                Salvar como preset
               </Button>
               <Button asChild variant="outline" size="sm">
                 <Link to="/app/content/new">
