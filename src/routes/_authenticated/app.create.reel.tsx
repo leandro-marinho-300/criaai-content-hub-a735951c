@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { CopyButton } from "@/components/copy-button";
 import { ImportReel2ScriptDialog } from "@/components/import-reel2-script-dialog";
+import { Reel2ScriptStudio } from "@/components/reel2-script-studio";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
@@ -168,6 +169,8 @@ export function CreateReel2() {
       imported_script_imported_at: new Date().toISOString(),
       imported_script_source_schema: result.sourceSchema || script.schema_version,
       imported_script_warnings: result.warnings,
+      imported_script_updated_at: new Date().toISOString(),
+      imported_script_needs_review: false,
       central_idea: script.central_idea || current.central_idea,
       promise: script.promise || current.promise,
       hook_options: hooks.length ? hooks : current.hook_options,
@@ -175,6 +178,20 @@ export function CreateReel2() {
       cover_mode: script.cover.needs_cover ? "custom" : current.cover_mode,
     }));
     toast.success("JSON Reel 2.0 importado para o rascunho.");
+  };
+
+  const onUpdateImportedScript = (script: Reel2ImportedScript) => {
+    setDraft((current) => ({
+      ...current,
+      imported_script: script,
+      imported_script_updated_at: new Date().toISOString(),
+      imported_script_needs_review: true,
+      central_idea: script.central_idea || current.central_idea,
+      promise: script.promise || current.promise,
+      hook_options: convertImportedScriptHooks(script),
+      selected_hook_index: findSelectedHookIndex(script),
+      cover_mode: script.cover.needs_cover ? "custom" : current.cover_mode,
+    }));
   };
 
   const onContinueToClassicWizard = () => {
@@ -202,10 +219,10 @@ export function CreateReel2() {
           <div className="max-w-3xl space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="rounded-full bg-orange-500 text-white hover:bg-orange-500">
-                Fase 1 · Cria Aí 2.0
+Fase 3 · Cria Aí 2.0
               </Badge>
               <Badge variant="secondary" className="rounded-full">
-                JSON e importação
+Estúdio de roteiro
               </Badge>
             </div>
             <div>
@@ -234,7 +251,7 @@ export function CreateReel2() {
             <CardContent className="space-y-4 p-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Progresso da Fase 1</span>
+                  <span>Progresso da Fase 3</span>
                   <span>{progress}%</span>
                 </div>
                 <Progress value={progress} />
@@ -549,9 +566,9 @@ export function CreateReel2() {
 
           {step === 6 && (
             <StepShell
-              eyebrow="Resumo da Fase 2"
-              title="Roteiro pronto para importar"
-              description="Agora o rascunho gera o pedido externo, importa o JSON Reel 2.0 e guarda o roteiro validado para as próximas fases."
+              eyebrow="Resumo da Fase 3"
+              title="Roteiro importado, editável e validado"
+              description="Importe o JSON Reel 2.0 e revise gancho, promessa, cenas, versão reduzida, publicação e checklist antes de seguir."
             >
               <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
                 <div className="space-y-4">
@@ -594,7 +611,14 @@ export function CreateReel2() {
                     </CardContent>
                   </Card>
 
-                  {draft.imported_script && <ImportedScriptPreview script={draft.imported_script} warnings={draft.imported_script_warnings || []} />}
+                  {draft.imported_script && (
+                    <Reel2ScriptStudio
+                      script={draft.imported_script}
+                      warnings={draft.imported_script_warnings || []}
+                      needsReview={Boolean(draft.imported_script_needs_review)}
+                      onChange={onUpdateImportedScript}
+                    />
+                  )}
                 </div>
 
                 <Card className="border-orange-500/30 bg-orange-500/5">
@@ -603,7 +627,7 @@ export function CreateReel2() {
                       <RouteIcon className="h-4 w-4 text-orange-500" /> Caminho de continuidade
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Com o JSON importado, o wizard atual recebe gancho, promessa, roteiro por cenas, legenda do vídeo, capa, CTA e hashtags no campo de observações.
+Com o JSON importado e revisado, o wizard atual recebe gancho, promessa, roteiro por cenas, legenda do vídeo, capa, CTA e hashtags no campo de observações.
                     </p>
                     <Button onClick={onContinueToClassicWizard} className="w-full gap-2">
                       Usar no wizard atual <ArrowRight className="h-4 w-4" />

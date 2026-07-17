@@ -69,6 +69,8 @@ export interface Reel2Draft {
   imported_script_imported_at?: string;
   imported_script_source_schema?: string;
   imported_script_warnings?: string[];
+  imported_script_updated_at?: string;
+  imported_script_needs_review?: boolean;
   cover_mode: Reel2CoverMode;
   extra_notes: string;
   advanced_open: boolean;
@@ -232,6 +234,8 @@ export const DEFAULT_REEL2_DRAFT: Reel2Draft = {
   imported_script_imported_at: "",
   imported_script_source_schema: "",
   imported_script_warnings: [],
+  imported_script_updated_at: "",
+  imported_script_needs_review: false,
   cover_mode: "unsure",
   extra_notes: "",
   advanced_open: false,
@@ -274,6 +278,8 @@ export function normalizeReel2Draft(value: unknown): Reel2Draft {
     imported_script_imported_at: typeof v.imported_script_imported_at === "string" ? v.imported_script_imported_at : "",
     imported_script_source_schema: typeof v.imported_script_source_schema === "string" ? v.imported_script_source_schema : "",
     imported_script_warnings: Array.isArray(v.imported_script_warnings) ? v.imported_script_warnings.filter((item): item is string => typeof item === "string") : [],
+    imported_script_updated_at: typeof v.imported_script_updated_at === "string" ? v.imported_script_updated_at : "",
+    imported_script_needs_review: typeof v.imported_script_needs_review === "boolean" ? v.imported_script_needs_review : false,
   };
 }
 
@@ -338,7 +344,7 @@ export function buildReel2WizardPrefill(draft: Reel2Draft, brand?: Tables<"brand
     .slice(0, 12)
     .join("\n");
   const notes = [
-    imported ? "Origem: Criar Reel 2.0 — Fase 2 com JSON importado." : "Origem: Criar Reel 2.0 — Fase 1.",
+    imported ? "Origem: Criar Reel 2.0 — Fase 3 com JSON importado e editor de roteiro." : "Origem: Criar Reel 2.0 — Fase 3.",
     draft.entry_mode ? `Entrada escolhida: ${entryLabel(draft.entry_mode as Reel2EntryMode)}.` : "",
     selectedObjective ? `Objetivo do Reel: ${selectedObjective.title}.` : imported?.objective ? `Objetivo do Reel: ${imported.objective}.` : "",
     selectedType ? `Tipo de Reel: ${selectedType.title}. Estrutura: ${selectedType.structure}.` : imported?.reel_type ? `Tipo de Reel: ${imported.reel_type}.` : "",

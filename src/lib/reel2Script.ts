@@ -578,3 +578,162 @@ const reel2PromptExample = {
     respects_brand_niche: true,
   },
 };
+
+export type Reel2QualityStatus = "ok" | "warning" | "error";
+
+export interface Reel2QualityItem {
+  id: string;
+  label: string;
+  description: string;
+  status: Reel2QualityStatus;
+}
+
+export interface Reel2QualitySummary {
+  ok: number;
+  warning: number;
+  error: number;
+  total: number;
+}
+
+function textLength(value?: string | null): number {
+  return (value || "").trim().length;
+}
+
+function firstMainScene(script: Reel2ImportedScript) {
+  return script.main_script.scenes[0];
+}
+
+export function buildReel2QualityChecklist(script: Reel2ImportedScript): Reel2QualityItem[] {
+  const items: Reel2QualityItem[] = [];
+  const first = firstMainScene(script);
+  const sortedScenes = [...script.main_script.scenes].sort((a, b) => a.start - b.start);
+  const hasInvalidTimes = sortedScenes.some((scene) => scene.end <= scene.start);
+  const hasOverlap = sortedScenes.some((scene, index) => index > 0 && scene.start < sortedScenes[index - 1].end);
+  const hasLargeGap = sortedScenes.some((scene, index) => index > 0 && scene.start - sortedScenes[index - 1].end > 2);
+  const hasLongOnScreenText = script.main_script.scenes.some((scene) => textLength(scene.on_screen_text) > 110);
+  const hasEmptyVisual = script.main_script.scenes.some((scene) => !textLength(scene.visual_direction));
+  const lastEnd = sortedScenes.length ? Math.max(...sortedScenes.map((scene) => scene.end)) : 0;
+  const durationDiff = Math.abs(lastEnd - script.main_script.duration_seconds);
+
+  items.push({
+    id: "hook_0_3",
+    label: "Gancho nos primeiros 3 segundos",
+    description: first && first.start === 0 && first.end <= 3.5 && textLength(first.speech) > 0
+      ? "O roteiro começa em 0s e usa o primeiro bloco como gancho."
+      : "O primeiro bloco precisa começar em 0s, terminar por volta de 3s e conter fala clara.",
+    status: first && first.start === 0 && first.end <= 3.5 && textLength(first.speech) > 0 ? "ok" : "error",
+  });
+
+  items.push({
+    id: "promise",
+    label: "Promessa clara",
+    description: textLength(script.promise) >= 20
+      ? "A promessa dá motivo para assistir até o final."
+      : "A promessa está curta demais ou genérica. Explique o ganho de assistir até o fim.",
+    status: textLength(script.promise) >= 20 ? "ok" : "warning",
+  });
+
+  items.push({
+    id: "scene_functions",
+    label: "Cada cena tem uma função",
+    description: script.main_script.scenes.every((scene) => textLength(scene.function) > 0)
+      ? "Todas as cenas indicam sua função narrativa."
+      : "Uma ou mais cenas estão sem função, como gancho, contexto, explicação ou CTA.",
+    status: script.main_script.scenes.every((scene) => textLength(scene.function) > 0) ? "ok" : "error",
+  });
+
+  items.push({
+    id: "timing",
+    label: "Tempos coerentes",
+    description: hasInvalidTimes
+      ? "Existe cena com tempo final menor ou igual ao início."
+      : hasOverlap
+        ? "Existe sobreposição entre cenas. Ajuste início e fim."
+        : hasLargeGap
+          ? "Há lacunas grandes entre cenas. Revise se são intencionais."
+          : durationDiff > 3
+            ? "A duração declarada não bate com o fim das cenas."
+            : "Os tempos estão em ordem e coerentes com a duração.",
+    status: hasInvalidTimes || hasOverlap ? "error" : hasLargeGap || durationDiff > 3 ? "warning" : "ok",
+  });
+
+  items.push({
+    id: "on_screen_text",
+    label: "Texto na tela curto",
+    description: hasLongOnScreenText
+      ? "Há textos longos demais para leitura rápida no vídeo."
+      : "Os textos na tela estão dentro de um tamanho seguro.",
+    status: hasLongOnScreenText ? "warning" : "ok",
+  });
+
+  items.push({
+    id: "visual_direction",
+    label: "Direção visual por cena",
+    description: hasEmptyVisual
+      ? "Uma ou mais cenas precisam de orientação visual/gravação."
+      : "Todas as cenas têm orientação visual."
+    ,
+    status: hasEmptyVisual ? "warning" : "ok",
+  });
+
+  items.push({
+    id: "video_caption",
+    label: "Legenda completa para inserir no vídeo",
+    description: textLength(script.short_version.full_video_caption) > 0
+      ? "A versão reduzida tem legenda completa para edição/acessibilidade."
+      : "A versão reduzida precisa do campo full_video_caption preenchido.",
+    status: textLength(script.short_version.full_video_caption) > 0 ? "ok" : "error",
+  });
+
+  items.push({
+    id: "cta",
+    label: "CTA coerente",
+    description: textLength(script.publication.cta) > 0
+      ? "Existe uma chamada para ação definida."
+      : "Inclua uma ação final: comentar, chamar no direct, pedir orçamento ou salvar.",
+    status: textLength(script.publication.cta) > 0 ? "ok" : "warning",
+  });
+
+  items.push({
+    id: "hashtags",
+    label: "Até 5 hashtags",
+    description: script.publication.hashtags.length <= MAX_HASHTAGS
+      ? `O roteiro usa ${script.publication.hashtags.length} hashtag(s).`
+      : `Há mais de ${MAX_HASHTAGS} hashtags.`,
+    status: script.publication.hashtags.length <= MAX_HASHTAGS ? "ok" : "error",
+  });
+
+  items.push({
+    id: "cover",
+    label: "Capa preparada quando necessário",
+    description: script.cover.needs_cover
+      ? textLength(script.cover.title) > 0
+        ? "A capa personalizada tem título definido."
+        : "A capa foi marcada como necessária, mas ainda não tem título."
+      : "Capa personalizada não foi marcada como obrigatória neste roteiro.",
+    status: script.cover.needs_cover && !textLength(script.cover.title) ? "warning" : "ok",
+  });
+
+  items.push({
+    id: "brand_niche",
+    label: "Respeita marca e nicho",
+    description: script.quality_check.respects_brand_niche
+      ? "O JSON declarou coerência com a marca/nicho."
+      : "O JSON não confirmou coerência com o nicho. Revise linguagem e promessas.",
+    status: script.quality_check.respects_brand_niche ? "ok" : "warning",
+  });
+
+  return items;
+}
+
+export function summarizeReel2Quality(items: Reel2QualityItem[]): Reel2QualitySummary {
+  return items.reduce<Reel2QualitySummary>((summary, item) => {
+    summary[item.status] += 1;
+    summary.total += 1;
+    return summary;
+  }, { ok: 0, warning: 0, error: 0, total: 0 });
+}
+
+export function normalizeReel2HashtagInput(value: string): string[] {
+  return normalizeHashtags(value.split(/[\s,]+/).filter(Boolean));
+}
