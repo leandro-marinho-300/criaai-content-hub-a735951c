@@ -80,7 +80,7 @@ const entryIconMap: Record<Reel2EntryMode, typeof Lightbulb> = {
   adapt_existing: CopyCheck,
 };
 
-function CreateReel2() {
+export function CreateReel2() {
   const navigate = useNavigate();
   const [step, setStep] = useState<StepIndex>(0);
   const [draft, setDraft] = useState<Reel2Draft>(() => loadReel2Draft());

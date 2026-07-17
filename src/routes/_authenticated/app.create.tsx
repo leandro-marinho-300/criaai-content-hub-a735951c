@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { OBJECTIVE_LABELS } from "@/lib/promptBuilder";
+import { CreateReel2 } from "./app.create.reel";
 import {
   CREATIVE_PATHS,
   rankPathsByObjective,
@@ -33,7 +34,7 @@ import {
 } from "@/lib/creativePaths";
 import type { IdeaObjective } from "@/lib/ideaTaxonomy";
 
-type Mode = "hub" | "tema" | "adaptar" | "campanha";
+type Mode = "hub" | "tema" | "adaptar" | "campanha" | "reel";
 
 export const Route = createFileRoute("/_authenticated/app/create")({
   head: () => ({ meta: [{ title: "Criar conteúdo — Cria Aí" }] }),
@@ -46,8 +47,13 @@ export const Route = createFileRoute("/_authenticated/app/create")({
 function CreateHub() {
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const initialMode: Mode = search.mode ?? "hub";
+  const pathRequestsReel = typeof window !== "undefined" && /\/app\/create\/reel\/?$/.test(window.location.pathname);
+  const initialMode: Mode = pathRequestsReel ? "reel" : (search.mode ?? "hub");
   const [mode, setMode] = useState<Mode>(initialMode);
+
+  if (pathRequestsReel || mode === "reel") {
+    return <CreateReel2 />;
+  }
 
   if (mode === "tema") {
     return <ModeTema onBack={() => setMode("hub")} />;
@@ -74,10 +80,10 @@ function CreateHub() {
   return <Hub onPick={(m) => {
     if (m === "ideias") navigate({ to: "/app/ideas" });
     else if (m === "reel") {
-      // Navegação robusta: em alguns deploys do Lovable o navigate programático
-      // não resolve rotas recém-geradas sem refresh do bundle. O href absoluto
-      // garante que /app/create/reel seja carregado imediatamente.
-      window.location.assign("/app/create/reel");
+      setMode("reel");
+      try {
+        window.history.pushState(null, "", "/app/create?mode=reel");
+      } catch {}
     } else setMode(m);
   }} />;
 }
@@ -143,7 +149,7 @@ function Hub({ onPick }: { onPick: (m: "ideias" | "tema" | "adaptar" | "campanha
             type="button"
             onClick={() => {
               if (c.id === "reel") {
-                window.location.assign("/app/create/reel");
+                onPick("reel");
                 return;
               }
               onPick(c.id);
