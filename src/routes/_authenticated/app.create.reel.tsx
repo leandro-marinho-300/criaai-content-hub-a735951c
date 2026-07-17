@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { CopyButton } from "@/components/copy-button";
 import { ImportReel2ScriptDialog } from "@/components/import-reel2-script-dialog";
 import { Reel2ScriptStudio } from "@/components/reel2-script-studio";
+import { Reel2PublishingPackage } from "@/components/reel2-publishing-package";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
@@ -80,7 +81,7 @@ export const Route = createFileRoute("/_authenticated/app/create/reel")({
 });
 
 const STEP_LABELS = ["Entrada", "Marca", "Objetivo", "Tipo", "Promessa", "Gancho", "Resumo"] as const;
-const FUTURE_STEPS = ["Capa", "Publicação", "Storyboard", "Aprovação"];
+const FUTURE_STEPS = ["Aprovação", "Calendário", "Biblioteca"];
 
 type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -234,10 +235,10 @@ export function CreateReel2() {
           <div className="max-w-3xl space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="rounded-full bg-orange-500 text-white hover:bg-orange-500">
-Fase 3 · Cria Aí 2.0
+Fase 4 · Cria Aí 2.0
               </Badge>
               <Badge variant="secondary" className="rounded-full">
-Estúdio de roteiro
+Capa, publicação e storyboard
               </Badge>
             </div>
             <div>
@@ -266,7 +267,7 @@ Estúdio de roteiro
             <CardContent className="space-y-4 p-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Progresso da Fase 3</span>
+                  <span>Progresso da Fase 4</span>
                   <span>{progress}%</span>
                 </div>
                 <Progress value={progress} />
@@ -308,7 +309,7 @@ Estúdio de roteiro
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                Nesta fase, o rascunho já gera um pedido externo e importa o JSON Reel 2.0 validado.
+                Nesta fase, o roteiro importado vira pacote de produção: capa, publicação, storyboard e caminho de aprovação.
               </p>
             </CardContent>
           </Card>
@@ -591,9 +592,9 @@ Estúdio de roteiro
 
           {step === 6 && (
             <StepShell
-              eyebrow="Resumo da Fase 3"
-              title="Roteiro importado, editável e validado"
-              description="Importe o JSON Reel 2.0 e revise gancho, promessa, cenas, versão reduzida, publicação e checklist antes de seguir."
+              eyebrow="Resumo da Fase 4"
+              title="Pacote de Reel pronto para produção"
+              description="Revise roteiro, capa, publicação e gere o pedido visual do storyboard antes de seguir para o wizard atual."
             >
               <div className="space-y-4">
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -619,7 +620,7 @@ Estúdio de roteiro
                       <RouteIcon className="h-4 w-4 text-orange-500" /> Caminho de continuidade
                     </div>
                     <p className="text-sm text-muted-foreground">
-Com o JSON importado e revisado, o wizard atual recebe gancho, promessa, roteiro por cenas, legenda do vídeo, capa, CTA e hashtags no campo de observações.
+Com o JSON importado e o pacote revisado, o wizard atual recebe roteiro, legenda do vídeo, capa, publicação, CTA, hashtags e orientações do storyboard no campo de observações.
                     </p>
                     <Button onClick={onContinueToClassicWizard} className="w-full gap-2">
                       Usar no wizard atual <ArrowRight className="h-4 w-4" />
@@ -655,12 +656,19 @@ Com o JSON importado e revisado, o wizard atual recebe gancho, promessa, roteiro
                 </Card>
 
                 {draft.imported_script && (
-                  <Reel2ScriptStudio
-                    script={draft.imported_script}
-                    warnings={draft.imported_script_warnings || []}
-                    needsReview={Boolean(draft.imported_script_needs_review)}
-                    onChange={onUpdateImportedScript}
-                  />
+                  <>
+                    <Reel2ScriptStudio
+                      script={draft.imported_script}
+                      warnings={draft.imported_script_warnings || []}
+                      needsReview={Boolean(draft.imported_script_needs_review)}
+                      onChange={onUpdateImportedScript}
+                    />
+                    <Reel2PublishingPackage
+                      script={draft.imported_script}
+                      brand={selectedBrand}
+                      onChange={onUpdateImportedScript}
+                    />
+                  </>
                 )}
               </div>
             </StepShell>

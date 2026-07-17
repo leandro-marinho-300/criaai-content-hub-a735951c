@@ -737,3 +737,131 @@ export function summarizeReel2Quality(items: Reel2QualityItem[]): Reel2QualitySu
 export function normalizeReel2HashtagInput(value: string): string[] {
   return normalizeHashtags(value.split(/[\s,]+/).filter(Boolean));
 }
+
+function joinSceneLines(scenes: Reel2ImportedScene[]): string {
+  return scenes
+    .map((scene, index) => [
+      `CENA ${index + 1} — ${scene.start}-${scene.end}s`,
+      `Função: ${scene.function}`,
+      `Fala/Narração: ${scene.speech}`,
+      `Texto na tela: ${scene.on_screen_text || "—"}`,
+      `Imagem/Ação: ${scene.visual_direction || "—"}`,
+    ].join("\n"))
+    .join("\n\n");
+}
+
+function joinHooks(script: Reel2ImportedScript): string {
+  return script.hook_options
+    .map((hook, index) => `${index + 1}. ${hook.spoken_hook}\nTexto na tela: ${hook.on_screen_text}\nCena: ${hook.scene_suggestion}`)
+    .join("\n\n");
+}
+
+export function buildReel2StoryboardPrompt(script: Reel2ImportedScript, brand?: Tables<"brands"> | null): string {
+  const brandName = brand?.name || script.brand || "Marca não informada";
+  const primaryColor = brand?.primary_color || "usar a cor principal da marca anexada";
+  const secondaryColor = brand?.secondary_color || "usar uma cor secundária coerente";
+  const fonts = brand?.fonts || "tipografia limpa, moderna e legível";
+  const visualStyle = brand?.visual_style || "visual profissional, claro e coerente com a marca";
+  const tone = brand?.tone_of_voice || "claro, próximo e profissional";
+  const hashtags = script.publication.hashtags.slice(0, MAX_HASHTAGS).join(" ");
+  const coverMode = script.cover.needs_cover || script.cover.mode === "custom" ? "capa personalizada" : script.cover.mode || "a definir";
+
+  return `Crie um PDF visual profissional de storyboard e guia de produção para um Reel.
+
+IMPORTANTE:
+- Não use IA interna de outro aplicativo.
+- Não copie identidade visual, imagens, falas ou conteúdo autoral de referências.
+- Use referências apenas para aprender organização visual e estrutura.
+- Este PDF é material de produção e aprovação, não é peça publicável.
+- Gere o arquivo final em PDF, com aparência profissional e leitura confortável.
+- Use o logo oficial da marca se ele estiver anexado. Se o logo oficial não estiver anexado, peça o arquivo antes de criar o PDF.
+
+IDENTIDADE DA MARCA:
+Marca: ${brandName}
+Segmento: ${brand?.segment || "Não informado"}
+Tom: ${tone}
+Cor principal: ${primaryColor}
+Cor secundária: ${secondaryColor}
+Tipografia: ${fonts}
+Estilo visual: ${visualStyle}
+
+DIREÇÃO DO PDF:
+- Formato paisagem.
+- Visual limpo, editorial e organizado.
+- Destaques em cores da marca.
+- Cards por cena.
+- Não cortar textos.
+- Se não couber em 2 páginas, criar página adicional.
+- Preservar tempos, falas, CTA, legenda e hashtags.
+
+PÁGINA 1 — ROTEIRO PRINCIPAL:
+Mostrar:
+- logo oficial;
+- título do Reel;
+- objetivo;
+- tipo de Reel;
+- promessa;
+- gancho escolhido;
+- roteiro principal por cenas.
+
+PÁGINA 2 — VERSÃO REDUZIDA, CAPA E PUBLICAÇÃO:
+Mostrar:
+- versão reduzida por cenas;
+- legenda completa para inserir no vídeo;
+- decisão de capa;
+- título e subtítulo da capa, se houver;
+- orientação de área segura;
+- legenda da publicação;
+- CTA;
+- até 5 hashtags;
+- ganchos alternativos.
+
+DADOS DO REEL:
+Título/ideia central: ${script.central_idea}
+Objetivo: ${script.objective}
+Tipo de Reel: ${script.reel_type}
+Promessa: ${script.promise}
+Gancho escolhido: ${script.selected_hook.spoken_hook}
+Texto inicial na tela: ${script.selected_hook.on_screen_text}
+Cena inicial sugerida: ${script.selected_hook.scene_suggestion}
+
+ROTEIRO PRINCIPAL:
+${joinSceneLines(script.main_script.scenes)}
+
+VERSÃO REDUZIDA:
+Duração: ${script.short_version.duration_seconds}s
+${joinSceneLines(script.short_version.scenes)}
+
+LEGENDA COMPLETA PARA INSERIR NO VÍDEO:
+${script.short_version.full_video_caption}
+
+CAPA DO REEL:
+Modo: ${coverMode}
+Título: ${script.cover.title || "—"}
+Subtítulo: ${script.cover.subtitle || "—"}
+Prompt visual da capa: ${script.cover.visual_prompt || "—"}
+Área segura/corte: ${script.cover.safe_area_notes || "—"}
+
+PUBLICAÇÃO:
+Legenda: ${script.publication.caption}
+CTA: ${script.publication.cta}
+Hashtags: ${hashtags || "—"}
+
+GANCHOS ALTERNATIVOS:
+${joinHooks(script)}
+
+NOTAS DE PRODUÇÃO:
+Iluminação: ${script.production_notes.lighting || "—"}
+Cenário: ${script.production_notes.scenario || "—"}
+Ritmo: ${script.production_notes.pace || "—"}
+Edição: ${script.production_notes.editing || "—"}
+Acessibilidade: ${script.production_notes.accessibility || "—"}
+
+REGRAS FINAIS:
+- Não inventar informações, preços, datas, promessas ou benefícios.
+- Não transformar o storyboard em arte final do feed.
+- Não remover cenas.
+- Não mudar o CTA.
+- Não ultrapassar 5 hashtags.
+- Preservar acentos, pontuação e emojis.`;
+}
