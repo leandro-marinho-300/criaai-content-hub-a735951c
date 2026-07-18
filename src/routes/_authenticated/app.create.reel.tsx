@@ -97,6 +97,18 @@ const entryIconMap: Record<Reel2EntryMode, typeof Lightbulb> = {
   adapt_existing: CopyCheck,
 };
 
+function getCreateProjectErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const err = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const parts = [err.message, err.details, err.hint, err.code]
+      .map((part) => (typeof part === "string" ? part.trim() : ""))
+      .filter(Boolean);
+    if (parts.length) return parts.join(" · ");
+  }
+  return "Não foi possível criar o projeto.";
+}
+
 export function CreateReel2() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -357,6 +369,8 @@ export function CreateReel2() {
           content = JSON.stringify(updatedPiece);
         }
 
+        const isReel2Output = Boolean(isReelScript || isReelCaption || isReelCover);
+
         return {
           project_id: project.id,
           user_id: u.user!.id,
@@ -371,9 +385,12 @@ export function CreateReel2() {
               : isReelCover
                 ? ({ cover: script.cover, source_schema: "reel_2_0" } as any)
                 : null,
-          source: isReelScript || isReelCaption || isReelCover ? "external_chatgpt" : undefined,
-          copy_status: isReelScript || isReelCaption || isReelCover ? "review" : undefined,
-          version: isReelScript ? 1 : undefined,
+          // Importante: em insert em lote no PostgREST, todos os objetos precisam ter as mesmas chaves.
+          // Antes, alguns outputs ficavam com source/copy_status/version como undefined, o que podia quebrar
+          // a criação do projeto com erro genérico. Mantemos valores explícitos em todas as linhas.
+          source: isReel2Output ? "external_chatgpt" : "auto",
+          copy_status: isReel2Output ? "review" : "approved",
+          version: 1,
         };
       });
       if (rows.length) {
@@ -390,7 +407,9 @@ export function CreateReel2() {
       navigate({ to: "/app/content/$projectId/result", params: { projectId } });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Não foi possível criar o projeto.");
+      const message = getCreateProjectErrorMessage(error);
+      console.error("Erro ao criar projeto Reel 2.0", error);
+      toast.error(message);
     },
   });
 
