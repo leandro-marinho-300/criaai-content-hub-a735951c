@@ -121,6 +121,9 @@ function Dashboard() {
   });
 
   const recent = stats?.recent ?? [];
+  const productionProjects = recent.filter((project) =>
+    ["draft", "review", "approved"].includes(project.status),
+  );
   const activeProjects = (stats?.drafts ?? 0) + (stats?.approved ?? 0);
 
   const { data: profileName } = useQuery({
@@ -376,49 +379,35 @@ function Dashboard() {
         <QuickIdeaBlock />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="rounded-[2rem] border border-border/60 bg-card p-5 shadow-sm sm:p-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <Badge variant="outline" className="mb-2 rounded-full">
-                Produção
-              </Badge>
-              <h2 className="text-xl font-semibold">Continuar produção</h2>
-              <p className="text-sm text-muted-foreground">
-                Retome o que está em andamento, aprovado ou aguardando ajuste.
-              </p>
+      <section className="space-y-5">
+        {productionProjects.length > 0 && (
+          <div className="rounded-[2rem] border border-border/60 bg-card p-5 shadow-sm sm:p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <Badge variant="outline" className="mb-2 rounded-full">
+                  Produção
+                </Badge>
+                <h2 className="text-xl font-semibold">Continuar produção</h2>
+                <p className="text-sm text-muted-foreground">
+                  Retome conteúdos em andamento, aprovados ou aguardando ajustes.
+                </p>
+              </div>
+              <Button asChild variant="ghost" size="sm" className="gap-1">
+                <Link to="/app/library">
+                  Ver biblioteca
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
             </div>
-            <Button asChild variant="ghost" size="sm" className="gap-1">
-              <Link to="/app/library">
-                Ver biblioteca
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
+            <div className="grid gap-3">
+              {productionProjects.slice(0, 4).map((project) => (
+                <ProjectResumeCard key={project.id} project={project} />
+              ))}
+            </div>
           </div>
-          <div className="grid gap-3">
-            {recent.length ? (
-              recent
-                .slice(0, 4)
-                .map((project) => <ProjectResumeCard key={project.id} project={project} />)
-            ) : (
-              <Card className="border-dashed bg-background/50">
-                <CardContent className="grid place-items-center gap-2 p-8 text-center">
-                  <FolderOpen className="h-7 w-7 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    Nenhum conteúdo em produção ainda.
-                  </p>
-                  <Button asChild size="sm">
-                    <Link to="/app/create">Criar primeiro conteúdo</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
+        )}
 
-        <div className="space-y-5">
-          <ClientApprovalsSection />
-        </div>
+        <ClientApprovalsSection />
       </section>
     </div>
   );
