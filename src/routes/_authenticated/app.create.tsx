@@ -30,10 +30,9 @@ import { OBJECTIVE_LABELS } from "@/lib/promptBuilder";
 import { rankPathsByObjective, type CreativePath } from "@/lib/creativePaths";
 import type { IdeaObjective } from "@/lib/ideaTaxonomy";
 import {
-  createReel2Draft,
   mapPresetObjectiveToReel,
-  saveReel2Draft,
   snapshotBrand,
+  type Reel2Draft,
 } from "@/lib/reel2";
 
 export const Route = createFileRoute("/_authenticated/app/create")({
@@ -82,13 +81,15 @@ const START_POINTS: Array<{
     id: "tenho_ideia",
     icon: PenSquare,
     title: "Tenho uma ideia",
-    description: "Organize algo que já está na sua cabeça, mesmo que ainda esteja confuso.",
+    description:
+      "Organize algo que já está na sua cabeça, mesmo que ainda esteja confuso.",
   },
   {
     id: "referencia",
     icon: RefreshCw,
     title: "Tenho uma referência ou tendência",
-    description: "Use uma referência como ponto de partida, sem copiar conteúdo ou identidade.",
+    description:
+      "Use uma referência como ponto de partida, sem copiar conteúdo ou identidade.",
   },
   {
     id: "campanha",
@@ -113,9 +114,12 @@ const CAMPAIGN_PATHS: CampaignPath[] = [
   {
     id: "planejamento",
     label: "Planejar antes para agir com tranquilidade",
-    centralIdea: "Antecipar decisões reduz insegurança e melhora a experiência final.",
-    promise: "Ajudar o público a entender o que precisa ser planejado antes de tomar uma decisão.",
-    setLogic: "Apresentar o problema, organizar as decisões e conduzir para o próximo passo.",
+    centralIdea:
+      "Antecipar decisões reduz insegurança e melhora a experiência final.",
+    promise:
+      "Ajudar o público a entender o que precisa ser planejado antes de tomar uma decisão.",
+    setLogic:
+      "Apresentar o problema, organizar as decisões e conduzir para o próximo passo.",
     tone: "próximo, claro, inspirador e responsável",
     suggestedCta: "Fale com a equipe para começar seu planejamento.",
   },
@@ -131,9 +135,11 @@ const CAMPAIGN_PATHS: CampaignPath[] = [
   {
     id: "jornada",
     label: "Do desejo ao planejamento",
-    centralIdea: "Transformar uma vontade inicial em um plano possível e seguro.",
+    centralIdea:
+      "Transformar uma vontade inicial em um plano possível e seguro.",
     promise: "Conduzir o público da inspiração até uma ação concreta.",
-    setLogic: "Combinar inspiração, orientação, construção de confiança e contato.",
+    setLogic:
+      "Combinar inspiração, orientação, construção de confiança e contato.",
     tone: "inspirador, humano e direto",
     suggestedCta: "Dê o primeiro passo com um atendimento personalizado.",
   },
@@ -145,20 +151,24 @@ const FORMAT_RECOMMENDATIONS: Record<FormatKey, FormatRecommendation> = {
     label: "Reel educativo",
     effort: "Produção maior",
     why: "Funciona bem quando a ideia depende de situação, demonstração, fala ou transformação rápida.",
-    useWhen: "Use quando for importante mostrar causa e efeito com ritmo e presença humana.",
+    useWhen:
+      "Use quando for importante mostrar causa e efeito com ritmo e presença humana.",
     deliveries:
       "Ganchos, roteiro por cenas, texto falado, texto na tela, orientação visual, legenda, CTA e título de capa.",
     direction:
       "Começar por uma situação reconhecível, explicar o que acontece e fechar com um ajuste prático.",
-    limitation: "Não é ideal para listas extensas, comparações detalhadas ou conteúdo de consulta.",
+    limitation:
+      "Não é ideal para listas extensas, comparações detalhadas ou conteúdo de consulta.",
   },
   carrossel: {
     key: "carrossel",
     label: "Carrossel educativo",
     effort: "Produção média",
     why: "É forte para organizar explicações, listas, etapas e comparações com leitura pausada.",
-    useWhen: "Use quando o público precisar consultar, salvar ou acompanhar uma sequência lógica.",
-    deliveries: "Estrutura por páginas, títulos, textos curtos, orientação visual, legenda e CTA.",
+    useWhen:
+      "Use quando o público precisar consultar, salvar ou acompanhar uma sequência lógica.",
+    deliveries:
+      "Estrutura por páginas, títulos, textos curtos, orientação visual, legenda e CTA.",
     direction:
       "Organizar a mensagem em abertura, desenvolvimento por etapas, síntese e ação final.",
     limitation: "Tem menos força para demonstrar movimento, reação e timing.",
@@ -170,9 +180,12 @@ const FORMAT_RECOMMENDATIONS: Record<FormatKey, FormatRecommendation> = {
     why: "É adequado quando a mensagem principal cabe em uma afirmação forte e direta.",
     useWhen:
       "Use para orientação única, posicionamento, divulgação simples ou reforço de campanha.",
-    deliveries: "Conceito da peça, texto principal, hierarquia visual, legenda e CTA.",
-    direction: "Destacar uma ideia principal e usar a legenda para contextualizar e orientar.",
-    limitation: "Não comporta bem explicações longas ou várias etapas de raciocínio.",
+    deliveries:
+      "Conceito da peça, texto principal, hierarquia visual, legenda e CTA.",
+    direction:
+      "Destacar uma ideia principal e usar a legenda para contextualizar e orientar.",
+    limitation:
+      "Não comporta bem explicações longas ou várias etapas de raciocínio.",
   },
 };
 
@@ -190,7 +203,11 @@ function cleanEditorialTheme(value: string) {
 }
 
 function isCanineContext(
-  brand: { name?: string | null; segment?: string | null; description?: string | null } | null,
+  brand: {
+    name?: string | null;
+    segment?: string | null;
+    description?: string | null;
+  } | null,
   theme: string,
 ) {
   const text =
@@ -200,7 +217,10 @@ function isCanineContext(
 
 function isNoCommandTheme(theme: string) {
   const text = theme.toLowerCase();
-  return /\bn[aã]o\b/.test(text) && /cachorro|respeita|obedec|comportamento|interromp/.test(text);
+  return (
+    /\bn[aã]o\b/.test(text) &&
+    /cachorro|respeita|obedec|comportamento|interromp/.test(text)
+  );
 }
 
 function buildContextualPaths(
@@ -209,7 +229,11 @@ function buildContextualPaths(
     theme: string;
     audience: string;
     objective: ObjectiveKey;
-    brand: { name?: string | null; segment?: string | null; description?: string | null } | null;
+    brand: {
+      name?: string | null;
+      segment?: string | null;
+      description?: string | null;
+    } | null;
     mustAppear: string;
     mustAvoid: string;
   },
@@ -231,7 +255,8 @@ function buildContextualPaths(
         description:
           "Repetir uma proibição pode parar o comportamento por um instante, mas não ensina uma alternativa clara.",
         cta: "Em qual situação o “não” parece funcionar só por alguns segundos?",
-        opening: "Contraste entre interromper e ensinar uma resposta alternativa.",
+        opening:
+          "Contraste entre interromper e ensinar uma resposta alternativa.",
       },
       {
         label: "O que ensinar no lugar do “não”",
@@ -248,13 +273,17 @@ function buildContextualPaths(
       suggestedCta: variants[index].cta,
       openingStyle: variants[index].opening,
       previewTitle: () => variants[index].label,
-      suggestedFormats: index === 0 ? ["reel", "carrossel", "post"] : path.suggestedFormats,
+      suggestedFormats:
+        index === 0 ? ["reel", "carrossel", "post"] : path.suggestedFormats,
     }));
   }
 
   return paths.slice(0, 3).map((path) => {
     const lowerTheme = theme.charAt(0).toLowerCase() + theme.slice(1);
-    const details: Record<string, { label: string; description: string; cta: string }> = {
+    const details: Record<
+      string,
+      { label: string; description: string; cta: string }
+    > = {
       educativo: {
         label: `Entender ${lowerTheme}`,
         description: `Explicar o ponto central de ${lowerTheme} de forma aplicável à realidade de ${audience}.`,
@@ -299,18 +328,23 @@ function buildContextualPaths(
 function buildIndividualPromise(
   path: CreativePath | undefined,
   theme: string,
-  brand: { name?: string | null; segment?: string | null; description?: string | null } | null,
+  brand: {
+    name?: string | null;
+    segment?: string | null;
+    description?: string | null;
+  } | null,
 ) {
   const cleanedTheme = cleanEditorialTheme(theme);
   const isSpecificNoPath = Boolean(
     path &&
-    (path.label.includes("não ensina") ||
-      path.label.includes("Interromper") ||
-      path.label.includes("lugar do “não”")),
+      (path.label.includes("não ensina") ||
+        path.label.includes("Interromper") ||
+        path.label.includes("lugar do “não”")),
   );
   if (
     path &&
-    ((isCanineContext(brand, cleanedTheme) && isNoCommandTheme(cleanedTheme)) || isSpecificNoPath)
+    ((isCanineContext(brand, cleanedTheme) && isNoCommandTheme(cleanedTheme)) ||
+      isSpecificNoPath)
   ) {
     if (path.label.includes("não ensina"))
       return "Explicar por que repetir “não” falha e ensinar uma orientação mais clara.";
@@ -363,26 +397,32 @@ function CentralIdeas() {
   const isCampaign = startPoint === "campanha";
   const individualPaths = useMemo(
     () =>
-      buildContextualPaths(rankPathsByObjective(normalizeObjectiveForPaths(objective)), {
-        theme,
-        audience,
-        objective,
-        brand,
-        mustAppear,
-        mustAvoid,
-      }),
+      buildContextualPaths(
+        rankPathsByObjective(normalizeObjectiveForPaths(objective)),
+        {
+          theme,
+          audience,
+          objective,
+          brand,
+          mustAppear,
+          mustAvoid,
+        },
+      ),
     [objective, theme, audience, brand, mustAppear, mustAvoid],
   );
   const selectedIndividualPath =
-    individualPaths.find((path) => path.id === selectedPathId) ?? individualPaths[0];
+    individualPaths.find((path) => path.id === selectedPathId) ??
+    individualPaths[0];
   const selectedCampaignPath =
-    CAMPAIGN_PATHS.find((path) => path.id === selectedPathId) ?? CAMPAIGN_PATHS[0];
+    CAMPAIGN_PATHS.find((path) => path.id === selectedPathId) ??
+    CAMPAIGN_PATHS[0];
 
   const recommendedFormats = useMemo<FormatKey[]>(() => {
     if (isCampaign) return ["reel", "carrossel", "post"];
     const path = selectedIndividualPath;
     const candidates = (path?.suggestedFormats ?? []).filter(
-      (value): value is FormatKey => value === "reel" || value === "carrossel" || value === "post",
+      (value): value is FormatKey =>
+        value === "reel" || value === "carrossel" || value === "post",
     );
     const fallback: FormatKey[] =
       objective === "educar"
@@ -390,7 +430,10 @@ function CentralIdeas() {
         : objective === "gerar_contatos" || objective === "divulgar_servico"
           ? ["post", "carrossel", "reel"]
           : ["carrossel", "reel", "post"];
-    return Array.from(new Set([...fallback, ...candidates])).slice(0, 3) as FormatKey[];
+    return Array.from(new Set([...fallback, ...candidates])).slice(
+      0,
+      3,
+    ) as FormatKey[];
   }, [isCampaign, objective, selectedIndividualPath]);
 
   const mainFormat = recommendedFormats[0] ?? "reel";
@@ -398,9 +441,9 @@ function CentralIdeas() {
 
   const canContinueStep1 = Boolean(
     brandId &&
-    objective &&
-    theme.trim().length >= 3 &&
-    (startPoint !== "referencia" || reference.trim().length >= 3),
+      objective &&
+      theme.trim().length >= 3 &&
+      (startPoint !== "referencia" || reference.trim().length >= 3),
   );
   const canContinueStep2 = Boolean(
     selectedPathId || (isCampaign ? CAMPAIGN_PATHS[0] : individualPaths[0]),
@@ -414,7 +457,9 @@ function CentralIdeas() {
 
   const goToStep2 = () => {
     if (!selectedPathId) {
-      setSelectedPathId(isCampaign ? CAMPAIGN_PATHS[0].id : (individualPaths[0]?.id ?? ""));
+      setSelectedPathId(
+        isCampaign ? CAMPAIGN_PATHS[0].id : (individualPaths[0]?.id ?? ""),
+      );
     }
     setStep(2);
   };
@@ -436,16 +481,24 @@ function CentralIdeas() {
       : buildIndividualPromise(selectedIndividualPath, theme, brand);
     const tone = isCampaign
       ? selectedCampaignPath.tone
-      : brand?.tone_of_voice || "claro, coerente com a marca e adequado ao público";
+      : brand?.tone_of_voice ||
+        "claro, coerente com a marca e adequado ao público";
     const cta = isCampaign
       ? selectedCampaignPath.suggestedCta
       : selectedIndividualPath?.suggestedCta ||
         "Convide o público para uma ação coerente com o objetivo.";
 
-    const campaignFormats = ["reel", "carrossel", "sequencia_stories", "post", "status_whatsapp"];
+    const campaignFormats = [
+      "reel",
+      "carrossel",
+      "sequencia_stories",
+      "post",
+      "status_whatsapp",
+    ];
     const selectedFormats = isCampaign ? campaignFormats : [selectedFormat];
     const confirmationText =
-      confirmationInfo.trim() || "Nenhuma informação externa precisa ser confirmada.";
+      confirmationInfo.trim() ||
+      "Nenhuma informação externa precisa ser confirmada.";
 
     const notes = [
       `Origem: Central de Ideias V2`,
@@ -466,7 +519,7 @@ function CentralIdeas() {
     ].join("\n");
 
     if (!isCampaign && selectedFormat === "reel") {
-      const reelDraft = createReel2Draft({
+      const reelPrefill: Partial<Reel2Draft> = {
         entry_mode: "idea",
         brand_id: brandId,
         brand_snapshot: snapshotBrand(brand),
@@ -474,7 +527,9 @@ function CentralIdeas() {
         base_content: theme.trim(),
         objective: mapPresetObjectiveToReel(objective),
         reel_type:
-          objective === "educar" || objective === "informar" ? "educativo" : "comercial_leve",
+          objective === "educar" || objective === "informar"
+            ? "educativo"
+            : "comercial_leve",
         promise,
         extra_notes: [
           `Público: ${audience.trim() || "Não informado"}`,
@@ -488,9 +543,12 @@ function CentralIdeas() {
         topic_cautions: mustAvoid.trim(),
         topic_do_not_invent: confirmationInfo.trim(),
         advanced_open: Boolean(mustAvoid.trim() || confirmationInfo.trim()),
-      });
-      saveReel2Draft(reelDraft);
-      window.location.assign("/app/create/reel?continuar=rascunho");
+      };
+      sessionStorage.setItem(
+        "cria-reel2-central-prefill-v1",
+        JSON.stringify(reelPrefill),
+      );
+      window.location.assign("/app/create/reel?origem=central");
       return;
     }
 
@@ -541,8 +599,8 @@ function CentralIdeas() {
               Da intenção ao briefing de criação
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-              Organize o contexto, escolha um caminho editorial e aprove um formato ou campanha
-              antes da criação técnica.
+              Organize o contexto, escolha um caminho editorial e aprove um
+              formato ou campanha antes da criação técnica.
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -605,7 +663,11 @@ function CentralIdeas() {
           setMustAvoid={setMustAvoid}
           selectedIndividualPath={selectedIndividualPath}
           selectedCampaignPath={selectedCampaignPath}
-          tone={isCampaign ? selectedCampaignPath.tone : brand?.tone_of_voice || "adequado à marca"}
+          tone={
+            isCampaign
+              ? selectedCampaignPath.tone
+              : brand?.tone_of_voice || "adequado à marca"
+          }
           onBack={() => setStep(1)}
           onContinue={goToStep3}
           canContinue={canContinueStep2}
@@ -629,7 +691,11 @@ function CentralIdeas() {
           mustAvoid={mustAvoid}
           confirmationInfo={confirmationInfo}
           mandatoryPiece={mandatoryPiece}
-          tone={isCampaign ? selectedCampaignPath.tone : brand?.tone_of_voice || "adequado à marca"}
+          tone={
+            isCampaign
+              ? selectedCampaignPath.tone
+              : brand?.tone_of_voice || "adequado à marca"
+          }
           onBack={() => setStep(2)}
           onApprove={approveAndCreate}
         />
@@ -639,8 +705,14 @@ function CentralIdeas() {
 }
 
 function StepOne(props: {
-  brands: Pick<Tables<"brands">, "id" | "name" | "segment" | "description" | "tone_of_voice">[];
-  brand: Pick<Tables<"brands">, "id" | "name" | "segment" | "description" | "tone_of_voice"> | null;
+  brands: Pick<
+    Tables<"brands">,
+    "id" | "name" | "segment" | "description" | "tone_of_voice"
+  >[];
+  brand: Pick<
+    Tables<"brands">,
+    "id" | "name" | "segment" | "description" | "tone_of_voice"
+  > | null;
   brandId: string;
   setBrandId: (value: string) => void;
   startPoint: StartPoint;
@@ -694,19 +766,28 @@ function StepOne(props: {
             </Select>
             {props.brand && (
               <p className="text-xs text-muted-foreground">
-                {[props.brand.segment, props.brand.description].filter(Boolean).join(" · ")}
+                {[props.brand.segment, props.brand.description]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
             {props.brand && (
               <Button asChild variant="ghost" size="sm">
-                <Link to="/app/brands/$brandId/edit" params={{ brandId: props.brand.id }}>
+                <Link
+                  to="/app/brands/$brandId/edit"
+                  params={{ brandId: props.brand.id }}
+                >
                   Ver contexto
                 </Link>
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={() => props.setBrandId("")}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => props.setBrandId("")}
+            >
               Trocar marca
             </Button>
           </div>
@@ -730,7 +811,9 @@ function StepOne(props: {
                 </div>
                 <div>
                   <p className="font-medium">{item.title}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {item.description}
+                  </p>
                 </div>
                 {selected && <CheckCircle2 className="h-5 w-5 text-primary" />}
               </button>
@@ -783,7 +866,9 @@ function StepOne(props: {
                 <Label>O que chamou sua atenção?</Label>
                 <Input
                   value={props.referenceInsight}
-                  onChange={(event) => props.setReferenceInsight(event.target.value)}
+                  onChange={(event) =>
+                    props.setReferenceInsight(event.target.value)
+                  }
                   placeholder="Estrutura, ritmo, abordagem ou interação"
                 />
               </div>
@@ -804,15 +889,22 @@ function StepOne(props: {
                 <Label>Peça obrigatória, quando houver</Label>
                 <Input
                   value={props.mandatoryPiece}
-                  onChange={(event) => props.setMandatoryPiece(event.target.value)}
+                  onChange={(event) =>
+                    props.setMandatoryPiece(event.target.value)
+                  }
                   placeholder="Ex.: Reel de abertura"
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label>Datas, preços, ofertas ou condições que precisam de confirmação</Label>
+                <Label>
+                  Datas, preços, ofertas ou condições que precisam de
+                  confirmação
+                </Label>
                 <Textarea
                   value={props.confirmationInfo}
-                  onChange={(event) => props.setConfirmationInfo(event.target.value)}
+                  onChange={(event) =>
+                    props.setConfirmationInfo(event.target.value)
+                  }
                   placeholder="Deixe em branco quando não houver pendências."
                   rows={2}
                 />
@@ -824,7 +916,9 @@ function StepOne(props: {
 
       <section className="space-y-3">
         <div>
-          <Label>Escolha o principal resultado que este conteúdo precisa alcançar.</Label>
+          <Label>
+            Escolha o principal resultado que este conteúdo precisa alcançar.
+          </Label>
           <p className="mt-1 text-xs text-muted-foreground">
             Escolha somente um objetivo principal.
           </p>
@@ -876,7 +970,9 @@ function StepTwo(props: {
   canContinue: boolean;
 }) {
   const paths = props.isCampaign ? props.campaignPaths : props.individualPaths;
-  const selectedPath = props.isCampaign ? props.selectedCampaignPath : props.selectedIndividualPath;
+  const selectedPath = props.isCampaign
+    ? props.selectedCampaignPath
+    : props.selectedIndividualPath;
   const centralIdea = props.isCampaign
     ? props.selectedCampaignPath.centralIdea
     : props.selectedIndividualPath?.description;
@@ -890,7 +986,9 @@ function StepTwo(props: {
         <p className="text-xs font-medium uppercase tracking-wide text-primary">
           Etapa 2 de 3 · Caminho editorial
         </p>
-        <h2 className="mt-1 text-xl font-semibold">Escolha como a ideia será desenvolvida</h2>
+        <h2 className="mt-1 text-xl font-semibold">
+          Escolha como a ideia será desenvolvida
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {props.isCampaign
             ? "As rotas abaixo organizam o conjunto de peças, não uma publicação isolada."
@@ -906,11 +1004,15 @@ function StepTwo(props: {
           </div>
           <div>
             <span className="text-muted-foreground">Objetivo principal</span>
-            <p className="font-medium">{OBJECTIVE_LABELS[props.objective] ?? props.objective}</p>
+            <p className="font-medium">
+              {OBJECTIVE_LABELS[props.objective] ?? props.objective}
+            </p>
           </div>
           <div>
             <span className="text-muted-foreground">Público</span>
-            <p className="font-medium">{props.audience || "Ainda não especificado"}</p>
+            <p className="font-medium">
+              {props.audience || "Ainda não especificado"}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -918,9 +1020,15 @@ function StepTwo(props: {
       <div className="grid gap-3 lg:grid-cols-3">
         {paths.map((rawPath) => {
           const id = rawPath.id;
-          const selected = props.selectedPathId ? props.selectedPathId === id : paths[0]?.id === id;
-          const campaignPath = props.isCampaign ? (rawPath as CampaignPath) : null;
-          const individualPath = !props.isCampaign ? (rawPath as CreativePath) : null;
+          const selected = props.selectedPathId
+            ? props.selectedPathId === id
+            : paths[0]?.id === id;
+          const campaignPath = props.isCampaign
+            ? (rawPath as CampaignPath)
+            : null;
+          const individualPath = !props.isCampaign
+            ? (rawPath as CreativePath)
+            : null;
           return (
             <button
               key={id}
@@ -930,14 +1038,18 @@ function StepTwo(props: {
             >
               <div className="flex items-start justify-between gap-2">
                 <p className="font-semibold">{rawPath.label}</p>
-                {selected && <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />}
+                {selected && (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
+                )}
               </div>
               <div className="mt-4 space-y-3 text-sm">
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                     Ideia central
                   </p>
-                  <p className="mt-1">{campaignPath?.centralIdea ?? individualPath?.description}</p>
+                  <p className="mt-1">
+                    {campaignPath?.centralIdea ?? individualPath?.description}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -950,9 +1062,13 @@ function StepTwo(props: {
                 </div>
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {props.isCampaign ? "Lógica do conjunto" : "Abertura típica"}
+                    {props.isCampaign
+                      ? "Lógica do conjunto"
+                      : "Abertura típica"}
                   </p>
-                  <p className="mt-1">{campaignPath?.setLogic ?? individualPath?.openingStyle}</p>
+                  <p className="mt-1">
+                    {campaignPath?.setLogic ?? individualPath?.openingStyle}
+                  </p>
                 </div>
               </div>
             </button>
@@ -990,8 +1106,14 @@ function StepTwo(props: {
         <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
           <BriefRow label="Ideia central" value={centralIdea || props.theme} />
           <BriefRow label="Promessa" value={promise} />
-          <BriefRow label="Objetivo" value={OBJECTIVE_LABELS[props.objective] ?? props.objective} />
-          <BriefRow label="Público" value={props.audience || "Ainda não especificado"} />
+          <BriefRow
+            label="Objetivo"
+            value={OBJECTIVE_LABELS[props.objective] ?? props.objective}
+          />
+          <BriefRow
+            label="Público"
+            value={props.audience || "Ainda não especificado"}
+          />
           <BriefRow label="Tom editorial" value={props.tone} />
           <BriefRow
             label="Cuidado obrigatório"
@@ -1008,8 +1130,13 @@ function StepTwo(props: {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Voltar
         </Button>
-        <Button disabled={!props.canContinue || !selectedPath} onClick={props.onContinue}>
-          {props.isCampaign ? "Montar briefing da campanha" : "Recomendar formato"}
+        <Button
+          disabled={!props.canContinue || !selectedPath}
+          onClick={props.onContinue}
+        >
+          {props.isCampaign
+            ? "Montar briefing da campanha"
+            : "Recomendar formato"}
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
@@ -1064,8 +1191,8 @@ function StepThree(props: {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              A campanha organiza peças complementares. Elas podem ser ajustadas antes da criação,
-              sem transformar campanha em um formato único.
+              A campanha organiza peças complementares. Elas podem ser ajustadas
+              antes da criação, sem transformar campanha em um formato único.
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
               {pieces.map(([piece, role]) => (
@@ -1073,7 +1200,9 @@ function StepThree(props: {
                   <p className="font-medium">{piece}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{role}</p>
                   {props.mandatoryPiece &&
-                    piece.toLowerCase().includes(props.mandatoryPiece.toLowerCase()) && (
+                    piece
+                      .toLowerCase()
+                      .includes(props.mandatoryPiece.toLowerCase()) && (
                       <Badge variant="outline" className="mt-2">
                         Peça obrigatória
                       </Badge>
@@ -1085,7 +1214,9 @@ function StepThree(props: {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Briefing final da campanha</CardTitle>
+            <CardTitle className="text-base">
+              Briefing final da campanha
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
             <BriefRow label="Marca" value={props.brandName} />
@@ -1093,15 +1224,32 @@ function StepThree(props: {
               label="Objetivo"
               value={OBJECTIVE_LABELS[props.objective] ?? props.objective}
             />
-            <BriefRow label="Público" value={props.audience || "Ainda não especificado"} />
-            <BriefRow label="Ideia central" value={props.selectedCampaignPath.centralIdea} />
-            <BriefRow label="Promessa da campanha" value={props.selectedCampaignPath.promise} />
+            <BriefRow
+              label="Público"
+              value={props.audience || "Ainda não especificado"}
+            />
+            <BriefRow
+              label="Ideia central"
+              value={props.selectedCampaignPath.centralIdea}
+            />
+            <BriefRow
+              label="Promessa da campanha"
+              value={props.selectedCampaignPath.promise}
+            />
             <BriefRow label="Tom editorial" value={props.tone} />
-            <BriefRow label="CTA principal" value={props.selectedCampaignPath.suggestedCta} />
-            <BriefRow label="Peças conectadas" value={pieces.map(([piece]) => piece).join(", ")} />
+            <BriefRow
+              label="CTA principal"
+              value={props.selectedCampaignPath.suggestedCta}
+            />
+            <BriefRow
+              label="Peças conectadas"
+              value={pieces.map(([piece]) => piece).join(", ")}
+            />
             <BriefRow
               label="Função de cada peça"
-              value={pieces.map(([piece, role]) => `${piece}: ${role}`).join("; ")}
+              value={pieces
+                .map(([piece, role]) => `${piece}: ${role}`)
+                .join("; ")}
             />
             <BriefRow
               label="Alertas e cuidados"
@@ -1112,7 +1260,10 @@ function StepThree(props: {
             />
             <BriefRow
               label="Informações a confirmar"
-              value={props.confirmationInfo || "Nenhuma informação externa precisa ser confirmada."}
+              value={
+                props.confirmationInfo ||
+                "Nenhuma informação externa precisa ser confirmada."
+              }
             />
           </CardContent>
         </Card>
@@ -1136,10 +1287,12 @@ function StepThree(props: {
         <p className="text-xs font-medium uppercase tracking-wide text-primary">
           Etapa 3 de 3 · Formato + briefing
         </p>
-        <h2 className="mt-1 text-xl font-semibold">Escolha o formato para desenvolver a ideia</h2>
+        <h2 className="mt-1 text-xl font-semibold">
+          Escolha o formato para desenvolver a ideia
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          O primeiro formato é recomendado, mas você pode selecionar uma alternativa sem voltar à
-          etapa editorial.
+          O primeiro formato é recomendado, mas você pode selecionar uma
+          alternativa sem voltar à etapa editorial.
         </p>
       </div>
 
@@ -1157,7 +1310,9 @@ function StepThree(props: {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold">{item.label}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.effort}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {item.effort}
+                  </p>
                 </div>
                 {key === props.mainFormat ? (
                   <Badge>Recomendado</Badge>
@@ -1168,10 +1323,12 @@ function StepThree(props: {
               <p className="mt-4 text-sm">{item.why}</p>
               <div className="mt-4 space-y-2 text-xs text-muted-foreground">
                 <p>
-                  <strong className="text-foreground">Quando usar:</strong> {item.useWhen}
+                  <strong className="text-foreground">Quando usar:</strong>{" "}
+                  {item.useWhen}
                 </p>
                 <p>
-                  <strong className="text-foreground">Limitação:</strong> {item.limitation}
+                  <strong className="text-foreground">Limitação:</strong>{" "}
+                  {item.limitation}
                 </p>
               </div>
             </button>
@@ -1203,16 +1360,29 @@ function StepThree(props: {
         </CardHeader>
         <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
           <BriefRow label="Marca" value={props.brandName} />
-          <BriefRow label="Objetivo" value={OBJECTIVE_LABELS[props.objective] ?? props.objective} />
-          <BriefRow label="Público" value={props.audience || "Ainda não especificado"} />
-          <BriefRow label="Rota editorial" value={props.selectedIndividualPath?.label || ""} />
+          <BriefRow
+            label="Objetivo"
+            value={OBJECTIVE_LABELS[props.objective] ?? props.objective}
+          />
+          <BriefRow
+            label="Público"
+            value={props.audience || "Ainda não especificado"}
+          />
+          <BriefRow
+            label="Rota editorial"
+            value={props.selectedIndividualPath?.label || ""}
+          />
           <BriefRow
             label="Ideia central"
             value={props.selectedIndividualPath?.description || props.theme}
           />
           <BriefRow
             label="Promessa"
-            value={buildIndividualPromise(props.selectedIndividualPath, props.theme, null)}
+            value={buildIndividualPromise(
+              props.selectedIndividualPath,
+              props.theme,
+              null,
+            )}
           />
           <BriefRow label="Tom editorial" value={props.tone} />
           <BriefRow label="Formato escolhido" value={format.label} />
@@ -1227,11 +1397,17 @@ function StepThree(props: {
           <BriefRow label="Direção sugerida" value={format.direction} />
           <BriefRow
             label="Alertas e cuidados"
-            value={props.mustAvoid || "Manter coerência com a marca e não inventar informações."}
+            value={
+              props.mustAvoid ||
+              "Manter coerência com a marca e não inventar informações."
+            }
           />
           <BriefRow
             label="Informações a confirmar"
-            value={props.confirmationInfo || "Nenhuma informação externa precisa ser confirmada."}
+            value={
+              props.confirmationInfo ||
+              "Nenhuma informação externa precisa ser confirmada."
+            }
           />
         </CardContent>
       </Card>

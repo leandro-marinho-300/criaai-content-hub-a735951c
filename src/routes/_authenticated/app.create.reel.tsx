@@ -83,6 +83,96 @@ export const Route = createFileRoute("/_authenticated/app/create/reel")({
 
 const STEP_LABELS = ["Entrada", "Marca", "Objetivo", "Tipo", "Promessa", "Gancho", "Resumo"] as const;
 
+const REEL2_CENTRAL_PREFILL_KEY = "cria-reel2-central-prefill-v1";
+
+type InitialReel2Context = {
+  draft: Reel2Draft;
+  fromCentral: boolean;
+  preservedExisting: boolean;
+};
+
+function readCentralReel2Prefill(): Partial<Reel2Draft> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(REEL2_CENTRAL_PREFILL_KEY);
+    sessionStorage.removeItem(REEL2_CENTRAL_PREFILL_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Partial<Reel2Draft>) : null;
+  } catch {
+    sessionStorage.removeItem(REEL2_CENTRAL_PREFILL_KEY);
+    return null;
+  }
+}
+
+function hasMeaningfulReel2Work(draft: Reel2Draft) {
+  return Boolean(
+    draft.central_idea.trim() ||
+      draft.base_content.trim() ||
+      draft.promise.trim() ||
+      draft.hook_options.length ||
+      draft.imported_script ||
+      draft.imported_script_raw?.trim(),
+  );
+}
+
+function mergeCentralPrefillWithoutReplacing(
+  existing: Reel2Draft,
+  incoming: Partial<Reel2Draft>,
+): Reel2Draft {
+  const mergedNotes = incoming.extra_notes?.trim()
+    ? existing.extra_notes.trim()
+      ? existing.extra_notes.includes(incoming.extra_notes.trim())
+        ? existing.extra_notes
+        : `${existing.extra_notes.trim()}\n\nContexto vindo da Central de Ideias:\n${incoming.extra_notes.trim()}`
+      : incoming.extra_notes.trim()
+    : existing.extra_notes;
+
+  return createReel2Draft({
+    ...existing,
+    entry_mode: existing.entry_mode || incoming.entry_mode || "",
+    brand_id: existing.brand_id || incoming.brand_id || "",
+    brand_snapshot: existing.brand_snapshot?.name ? existing.brand_snapshot : incoming.brand_snapshot,
+    central_idea: existing.central_idea.trim() ? existing.central_idea : incoming.central_idea || "",
+    base_content: existing.base_content.trim() ? existing.base_content : incoming.base_content || "",
+    objective: existing.objective || incoming.objective || "",
+    reel_type: existing.reel_type || incoming.reel_type || "",
+    promise: existing.promise.trim() ? existing.promise : incoming.promise || "",
+    extra_notes: mergedNotes,
+    topic_cautions: existing.topic_cautions.trim()
+      ? existing.topic_cautions
+      : incoming.topic_cautions || "",
+    topic_do_not_invent: existing.topic_do_not_invent.trim()
+      ? existing.topic_do_not_invent
+      : incoming.topic_do_not_invent || "",
+    advanced_open: existing.advanced_open || Boolean(incoming.advanced_open),
+  });
+}
+
+function resolveInitialReel2Context(): InitialReel2Context {
+  if (typeof window === "undefined") {
+    return { draft: createReel2Draft(), fromCentral: false, preservedExisting: false };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("origem") === "central") {
+    const existing = loadReel2Draft();
+    const incoming = readCentralReel2Prefill();
+    const preservedExisting = hasMeaningfulReel2Work(existing);
+    return {
+      draft: incoming ? mergeCentralPrefillWithoutReplacing(existing, incoming) : existing,
+      fromCentral: true,
+      preservedExisting,
+    };
+  }
+
+  if (params.get("continuar") === "rascunho" || params.get("continueDraft") === "1") {
+    return { draft: loadReel2Draft(), fromCentral: false, preservedExisting: false };
+  }
+
+  return { draft: createReel2Draft(), fromCentral: false, preservedExisting: false };
+}
+
 type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 const entryIconMap: Record<Reel2EntryMode, typeof Lightbulb> = {
@@ -110,15 +200,8 @@ export function CreateReel2() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [step, setStep] = useState<StepIndex>(0);
-  const [draft, setDraft] = useState<Reel2Draft>(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("continuar") === "rascunho" || params.get("continueDraft") === "1") {
-        return loadReel2Draft();
-      }
-    }
-    return createReel2Draft();
-  });
+  const [initialContext] = useState<InitialReel2Context>(() => resolveInitialReel2Context());
+  const [draft, setDraft] = useState<Reel2Draft>(initialContext.draft);
   const [importOpen, setImportOpen] = useState(false);
   const [, setHookGenerationRound] = useState(0);
 
@@ -148,6 +231,15 @@ export function CreateReel2() {
   const topicContext = useMemo(() => analyzeReel2TopicContext(draft, selectedBrand), [draft, selectedBrand]);
 
   useEffect(() => saveReel2Draft(draft), [draft]);
+
+  useEffect(() => {
+    if (!initialContext.fromCentral) return;
+    if (initialContext.preservedExisting) {
+      toast.info("O rascunho existente do Reel 2.0 foi preservado. A Central preencheu apenas os campos que estavam vazios.");
+      return;
+    }
+    toast.success("Briefing da Central carregado no Reel 2.0.");
+  }, [initialContext.fromCentral, initialContext.preservedExisting]);
 
   const patch = (partial: Partial<Reel2Draft>) => setDraft((current) => ({ ...current, ...partial }));
   const patchHookSource = (partial: Partial<Reel2Draft>) => {
