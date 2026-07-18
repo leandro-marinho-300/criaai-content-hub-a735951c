@@ -14,7 +14,6 @@ import {
   CopyCheck,
   Film,
   FileJson2,
-  HelpCircle,
   Lightbulb,
   Megaphone,
   MessageCircle,
@@ -85,7 +84,6 @@ export const Route = createFileRoute("/_authenticated/app/create/reel")({
 });
 
 const STEP_LABELS = ["Entrada", "Marca", "Objetivo", "Tipo", "Promessa", "Gancho", "Resumo"] as const;
-const FUTURE_STEPS = ["Gravação", "Edição", "Vídeo final", "Publicação"];
 
 type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -465,61 +463,9 @@ Produção e vídeo final
         </div>
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-        <aside className="space-y-4">
-          <Card>
-            <CardContent className="space-y-4 p-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Progresso do Reel 2.0</span>
-                  <span>{progress}%</span>
-                </div>
-                <Progress value={progress} />
-              </div>
-              <nav className="space-y-1">
-                {STEP_LABELS.map((label, index) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => setStep(index as StepIndex)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
-                      index === step ? "bg-primary text-primary-foreground" : "hover:bg-muted",
-                    )}
-                  >
-                    <span className={cn(
-                      "grid h-6 w-6 place-items-center rounded-full text-xs",
-                      index === step ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground",
-                    )}>
-                      {index < step ? <Check className="h-3.5 w-3.5" /> : index + 1}
-                    </span>
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </nav>
-            </CardContent>
-          </Card>
+      <Reel2JourneyProgress step={step} progress={progress} onSelectStep={(nextStep) => setStep(nextStep)} />
 
-          <Card className="border-dashed">
-            <CardContent className="space-y-3 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <HelpCircle className="h-4 w-4 text-amber-500" /> Próximas fases
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {FUTURE_STEPS.map((future) => (
-                  <Badge key={future} variant="outline" className="text-[10px]">
-                    {future}
-                  </Badge>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Depois de criar o projeto, o Reel ganha checklist de gravação, kit do editor, upload do vídeo final e revisão antes de publicar.
-              </p>
-            </CardContent>
-          </Card>
-        </aside>
-
-        <main className="space-y-4">
+      <main className="space-y-4">
           {step === 0 && (
             <StepShell
               eyebrow="Entrada"
@@ -704,6 +650,26 @@ Produção e vídeo final
               title="O que a pessoa ganha assistindo até o final?"
               description="A promessa é o motivo para continuar assistindo. Ela precisa ser específica, útil e coerente com o nicho."
             >
+              {draft.entry_mode === "no_ideas" && (
+                <NoIdeasReelSuggestions
+                  brand={selectedBrand}
+                  objective={draft.objective}
+                  reelType={draft.reel_type}
+                  onSelect={(suggestion) =>
+                    patchHookSource({
+                      central_idea: suggestion.idea,
+                      promise: suggestion.promise,
+                      extra_notes: suggestion.notes,
+                      topic_entity: suggestion.topic,
+                      topic_entity_type: suggestion.topicType,
+                      topic_associations: suggestion.associations,
+                      topic_cautions: suggestion.cautions,
+                      topic_do_not_invent: suggestion.doNotInvent,
+                    })
+                  }
+                />
+              )}
+
               <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
                 <Card>
                   <CardContent className="space-y-4 p-5">
@@ -917,12 +883,280 @@ Com o JSON importado e o pacote revisado, o Cria Aí cria um projeto com roteiro
               )}
             </div>
           </div>
-        </main>
-      </div>
+      </main>
     <ImportReel2ScriptDialog open={importOpen} onOpenChange={setImportOpen} onImport={onImportScript} />
     </div>
   );
 }
+
+function Reel2JourneyProgress({
+  step,
+  progress,
+  onSelectStep,
+}: {
+  step: StepIndex;
+  progress: number;
+  onSelectStep: (step: StepIndex) => void;
+}) {
+  return (
+    <Card className="border-orange-500/20 bg-card/80">
+      <CardContent className="space-y-4 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold">Jornada de criação do Reel</p>
+            <p className="text-xs text-muted-foreground">
+              Avance por etapas curtas: ideia, marca, objetivo, promessa, gancho e pacote final.
+            </p>
+          </div>
+          <Badge variant="outline">{progress}% concluído</Badge>
+        </div>
+        <Progress value={progress} />
+        <div className="grid gap-2 sm:grid-cols-4 lg:grid-cols-7">
+          {STEP_LABELS.map((label, index) => {
+            const active = index === step;
+            const done = index < step;
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => onSelectStep(index as StepIndex)}
+                className={cn(
+                  "flex min-h-16 flex-col items-start gap-1 rounded-2xl border p-3 text-left text-xs transition",
+                  active
+                    ? "border-orange-500 bg-orange-500 text-white shadow-sm"
+                    : done
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                      : "bg-background hover:border-orange-500/50 hover:bg-orange-500/5",
+                )}
+              >
+                <span
+                  className={cn(
+                    "grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold",
+                    active ? "bg-white/20 text-white" : done ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {done ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                </span>
+                <span className="font-medium">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type ReelIdeaSuggestion = {
+  label: string;
+  idea: string;
+  promise: string;
+  notes: string;
+  topic: string;
+  topicType: string;
+  associations: string;
+  cautions: string;
+  doNotInvent: string;
+};
+
+function NoIdeasReelSuggestions({
+  brand,
+  objective,
+  reelType,
+  onSelect,
+}: {
+  brand?: Tables<"brands"> | null;
+  objective: Reel2Objective | "";
+  reelType: Reel2Type | "";
+  onSelect: (suggestion: ReelIdeaSuggestion) => void;
+}) {
+  const suggestions = useMemo(() => buildNoIdeasReelSuggestions(brand, objective, reelType), [brand, objective, reelType]);
+  return (
+    <Card className="border-amber-500/30 bg-amber-500/5">
+      <CardContent className="space-y-3 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="font-semibold">Sugestões para começar sem ideia pronta</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Escolha um subtópico da marca para preencher ideia, promessa e contexto inicial do Reel.
+            </p>
+          </div>
+          <Badge variant="outline">Estou sem ideias</Badge>
+        </div>
+        <div className="grid gap-2 md:grid-cols-3">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion.label}
+              type="button"
+              onClick={() => onSelect(suggestion)}
+              className="rounded-2xl border bg-background p-3 text-left transition hover:-translate-y-0.5 hover:border-orange-500/60 hover:shadow-sm"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-orange-600 dark:text-orange-400">{suggestion.label}</p>
+              <p className="mt-1 text-sm font-semibold leading-snug">{suggestion.idea}</p>
+              <p className="mt-2 line-clamp-3 text-xs text-muted-foreground">{suggestion.promise}</p>
+            </button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function buildNoIdeasReelSuggestions(
+  brand?: Pick<Tables<"brands">, "name" | "segment" | "description" | "audience"> | null,
+  objective?: Reel2Objective | "",
+  reelType?: Reel2Type | "",
+): ReelIdeaSuggestion[] {
+  const text = `${brand?.name ?? ""} ${brand?.segment ?? ""} ${brand?.description ?? ""} ${brand?.audience ?? ""}`.toLowerCase();
+  const baseDoNotInvent = "preços, datas, disponibilidade, atrações específicas, promessas ou resultados não confirmados";
+  if (/viagem|turismo|travel|hotel|destino|férias|roteiro|passagem/.test(text)) {
+    return [
+      {
+        label: "Destino pelo estilo",
+        idea: "Como escolher o que fazer em um destino considerando o seu ritmo de viagem",
+        promise: "Você vai entender como organizar experiências de viagem de acordo com descanso, descoberta ou conexão, sem depender de um roteiro genérico.",
+        notes: "Não citar preços, disponibilidade ou atrações específicas sem confirmação. Convidar o público a comentar o destino que está considerando.",
+        topic: "roteiro de viagem por estilo",
+        topicType: "destino",
+        associations: "descanso, descoberta, conexão, planejamento, prioridade, experiência",
+        cautions: "evitar lista de atrações específicas sem confirmação; evitar promessa de menor preço",
+        doNotInvent: baseDoNotInvent,
+      },
+      {
+        label: "Planejamento seguro",
+        idea: "O que confirmar antes de escolher passeios e experiências em uma viagem",
+        promise: "Você vai saber quais pontos conferir para montar uma viagem com mais tranquilidade e menos decisões no impulso.",
+        notes: "Focar em orientação geral: acesso, funcionamento, reserva, perfil do grupo e ritmo da viagem.",
+        topic: "planejamento de viagem",
+        topicType: "servico",
+        associations: "checklist, organização, imprevistos, grupo, prioridades, tranquilidade",
+        cautions: "não afirmar regras de estabelecimentos; não citar horários ou preços",
+        doNotInvent: baseDoNotInvent,
+      },
+      {
+        label: "Comentário do público",
+        idea: "Qual tipo de experiência combina mais com a sua próxima viagem?",
+        promise: "Você vai ver opções de abordagem para pensar a viagem pelo que deseja viver, e não apenas pelo destino mais famoso.",
+        notes: "Usar CTA de comentário. Não pressionar venda; a marca pode aparecer como apoio no planejamento.",
+        topic: "experiência de viagem",
+        topicType: "outro",
+        associations: "família, casal, descanso, aventura leve, descoberta, propósito",
+        cautions: "evitar generalizações sobre o destino; evitar promessa emocional exagerada",
+        doNotInvent: baseDoNotInvent,
+      },
+    ];
+  }
+  if (/cachorro|canino|adestra|comportamento animal|pet|tutor/.test(text)) {
+    return [
+      {
+        label: "Sinais antes da reação",
+        idea: "Seu cachorro avisa antes de reagir — mas você pode não perceber",
+        promise: "Você vai conhecer sinais discretos de desconforto que podem aparecer antes de uma reação mais intensa.",
+        notes: "Orientar sem culpar o tutor. Não prometer correção imediata nem diagnóstico individual.",
+        topic: "sinais de desconforto canino",
+        topicType: "comportamento",
+        associations: "desviar olhar, lamber focinho, bocejar, corpo rígido, distância, rosnado",
+        cautions: "não diagnosticar; não prometer resultado; não incentivar punição",
+        doNotInvent: "diagnóstico, tempo de correção, garantia de comportamento, orientação médica ou veterinária específica",
+      },
+      {
+        label: "Erro cotidiano",
+        idea: "O comportamento que o tutor reforça sem perceber",
+        promise: "Você vai entender como uma resposta comum do tutor pode ensinar o cachorro a repetir o comportamento indesejado.",
+        notes: "Usar exemplo cotidiano e uma orientação prática, sem julgamento.",
+        topic: "reforço involuntário",
+        topicType: "comportamento",
+        associations: "atenção, pular, latir, contato visual, toque, rotina",
+        cautions: "evitar culpabilizar o tutor; evitar técnica agressiva",
+        doNotInvent: "resultado garantido, diagnóstico, prazo de melhora",
+      },
+      {
+        label: "Passeio com mais clareza",
+        idea: "O passeio começa antes da guia sair do gancho",
+        promise: "Você vai perceber por que alguns desafios do passeio podem começar antes mesmo de sair de casa.",
+        notes: "Explicar comportamento de forma acessível e segura.",
+        topic: "rotina antes do passeio",
+        topicType: "comportamento",
+        associations: "guia, porta, ansiedade, rotina, antecipação, calma",
+        cautions: "não prometer obediência; não tratar como teimosia",
+        doNotInvent: "resultado garantido, diagnóstico, método único",
+      },
+    ];
+  }
+  if (/atelier|costura|bolsa|artesanal|moda|acessório/.test(text)) {
+    return [
+      {
+        label: "Detalhe artesanal",
+        idea: "O detalhe que muda a percepção de uma peça artesanal",
+        promise: "Você vai entender como acabamento, material e proporção influenciam a experiência de uso de uma peça artesanal.",
+        notes: "Valorizar processo e escolha consciente sem exagerar promessa de durabilidade.",
+        topic: "detalhes de peça artesanal",
+        topicType: "produto",
+        associations: "acabamento, costura, material, proporção, elegância, uso diário",
+        cautions: "não prometer durabilidade absoluta; não comparar marcas sem base",
+        doNotInvent: "preços, estoque, prazo, garantia não informada",
+      },
+      {
+        label: "Bastidor de criação",
+        idea: "Como uma peça começa antes da costura",
+        promise: "Você vai ver como escolhas de material, uso e acabamento orientam uma criação artesanal.",
+        notes: "Mostrar processo de forma visual e elegante.",
+        topic: "processo de criação artesanal",
+        topicType: "produto",
+        associations: "molde, tecido, acabamento, escolha, rotina, bastidor",
+        cautions: "evitar revelar informação sensível de cliente; não prometer peça sob medida sem confirmação",
+        doNotInvent: "preço, prazo, disponibilidade, medidas específicas",
+      },
+      {
+        label: "Escolha consciente",
+        idea: "Como escolher uma bolsa que combina com sua rotina",
+        promise: "Você vai entender pontos simples para escolher uma peça que faça sentido para seu uso, estilo e necessidade.",
+        notes: "Foco em orientação e desejo, sem venda agressiva.",
+        topic: "escolha de bolsa artesanal",
+        topicType: "produto",
+        associations: "rotina, estilo, tamanho, acabamento, cor, ocasião",
+        cautions: "evitar promessa universal; não citar preço sem confirmação",
+        doNotInvent: "estoque, preço, prazo, garantia não informada",
+      },
+    ];
+  }
+  return [
+    {
+      label: "Dúvida frequente",
+      idea: "Uma dúvida que o público sempre tem antes de decidir",
+      promise: "Você vai entender um ponto importante para tomar uma decisão com mais clareza.",
+      notes: "Transformar dúvida real em orientação simples e útil.",
+      topic: "dúvida frequente do público",
+      topicType: "outro",
+      associations: "dúvida, decisão, clareza, orientação, segurança",
+      cautions: "evitar prometer resultado; pedir confirmação de fatos específicos",
+      doNotInvent: baseDoNotInvent,
+    },
+    {
+      label: "Erro comum",
+      idea: "Um erro comum que pode atrapalhar o resultado esperado",
+      promise: "Você vai identificar um cuidado simples antes de agir no automático.",
+      notes: "Focar em orientação segura e prática.",
+      topic: "erro comum do público",
+      topicType: "outro",
+      associations: "erro, cuidado, decisão, prática, clareza",
+      cautions: "evitar exagero ou medo artificial",
+      doNotInvent: baseDoNotInvent,
+    },
+    {
+      label: "Bastidor útil",
+      idea: "Um bastidor que ajuda o público a entender melhor o processo",
+      promise: "Você vai ver um critério usado por trás da entrega para entender melhor o valor do serviço ou produto.",
+      notes: "Mostrar processo sem expor dados internos ou sensíveis.",
+      topic: "bastidor de processo",
+      topicType: "servico",
+      associations: "processo, critério, bastidor, cuidado, método",
+      cautions: "não expor dados internos ou clientes",
+      doNotInvent: baseDoNotInvent,
+    },
+  ];
+}
+
 
 function ImportedScriptPreview({ script, warnings }: { script: Reel2ImportedScript; warnings: string[] }) {
   return (
@@ -1232,7 +1466,7 @@ function TopicContextPanel({
   const onApplyContextJson = () => {
     const result = parseTopicContextImport(contextJson, draft);
     if (!result.ok) {
-      toast.error(result.error);
+      toast.error("error" in result ? result.error : "Não foi possível aplicar o contexto.");
       return;
     }
 

@@ -16,7 +16,6 @@ import {
   RotateCcw,
   Save,
   Send,
-  Sparkles,
   Star,
   PenSquare,
   AlertTriangle,
@@ -283,8 +282,9 @@ function ResultPage() {
               </Button>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {pieces.length} peça{pieces.length === 1 ? "" : "s"} gerada
-              {pieces.length === 1 ? "" : "s"} · ordem sugerida de publicação abaixo.
+              {reel2Script
+                ? "Pacote do Reel 2.0 criado · roteiro, capa/frame, publicação e produção organizados abaixo."
+                : `${pieces.length} peça${pieces.length === 1 ? "" : "s"} gerada${pieces.length === 1 ? "" : "s"} · ordem sugerida de publicação abaixo.`}
             </p>
           </div>
           <Button
@@ -300,58 +300,41 @@ function ResultPage() {
           </Button>
         </div>
 
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="space-y-3 p-5">
-            <div className="flex items-start gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg gradient-brand">
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold">Seu pacote de produção está pronto</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Cada peça abaixo já tem texto sugerido, legenda, hashtags e um{" "}
-                  <b>prompt operacional pronto</b>. Copie o prompt da peça desejada e cole no
-                  ChatGPT (ou outra IA) para gerar a arte final.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Button asChild variant="default" size="sm">
-                <Link to="/app/content/$projectId/client-pdf" params={{ projectId }}>
-                  <FileImage className="mr-2 h-4 w-4" />
-                  Gerar PDF para o cliente
-                </Link>
-              </Button>
-              <Button variant="default" size="sm" onClick={() => setAddToCalOpen(true)}>
-                <CalendarCheck className="mr-2 h-4 w-4" />
-                Adicionar ao calendário
-              </Button>
-              <Button variant="default" size="sm" onClick={() => setApprovalOpen(true)}>
-                <ShieldCheck className="mr-2 h-4 w-4" />
-                Enviar para aprovação
-              </Button>
-              <CopyButton text={fullExport} label="Copiar pacote completo" variant="outline" />
-              <Button variant="outline" size="sm" onClick={exportTxt}>
-                <Download className="mr-2 h-4 w-4" />
-                Exportar TXT
-              </Button>
-              <Button variant="outline" size="sm" onClick={saveProjectAsPreset}>
-                <SlidersHorizontal className="mr-2 h-4 w-4" />
-                Salvar como preset
-              </Button>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/app/content/new">
-                  <PenSquare className="mr-2 h-4 w-4" />
-                  Voltar e melhorar briefing
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => window.print()}>
-                <Printer className="mr-2 h-4 w-4" />
-                Exportar relatório interno
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex flex-wrap gap-2 rounded-2xl border bg-card p-3">
+          <Button asChild variant="default" size="sm">
+            <Link to="/app/content/$projectId/client-pdf" params={{ projectId }}>
+              <FileImage className="mr-2 h-4 w-4" />
+              PDF para cliente
+            </Link>
+          </Button>
+          <Button variant="default" size="sm" onClick={() => setAddToCalOpen(true)}>
+            <CalendarCheck className="mr-2 h-4 w-4" />
+            Calendário
+          </Button>
+          <Button variant="default" size="sm" onClick={() => setApprovalOpen(true)}>
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Aprovação
+          </Button>
+          <CopyButton text={fullExport} label="Copiar pacote" variant="outline" />
+          <Button variant="outline" size="sm" onClick={exportTxt}>
+            <Download className="mr-2 h-4 w-4" />
+            TXT
+          </Button>
+          <Button variant="outline" size="sm" onClick={saveProjectAsPreset}>
+            <SlidersHorizontal className="mr-2 h-4 w-4" />
+            Salvar preset
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/app/content/new">
+              <PenSquare className="mr-2 h-4 w-4" />
+              Melhorar briefing
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer className="mr-2 h-4 w-4" />
+            Relatório interno
+          </Button>
+        </div>
 
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => updateStatus.mutate("approved")}>
