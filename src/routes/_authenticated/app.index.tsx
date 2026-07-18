@@ -345,7 +345,7 @@ function Dashboard() {
         </Card>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section className="space-y-5">
         <div className="rounded-[2rem] border border-border/60 bg-card p-5 shadow-sm sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -364,7 +364,7 @@ function Dashboard() {
               </Link>
             </Button>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <HomeActionCard
               title="Estou sem ideias"
               desc="Receba caminhos editoriais a partir do contexto da marca."
