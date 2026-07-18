@@ -33,7 +33,16 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { listScheduleItems, getScheduleItemTitle } from "@/lib/scheduleQueries";
-import { effectiveDate, effectiveTime, formatDateBR, STATUS_LABELS, computeIsOverdue, CHANNEL_LABELS, type ScheduleStatus, type ChannelKind } from "@/lib/calendar";
+import {
+  effectiveDate,
+  effectiveTime,
+  formatDateBR,
+  STATUS_LABELS,
+  computeIsOverdue,
+  CHANNEL_LABELS,
+  type ScheduleStatus,
+  type ChannelKind,
+} from "@/lib/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { getProjectDisplayTitle } from "@/lib/displayTitle";
 import { FORMAT_LABELS } from "@/lib/promptBuilder";
@@ -46,7 +55,11 @@ import { ChooseIdeaFormatsDialog } from "@/components/choose-idea-formats-dialog
 import { quickIdea, type Idea } from "@/lib/ideaGenerator";
 import type { Tables } from "@/integrations/supabase/types";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
@@ -59,14 +72,33 @@ function Dashboard() {
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      const [brandsRes, draftsRes, approvedRes, publishedRes, favRes, recentRes] = await Promise.all([
-        supabase.from("brands").select("id", { count: "exact", head: true }),
-        supabase.from("content_projects").select("id", { count: "exact", head: true }).eq("status", "draft"),
-        supabase.from("content_projects").select("id", { count: "exact", head: true }).eq("status", "approved"),
-        supabase.from("content_projects").select("id", { count: "exact", head: true }).eq("status", "published"),
-        supabase.from("content_projects").select("id", { count: "exact", head: true }).eq("is_favorite", true),
-        supabase.from("content_projects").select("id, internal_title, display_title, theme, main_message, status, updated_at, brand_id, brands(name)").order("updated_at", { ascending: false }).limit(6),
-      ]);
+      const [brandsRes, draftsRes, approvedRes, publishedRes, favRes, recentRes] =
+        await Promise.all([
+          supabase.from("brands").select("id", { count: "exact", head: true }),
+          supabase
+            .from("content_projects")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "draft"),
+          supabase
+            .from("content_projects")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "approved"),
+          supabase
+            .from("content_projects")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "published"),
+          supabase
+            .from("content_projects")
+            .select("id", { count: "exact", head: true })
+            .eq("is_favorite", true),
+          supabase
+            .from("content_projects")
+            .select(
+              "id, internal_title, display_title, theme, main_message, status, updated_at, brand_id, brands(name)",
+            )
+            .order("updated_at", { ascending: false })
+            .limit(6),
+        ]);
       return {
         brands: brandsRes.count ?? 0,
         drafts: draftsRes.count ?? 0,
@@ -92,9 +124,27 @@ function Dashboard() {
   const activeProjects = (stats?.drafts ?? 0) + (stats?.approved ?? 0);
 
   const headlineSignals = [
-    { label: "Em produção", value: activeProjects, helper: "conteúdos para continuar", icon: Clock3, tone: "yellow" as const },
-    { label: "Aprovados", value: stats?.approved ?? 0, helper: "prontos para organizar", icon: CheckCircle2, tone: "orange" as const },
-    { label: "Publicados", value: stats?.published ?? 0, helper: "histórico reaproveitável", icon: Send, tone: "violet" as const },
+    {
+      label: "Em produção",
+      value: activeProjects,
+      helper: "conteúdos para continuar",
+      icon: Clock3,
+      tone: "yellow" as const,
+    },
+    {
+      label: "Aprovados",
+      value: stats?.approved ?? 0,
+      helper: "prontos para organizar",
+      icon: CheckCircle2,
+      tone: "orange" as const,
+    },
+    {
+      label: "Publicados",
+      value: stats?.published ?? 0,
+      helper: "histórico reaproveitável",
+      icon: Send,
+      tone: "violet" as const,
+    },
   ];
 
   const flow = [
@@ -177,23 +227,61 @@ function Dashboard() {
     },
   ];
 
+  const formatQuickCards = [
+    {
+      title: "Reels",
+      desc: "Roteiro, gancho, capa/frame e aprovação.",
+      to: "/app/create/reel",
+      icon: Film,
+      tone: "orange" as const,
+      label: "Carro-chefe",
+    },
+    {
+      title: "Post",
+      desc: "Uma mensagem visual, direta e fácil de aprovar.",
+      to: "/app/content/new",
+      search: { format: "post" },
+      icon: ImageIcon,
+      tone: "violet" as const,
+      label: "Rápido",
+    },
+    {
+      title: "Carrossel",
+      desc: "Conteúdo dividido em etapas, listas ou explicações.",
+      to: "/app/content/new",
+      search: { format: "carrossel" },
+      icon: Layers,
+      tone: "yellow" as const,
+      label: "Explicativo",
+    },
+    {
+      title: "Status",
+      desc: "Mensagem curta para WhatsApp, direta e fácil de responder.",
+      to: "/app/content/new",
+      search: { format: "status_whatsapp" },
+      icon: Smartphone,
+      tone: "orange" as const,
+      label: "Curto",
+    },
+  ];
+
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       <section className="relative overflow-hidden rounded-[2rem] border border-border/60 bg-card p-6 shadow-sm sm:p-8 lg:p-10">
         <div className="bg-studio-glow absolute inset-0 opacity-95" />
-        <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
+        <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
           <div className="space-y-5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-creative-violet bg-creative-violet-soft px-3 py-1 text-xs font-medium text-creative-violet">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-creative-violet bg-creative-violet-soft px-3 py-1 text-xs font-medium text-creative-violet">
               <Sparkles className="h-3.5 w-3.5" />
               Cria Aí 2.0 · Estúdio criativo guiado
             </div>
             <div className="space-y-3">
               <h1 className="max-w-3xl text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
-                Da ideia à publicação, com um fluxo claro.
+                O que você quer criar hoje?
               </h1>
               <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-                O Cria Aí guia a criação, revisão, aprovação e organização do conteúdo. Ele não finge ser editor visual
-                nem publicador automático: você cria o pacote, aprova com clareza e marca a publicação no calendário.
+                Escolha o formato pelo tipo de conteúdo que você quer produzir. Os detalhes,
+                contexto da marca e passo a passo aparecem depois, na tela de criação.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -203,17 +291,22 @@ function Dashboard() {
                   Criar Reel 2.0
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="lg" className="gap-2 rounded-full bg-background/70">
-                <Link to="/app/create">
-                  <Plus className="h-4 w-4" />
-                  Criar outro conteúdo
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="gap-2 rounded-full bg-background/70"
+              >
+                <Link to="/app/content/new" search={{ format: "post" }}>
+                  <ImageIcon className="h-4 w-4" />
+                  Criar Post
                 </Link>
               </Button>
               <Button asChild variant="ghost" size="lg" className="gap-2 rounded-full">
-                <a href="#continuar-producao">
+                <Link to="/app/library">
                   <FolderOpen className="h-4 w-4" />
                   Continuar produção
-                </a>
+                </Link>
               </Button>
             </div>
           </div>
@@ -224,19 +317,20 @@ function Dashboard() {
                 <Info className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-semibold">Promessa honesta do app</p>
+                <p className="text-sm font-semibold">Comece simples</p>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  Criamos roteiros, legendas, prompts e pacotes de aprovação. A arte final, o vídeo e a publicação entram como anexos ou status.
+                  A Home agora é uma porta de entrada. O fluxo completo fica dentro da criação, para
+                  não misturar escolha de formato com acompanhamento técnico.
                 </p>
               </div>
               <div className="grid gap-2 text-xs">
                 <div className="rounded-xl bg-background/70 p-3">
-                  <p className="font-semibold">O Cria Aí ajuda</p>
-                  <p className="text-muted-foreground">a estruturar conteúdo e organizar a produção.</p>
+                  <p className="font-semibold">Reel 2.0</p>
+                  <p className="text-muted-foreground">10–15 min para montar um pacote guiado.</p>
                 </div>
                 <div className="rounded-xl bg-background/70 p-3">
-                  <p className="font-semibold">O Cria Aí não promete</p>
-                  <p className="text-muted-foreground">postar automaticamente nem substituir um editor visual.</p>
+                  <p className="font-semibold">Post simples</p>
+                  <p className="text-muted-foreground">4–7 min para briefing e prompt.</p>
                 </div>
               </div>
             </CardContent>
@@ -244,29 +338,42 @@ function Dashboard() {
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-border/60 bg-card/90 p-5 shadow-sm sm:p-6">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <Badge variant="secondary" className="mb-2 rounded-full">Fluxo de uso</Badge>
-            <h2 className="text-2xl font-semibold">Como o Cria Aí conduz seu conteúdo</h2>
-            <p className="text-sm text-muted-foreground">Uma jornada visual para não misturar criação, aprovação e publicação.</p>
+            <Badge variant="secondary" className="mb-2 rounded-full">
+              Escolha rápida
+            </Badge>
+            <h2 className="text-2xl font-semibold">Formatos principais</h2>
+            <p className="text-sm text-muted-foreground">
+              Comece pelo formato. O Cria Aí conduz o restante depois.
+            </p>
           </div>
-          <HelpDialog />
+          <Button asChild variant="ghost" size="sm" className="gap-1">
+            <Link to="/app/create">
+              Ver todos os formatos
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {flow.map((item, index) => (
-            <FlowPreviewCard key={item.title} index={index + 1} {...item} />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {formatQuickCards.map((format) => (
+            <QuickFormatCard key={format.title} {...format} />
           ))}
         </div>
       </section>
 
-      <section className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-3xl border border-border/60 bg-card/85 p-5 shadow-sm">
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="rounded-[2rem] border border-border/60 bg-card/90 p-5 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <Badge variant="outline" className="mb-2 rounded-full">Comece pelo cenário</Badge>
-              <h2 className="text-xl font-semibold">O que você quer fazer agora?</h2>
-              <p className="text-sm text-muted-foreground">Escolha um caminho. Os detalhes aparecem só depois.</p>
+              <Badge variant="outline" className="mb-2 rounded-full">
+                Atalhos criativos
+              </Badge>
+              <h2 className="text-xl font-semibold">Não quer começar pelo formato?</h2>
+              <p className="text-sm text-muted-foreground">
+                Use uma ideia, tendência ou preset para chegar no conteúdo.
+              </p>
             </div>
             <Button asChild variant="ghost" size="sm" className="gap-1">
               <Link to="/app/templates">
@@ -276,65 +383,91 @@ function Dashboard() {
             </Button>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {creationScenarios.map((path) => (
-              <HomeActionCard key={path.title} {...path} />
-            ))}
+            {creationScenarios
+              .filter((path) => !["Criar Reel 2.0", "Criar conteúdo"].includes(path.title))
+              .map((path) => (
+                <HomeActionCard key={path.title} {...path} />
+              ))}
+            <HomeActionCard
+              title="Usar preset"
+              desc="Comece com um modelo pronto de roteiro, legenda ou campanha."
+              to="/app/templates"
+              icon={Star}
+              badge="Modelo"
+              tone="violet"
+            />
+            <HomeActionCard
+              title="Criar campanha"
+              desc="Monte um pacote com formatos conectados por uma ideia central."
+              to="/app/create"
+              icon={ClipboardList}
+              badge="Pacote"
+              tone="orange"
+            />
           </div>
         </div>
 
-        <div className="rounded-3xl border border-border/60 bg-card/85 p-5 shadow-sm">
-          <div className="mb-4">
-            <Badge variant="outline" className="mb-2 rounded-full">Hoje no estúdio</Badge>
-            <h2 className="text-xl font-semibold">Onde sua atenção pode ir</h2>
-            <p className="text-sm text-muted-foreground">Números compactos para ação, não para competir com a criação.</p>
-          </div>
-          <div className="grid gap-3">
-            {headlineSignals.map((signal) => (
-              <StudioSignalCard key={signal.label} {...signal} />
-            ))}
-          </div>
-          <div className="mt-4 rounded-2xl border border-border/60 bg-background/60 p-4 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">Próximo passo sugerido</p>
-            <p className="mt-1">Continue um rascunho ou resolva aprovações pendentes antes de criar novos conteúdos.</p>
-          </div>
-        </div>
+        <Card className="border-border/60 bg-card/90 shadow-sm">
+          <CardContent className="space-y-4 p-5">
+            <div>
+              <Badge variant="outline" className="mb-2 rounded-full">
+                Resumo leve
+              </Badge>
+              <h2 className="text-xl font-semibold">Hoje no estúdio</h2>
+              <p className="text-sm text-muted-foreground">
+                Só o essencial para não perder o controle.
+              </p>
+            </div>
+            <div className="grid gap-3">
+              <StudioSignalCard
+                label="Em produção"
+                value={activeProjects}
+                helper="rascunhos e aprovados"
+                icon={Clock3}
+                tone="yellow"
+              />
+              <StudioSignalCard
+                label="Aprovados"
+                value={stats?.approved ?? 0}
+                helper="prontos para calendário"
+                icon={CheckCircle2}
+                tone="orange"
+              />
+              <StudioSignalCard
+                label="Publicados"
+                value={stats?.published ?? 0}
+                helper="histórico reaproveitável"
+                icon={Send}
+                tone="violet"
+              />
+            </div>
+            <Button asChild variant="outline" className="w-full rounded-full">
+              <Link to="/app/library">Abrir produção e biblioteca</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </section>
 
       <QuickIdeaBlock />
-
-      <section id="continuar-producao" className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-lg font-semibold"><FolderOpen className="h-4 w-4" />Continuar produção</h2>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/app/library">Ver biblioteca</Link>
-            </Button>
-          </div>
-          {recent.length ? (
-            <div className="grid gap-3">
-              {recent.slice(0, 4).map((project) => (
-                <ProjectResumeCard key={project.id} project={project} />
-              ))}
-            </div>
-          ) : (
-            <Card className="border-dashed bg-card/70">
-              <CardContent className="grid place-items-center gap-2 p-8 text-center">
-                <p className="text-sm text-muted-foreground">Você ainda não criou conteúdos.</p>
-                <Button asChild size="sm"><Link to="/app/create">Criar o primeiro</Link></Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-        <div className="space-y-4">
-          <ClientApprovalsSection />
-          <UpcomingPublicationsSection />
-        </div>
-      </section>
     </div>
   );
 }
 
-function FlowPreviewCard({ index, title, desc, action, icon: Icon, tone }: { index: number; title: string; desc: string; action: string; icon: typeof Briefcase; tone: HomeTone }) {
+function FlowPreviewCard({
+  index,
+  title,
+  desc,
+  action,
+  icon: Icon,
+  tone,
+}: {
+  index: number;
+  title: string;
+  desc: string;
+  action: string;
+  icon: typeof Briefcase;
+  tone: HomeTone;
+}) {
   return (
     <div className="group relative overflow-hidden rounded-3xl border border-border/60 bg-background/60 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
       <div className="absolute right-4 top-4 opacity-10 transition-opacity group-hover:opacity-20">
@@ -342,7 +475,14 @@ function FlowPreviewCard({ index, title, desc, action, icon: Icon, tone }: { ind
       </div>
       <div className="relative space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <span className={cn("grid h-9 w-9 place-items-center rounded-full border text-sm font-bold", toneClasses(tone))}>{index}</span>
+          <span
+            className={cn(
+              "grid h-9 w-9 place-items-center rounded-full border text-sm font-bold",
+              toneClasses(tone),
+            )}
+          >
+            {index}
+          </span>
           <Icon className="h-5 w-5 text-primary" />
         </div>
         <div>
@@ -352,7 +492,10 @@ function FlowPreviewCard({ index, title, desc, action, icon: Icon, tone }: { ind
         <div className="rounded-2xl border border-border/50 bg-card/70 p-3 text-xs text-muted-foreground">
           <p className="font-medium text-foreground">{action}</p>
           <div className="mt-2 h-2 rounded-full bg-muted">
-            <div className="h-2 rounded-full bg-primary" style={{ width: `${Math.min(100, 20 + index * 12)}%` }} />
+            <div
+              className="h-2 rounded-full bg-primary"
+              style={{ width: `${Math.min(100, 20 + index * 12)}%` }}
+            />
           </div>
         </div>
       </div>
@@ -360,10 +503,27 @@ function FlowPreviewCard({ index, title, desc, action, icon: Icon, tone }: { ind
   );
 }
 
-function StudioSignalCard({ label, value, helper, icon: Icon, tone }: { label: string; value: number; helper: string; icon: typeof Briefcase; tone: HomeTone }) {
+function StudioSignalCard({
+  label,
+  value,
+  helper,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  helper: string;
+  icon: typeof Briefcase;
+  tone: HomeTone;
+}) {
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/60 p-4">
-      <div className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-2xl border", toneClasses(tone))}>
+      <div
+        className={cn(
+          "grid h-11 w-11 shrink-0 place-items-center rounded-2xl border",
+          toneClasses(tone),
+        )}
+      >
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">
@@ -386,11 +546,69 @@ function toneClasses(tone: HomeTone) {
   return map[tone];
 }
 
-function HomeMetricCard({ label, value, icon: Icon, tone }: { label: string; value: number; icon: typeof Briefcase; tone: HomeTone }) {
+function QuickFormatCard({
+  title,
+  desc,
+  to,
+  search,
+  icon: Icon,
+  tone,
+  label,
+}: {
+  title: string;
+  desc: string;
+  to: string;
+  search?: Record<string, string>;
+  icon: typeof Briefcase;
+  tone: HomeTone;
+  label: string;
+}) {
+  return (
+    <Link
+      to={to as any}
+      search={search as any}
+      className="group rounded-3xl border border-border/60 bg-card/90 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-lg"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div
+          className={cn("grid h-12 w-12 place-items-center rounded-2xl border", toneClasses(tone))}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
+        <Badge variant="outline" className="rounded-full text-[11px]">
+          {label}
+        </Badge>
+      </div>
+      <p className="mt-5 text-xl font-semibold">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{desc}</p>
+      <div className="mt-5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+        Criar agora
+        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+      </div>
+    </Link>
+  );
+}
+
+function HomeMetricCard({
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  icon: typeof Briefcase;
+  tone: HomeTone;
+}) {
   return (
     <Card className="border-border/60 bg-card/85 shadow-sm">
       <CardContent className="flex items-center gap-3 p-4">
-        <div className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-2xl border", toneClasses(tone))}>
+        <div
+          className={cn(
+            "grid h-11 w-11 shrink-0 place-items-center rounded-2xl border",
+            toneClasses(tone),
+          )}
+        >
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0">
@@ -402,17 +620,35 @@ function HomeMetricCard({ label, value, icon: Icon, tone }: { label: string; val
   );
 }
 
-function HomeActionCard({ title, desc, to, icon: Icon, badge, tone }: { title: string; desc: string; to: string; icon: typeof Briefcase; badge: string; tone: HomeTone }) {
+function HomeActionCard({
+  title,
+  desc,
+  to,
+  icon: Icon,
+  badge,
+  tone,
+}: {
+  title: string;
+  desc: string;
+  to: string;
+  icon: typeof Briefcase;
+  badge: string;
+  tone: HomeTone;
+}) {
   return (
     <Link
       to={to as any}
       className="group rounded-3xl border border-border/60 bg-card/85 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-lg"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className={cn("grid h-11 w-11 place-items-center rounded-2xl border", toneClasses(tone))}>
+        <div
+          className={cn("grid h-11 w-11 place-items-center rounded-2xl border", toneClasses(tone))}
+        >
           <Icon className="h-5 w-5" />
         </div>
-        <Badge variant="outline" className="rounded-full text-[11px]">{badge}</Badge>
+        <Badge variant="outline" className="rounded-full text-[11px]">
+          {badge}
+        </Badge>
       </div>
       <p className="mt-4 font-semibold">{title}</p>
       <p className="mt-1 text-sm leading-5 text-muted-foreground">{desc}</p>
@@ -424,11 +660,23 @@ function HomeActionCard({ title, desc, to, icon: Icon, badge, tone }: { title: s
   );
 }
 
-function CreationFlowStep({ index, title, desc, icon: Icon }: { index: number; title: string; desc: string; icon: typeof Briefcase }) {
+function CreationFlowStep({
+  index,
+  title,
+  desc,
+  icon: Icon,
+}: {
+  index: number;
+  title: string;
+  desc: string;
+  icon: typeof Briefcase;
+}) {
   return (
     <div className="relative rounded-2xl border border-border/60 bg-background/55 p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{index}</span>
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+          {index}
+        </span>
         <Icon className="h-4 w-4 text-primary" />
       </div>
       <p className="font-semibold">{title}</p>
@@ -437,7 +685,21 @@ function CreationFlowStep({ index, title, desc, icon: Icon }: { index: number; t
   );
 }
 
-function ProjectResumeCard({ project }: { project: { id: string; internal_title: string | null; display_title: string | null; theme: string | null; main_message: string | null; status: string; updated_at: string; brand_id: string | null; brands: { name: string } | null } }) {
+function ProjectResumeCard({
+  project,
+}: {
+  project: {
+    id: string;
+    internal_title: string | null;
+    display_title: string | null;
+    theme: string | null;
+    main_message: string | null;
+    status: string;
+    updated_at: string;
+    brand_id: string | null;
+    brands: { name: string } | null;
+  };
+}) {
   const display = getProjectDisplayTitle(project);
   return (
     <Link
@@ -448,9 +710,13 @@ function ProjectResumeCard({ project }: { project: { id: string; internal_title:
     >
       <div className="min-w-0">
         <p className="line-clamp-2 break-words font-medium">{display}</p>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{project.brands?.name ?? "Sem marca"}</p>
+        <p className="mt-1 truncate text-xs text-muted-foreground">
+          {project.brands?.name ?? "Sem marca"}
+        </p>
       </div>
-      <Badge variant="outline" className="w-fit shrink-0 capitalize">{statusLabel(project.status)}</Badge>
+      <Badge variant="outline" className="w-fit shrink-0 capitalize">
+        {statusLabel(project.status)}
+      </Badge>
     </Link>
   );
 }
@@ -488,7 +754,12 @@ function UpcomingPublicationsSection() {
   const upcoming = items
     .filter((it) => {
       const d = effectiveDate(it);
-      return d && d >= todayIso && it.schedule_status !== "publicado" && it.schedule_status !== "cancelado";
+      return (
+        d &&
+        d >= todayIso &&
+        it.schedule_status !== "publicado" &&
+        it.schedule_status !== "cancelado"
+      );
     })
     .sort((a, b) => {
       const da = `${effectiveDate(a)}T${effectiveTime(a) ?? "00:00"}`;
@@ -497,22 +768,31 @@ function UpcomingPublicationsSection() {
     })
     .slice(0, 5);
 
-  const weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekEnd = new Date(now);
+  weekEnd.setDate(weekEnd.getDate() + 7);
   const weekIso = weekEnd.toISOString().slice(0, 10);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
 
   const metrics = {
-    scheduledWeek: items.filter((it) => { const d = effectiveDate(it); return d && d >= todayIso && d <= weekIso && it.schedule_status === "agendado"; }).length,
+    scheduledWeek: items.filter((it) => {
+      const d = effectiveDate(it);
+      return d && d >= todayIso && d <= weekIso && it.schedule_status === "agendado";
+    }).length,
     waitingApproval: items.filter((it) => it.schedule_status === "aguardando_aprovacao").length,
     overdue: items.filter((it) => computeIsOverdue(it)).length,
-    publishedMonth: items.filter((it) => it.schedule_status === "publicado" && (effectiveDate(it) ?? "") >= monthStart).length,
+    publishedMonth: items.filter(
+      (it) => it.schedule_status === "publicado" && (effectiveDate(it) ?? "") >= monthStart,
+    ).length,
     noDate: items.filter((it) => it.schedule_status === "sem_data").length,
   };
 
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold flex items-center gap-2"><CalendarCheck className="h-4 w-4" />Próximas publicações</h2>
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <CalendarCheck className="h-4 w-4" />
+          Próximas publicações
+        </h2>
         <Button asChild variant="ghost" size="sm">
           <Link to="/app/calendar">Ver calendário</Link>
         </Button>
@@ -530,8 +810,10 @@ function UpcomingPublicationsSection() {
             const d = effectiveDate(it);
             const t = effectiveTime(it);
             const title = getScheduleItemTitle(it);
-            const fmt = it.format ? FORMAT_LABELS[it.format] ?? it.format : null;
-            const ch = it.channel ? CHANNEL_LABELS[it.channel as ChannelKind] ?? it.channel : null;
+            const fmt = it.format ? (FORMAT_LABELS[it.format] ?? it.format) : null;
+            const ch = it.channel
+              ? (CHANNEL_LABELS[it.channel as ChannelKind] ?? it.channel)
+              : null;
             return (
               <Link
                 key={it.id}
@@ -542,11 +824,15 @@ function UpcomingPublicationsSection() {
                 <div className="min-w-0">
                   <p className="line-clamp-2 break-words text-sm font-medium">{title}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {d ? `${formatDateBR(d)}${t ? ` às ${t}` : ""} · ` : ""}{it.brands?.name ?? "Sem marca"}
-                    {fmt ? ` · ${fmt}` : ""}{ch ? ` · ${ch}` : ""}
+                    {d ? `${formatDateBR(d)}${t ? ` às ${t}` : ""} · ` : ""}
+                    {it.brands?.name ?? "Sem marca"}
+                    {fmt ? ` · ${fmt}` : ""}
+                    {ch ? ` · ${ch}` : ""}
                   </p>
                 </div>
-                <Badge variant="outline" className="shrink-0">{STATUS_LABELS[(it.schedule_status ?? "sem_data") as ScheduleStatus]}</Badge>
+                <Badge variant="outline" className="shrink-0">
+                  {STATUS_LABELS[(it.schedule_status ?? "sem_data") as ScheduleStatus]}
+                </Badge>
               </Link>
             );
           })}
@@ -555,7 +841,9 @@ function UpcomingPublicationsSection() {
         <Card className="border-dashed">
           <CardContent className="grid place-items-center gap-2 p-6 text-center">
             <p className="text-sm text-muted-foreground">Nenhuma publicação próxima.</p>
-            <Button asChild size="sm" variant="outline"><Link to="/app/calendar">Abrir calendário</Link></Button>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/app/calendar">Abrir calendário</Link>
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -563,7 +851,15 @@ function UpcomingPublicationsSection() {
   );
 }
 
-function MetricTile({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
+function MetricTile({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  highlight?: boolean;
+}) {
   return (
     <Card className={highlight ? "border-red-500/40" : "border-border/60"}>
       <CardContent className="p-3">
@@ -641,16 +937,28 @@ function QuickIdeaBlock() {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
     const { error } = await supabase.from("content_ideas").insert({
-      user_id: u.user.id, brand_id: brandId,
-      title: idea.title, theme: idea.theme, content_pillar: idea.content_pillar,
-      objective: idea.objective, recommended_format: idea.recommended_format,
-      angle: idea.angle, target_audience: idea.target_audience,
-      audience_problem: idea.audience_problem, central_message: idea.central_message,
-      hook: idea.hook, suggested_cta: idea.suggested_cta,
-      required_information: idea.required_information, visual_direction: idea.visual_direction,
-      reason_to_publish: idea.reason_to_publish, source_elements: idea.source_elements,
-      novelty_score: idea.novelty_score, novelty_badge: idea.novelty_badge,
-      template_key: idea.template_key, status: "favorita", source_type: "lab",
+      user_id: u.user.id,
+      brand_id: brandId,
+      title: idea.title,
+      theme: idea.theme,
+      content_pillar: idea.content_pillar,
+      objective: idea.objective,
+      recommended_format: idea.recommended_format,
+      angle: idea.angle,
+      target_audience: idea.target_audience,
+      audience_problem: idea.audience_problem,
+      central_message: idea.central_message,
+      hook: idea.hook,
+      suggested_cta: idea.suggested_cta,
+      required_information: idea.required_information,
+      visual_direction: idea.visual_direction,
+      reason_to_publish: idea.reason_to_publish,
+      source_elements: idea.source_elements,
+      novelty_score: idea.novelty_score,
+      novelty_badge: idea.novelty_badge,
+      template_key: idea.template_key,
+      status: "favorita",
+      source_type: "lab",
     });
     if (error) toast.error("Não foi possível salvar", { description: error.message });
     else {
@@ -663,19 +971,31 @@ function QuickIdeaBlock() {
     <section className="rounded-2xl border border-accent/30 bg-accent/5 p-5">
       <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
         <div className="space-y-1">
-          <Badge variant="outline" className="gap-1"><Sparkles className="h-3 w-3" />Ideia rápida</Badge>
+          <Badge variant="outline" className="gap-1">
+            <Sparkles className="h-3 w-3" />
+            Ideia rápida
+          </Badge>
           <h2 className="text-lg font-semibold">Precisa postar, mas não sabe o quê?</h2>
-          <p className="text-sm text-muted-foreground">Escolha a marca e receba uma sugestão pronta, baseada no que ela já tem cadastrado.</p>
+          <p className="text-sm text-muted-foreground">
+            Escolha a marca e receba uma sugestão pronta, baseada no que ela já tem cadastrado.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={brandId} onValueChange={setBrandId}>
-            <SelectTrigger className="w-[220px]"><SelectValue placeholder="Selecione a marca" /></SelectTrigger>
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Selecione a marca" />
+            </SelectTrigger>
             <SelectContent>
-              {(brands ?? []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+              {(brands ?? []).map((b) => (
+                <SelectItem key={b.id} value={b.id}>
+                  {b.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button onClick={generate} className="gap-2">
-            <Sparkles className="h-4 w-4" />Gerar uma ideia rápida
+            <Sparkles className="h-4 w-4" />
+            Gerar uma ideia rápida
           </Button>
         </div>
       </div>
@@ -688,17 +1008,40 @@ function QuickIdeaBlock() {
               <Badge variant="outline">{idea.novelty_badge}</Badge>
             </div>
             <div className="flex flex-wrap gap-1 text-xs">
-              <Badge variant="outline" className="font-normal">Sugestão: {idea.recommended_format}</Badge>
-              <Badge variant="outline" className="font-normal">{idea.content_pillar}</Badge>
-              <Badge variant="outline" className="font-normal">{idea.objective}</Badge>
+              <Badge variant="outline" className="font-normal">
+                Sugestão: {idea.recommended_format}
+              </Badge>
+              <Badge variant="outline" className="font-normal">
+                {idea.content_pillar}
+              </Badge>
+              <Badge variant="outline" className="font-normal">
+                {idea.objective}
+              </Badge>
             </div>
-            {idea.hook && <p className="text-sm text-muted-foreground italic">Gancho: “{idea.hook}”</p>}
-            {idea.suggested_cta && <p className="text-sm"><span className="text-muted-foreground">CTA: </span>{idea.suggested_cta}</p>}
+            {idea.hook && (
+              <p className="text-sm text-muted-foreground italic">Gancho: “{idea.hook}”</p>
+            )}
+            {idea.suggested_cta && (
+              <p className="text-sm">
+                <span className="text-muted-foreground">CTA: </span>
+                {idea.suggested_cta}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2 pt-2">
-              <Button size="sm" onClick={useIt} className="gap-1"><ArrowRight className="h-3 w-3" />Usar esta ideia</Button>
-              <Button size="sm" variant="outline" onClick={generate} className="gap-1"><RefreshCw className="h-3 w-3" />Gerar outra</Button>
-              <Button size="sm" variant="ghost" onClick={save}>Salvar para depois</Button>
-              <Button asChild size="sm" variant="ghost"><Link to="/app/ideas">Abrir Laboratório</Link></Button>
+              <Button size="sm" onClick={useIt} className="gap-1">
+                <ArrowRight className="h-3 w-3" />
+                Usar esta ideia
+              </Button>
+              <Button size="sm" variant="outline" onClick={generate} className="gap-1">
+                <RefreshCw className="h-3 w-3" />
+                Gerar outra
+              </Button>
+              <Button size="sm" variant="ghost" onClick={save}>
+                Salvar para depois
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <Link to="/app/ideas">Abrir Laboratório</Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -717,14 +1060,15 @@ function QuickIdeaBlock() {
   );
 }
 
-
 function formatLabelToWizardKey(label: string): string | null {
   const normalized = label.trim().toLowerCase();
-  const entry = Object.entries(FORMAT_LABELS).find(([, formatLabel]) => formatLabel.toLowerCase() === normalized);
+  const entry = Object.entries(FORMAT_LABELS).find(
+    ([, formatLabel]) => formatLabel.toLowerCase() === normalized,
+  );
   if (entry) return entry[0];
   const aliases: Record<string, string> = {
     "post feed": "post",
-    "stories": "story",
+    stories: "story",
     "status whatsapp": "status_whatsapp",
   };
   return aliases[normalized] ?? null;
@@ -736,16 +1080,22 @@ function ClientApprovalsSection() {
     queryFn: async () => {
       const { data: rows } = await supabase
         .from("client_approvals")
-        .select("id, status, submitted_at, last_viewed_at, project_id, title, client_name, updated_at, content_projects(internal_title, display_title)")
+        .select(
+          "id, status, submitted_at, last_viewed_at, project_id, title, client_name, updated_at, content_projects(internal_title, display_title)",
+        )
         .order("updated_at", { ascending: false })
         .limit(50);
       const list = rows ?? [];
-      const pending = list.filter((a) => a.status === "enviado_para_aprovacao" || a.status === "visualizado_pelo_cliente").length;
-      const approved = list.filter((a) => a.status === "aprovado" || a.status === "aprovado_com_ajustes").length;
-      const changes = list.filter((a) => a.status === "ajustes_solicitados" || a.status === "recusado").length;
-      const recent = list
-        .filter((a) => a.submitted_at)
-        .slice(0, 3);
+      const pending = list.filter(
+        (a) => a.status === "enviado_para_aprovacao" || a.status === "visualizado_pelo_cliente",
+      ).length;
+      const approved = list.filter(
+        (a) => a.status === "aprovado" || a.status === "aprovado_com_ajustes",
+      ).length;
+      const changes = list.filter(
+        (a) => a.status === "ajustes_solicitados" || a.status === "recusado",
+      ).length;
+      const recent = list.filter((a) => a.submitted_at).slice(0, 3);
       return { pending, approved, changes, recent };
     },
   });
@@ -757,9 +1107,14 @@ function ClientApprovalsSection() {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold flex items-center gap-2"><ShieldCheck className="h-4 w-4" />Aprovações do cliente</h2>
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4" />
+          Aprovações do cliente
+        </h2>
         <Button asChild variant="ghost" size="sm">
-          <Link to="/app/library" search={{ status: "awaiting_approval" }}>Ver aguardando</Link>
+          <Link to="/app/library" search={{ status: "awaiting_approval" }}>
+            Ver aguardando
+          </Link>
         </Button>
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -788,10 +1143,13 @@ function ClientApprovalsSection() {
                 <div className="min-w-0">
                   <p className="line-clamp-2 break-words text-sm font-medium">{projectTitle}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {a.client_name ?? "Cliente"} · {a.submitted_at ? new Date(a.submitted_at).toLocaleDateString("pt-BR") : ""}
+                    {a.client_name ?? "Cliente"} ·{" "}
+                    {a.submitted_at ? new Date(a.submitted_at).toLocaleDateString("pt-BR") : ""}
                   </p>
                 </div>
-                <Badge variant="outline" className="shrink-0">{statusText[a.status] ?? a.status}</Badge>
+                <Badge variant="outline" className="shrink-0">
+                  {statusText[a.status] ?? a.status}
+                </Badge>
               </Link>
             );
           })}
@@ -800,4 +1158,3 @@ function ClientApprovalsSection() {
     </section>
   );
 }
-

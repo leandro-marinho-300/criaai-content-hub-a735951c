@@ -438,6 +438,7 @@ function ContentWizard() {
           </div>
         </div>
         <Progress value={((step + 1) / STEPS.length) * 100} />
+        <CreationMiniFlow step={step} />
 
         {fromIdea && (
           <p className="rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs">
@@ -583,6 +584,56 @@ function ContentWizard() {
           A criação do conteúdo final é feita por você na IA escolhida.
         </Link>
       </p>
+    </div>
+  );
+}
+
+function CreationMiniFlow({ step }: { step: number }) {
+  const current = step <= 2 ? 0 : step <= 4 ? 1 : step <= 6 ? 2 : 3;
+  const items = [
+    { title: "Escolher", desc: "Marca e formato" },
+    { title: "Briefing", desc: "Tema e contexto" },
+    { title: "Pacote", desc: "Entregas e modo" },
+    { title: "Revisar", desc: "Conferir e gerar" },
+  ];
+  return (
+    <div className="rounded-2xl border border-border/60 bg-card/70 p-3">
+      <div className="grid gap-2 sm:grid-cols-4">
+        {items.map((item, index) => {
+          const active = index === current;
+          const done = index < current;
+          return (
+            <div
+              key={item.title}
+              className={
+                "flex items-center gap-3 rounded-xl border p-3 text-xs transition-colors " +
+                (active
+                  ? "border-primary/40 bg-primary/10"
+                  : done
+                    ? "border-emerald-500/25 bg-emerald-500/5"
+                    : "border-border/50 bg-background/55")
+              }
+            >
+              <span
+                className={
+                  "grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-bold " +
+                  (active
+                    ? "bg-primary text-primary-foreground"
+                    : done
+                      ? "bg-emerald-500 text-white"
+                      : "bg-muted text-muted-foreground")
+                }
+              >
+                {done ? <Check className="h-3.5 w-3.5" /> : index + 1}
+              </span>
+              <span className="min-w-0">
+                <span className="block font-semibold">{item.title}</span>
+                <span className="block truncate text-muted-foreground">{item.desc}</span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
