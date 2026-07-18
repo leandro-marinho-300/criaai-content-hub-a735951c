@@ -84,7 +84,7 @@ export const Route = createFileRoute("/_authenticated/app/create/reel")({
 });
 
 const STEP_LABELS = ["Entrada", "Marca", "Objetivo", "Tipo", "Promessa", "Gancho", "Resumo"] as const;
-const FUTURE_STEPS = ["Aprovação", "Calendário", "Biblioteca"];
+const FUTURE_STEPS = ["Gravação", "Edição", "Vídeo final", "Publicação"];
 
 type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -418,10 +418,10 @@ export function CreateReel2() {
           <div className="max-w-3xl space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="rounded-full bg-orange-500 text-white hover:bg-orange-500">
-Fase 5 · Cria Aí 2.0
+Fase 6 · Cria Aí 2.0
               </Badge>
               <Badge variant="secondary" className="rounded-full">
-Projeto, aprovação e compatibilidade
+Produção e vídeo final
               </Badge>
             </div>
             <div>
@@ -450,7 +450,7 @@ Projeto, aprovação e compatibilidade
             <CardContent className="space-y-4 p-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Progresso da Fase 4</span>
+                  <span>Progresso do Reel 2.0</span>
                   <span>{progress}%</span>
                 </div>
                 <Progress value={progress} />
@@ -492,7 +492,7 @@ Projeto, aprovação e compatibilidade
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                Nesta fase, o roteiro importado vira pacote de produção: capa, publicação, storyboard e caminho de aprovação.
+                Depois de criar o projeto, o Reel ganha checklist de gravação, kit do editor, upload do vídeo final e revisão antes de publicar.
               </p>
             </CardContent>
           </Card>

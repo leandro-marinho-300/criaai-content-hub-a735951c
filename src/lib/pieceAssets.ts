@@ -15,6 +15,8 @@ export const ALLOWED_SCRIPT_VISUAL_MIME = [
 ] as const;
 export const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
 export const MAX_SCRIPT_VISUAL_FILE_SIZE = 30 * 1024 * 1024; // 30 MB
+export const ALLOWED_REEL_FINAL_VIDEO_MIME = ["video/mp4", "video/quicktime", "video/webm"] as const;
+export const MAX_REEL_FINAL_VIDEO_FILE_SIZE = 300 * 1024 * 1024; // 300 MB
 
 export function validateFile(file: File): string | null {
   if (!ALLOWED_MIME.includes(file.type as (typeof ALLOWED_MIME)[number])) {
@@ -23,6 +25,23 @@ export function validateFile(file: File): string | null {
   if (file.size > MAX_FILE_SIZE) return "Arquivo acima de 15 MB.";
   if (file.size === 0) return "Arquivo vazio ou corrompido.";
   return null;
+}
+
+export function validateReelFinalVideoFile(file: File): string | null {
+  if (!ALLOWED_REEL_FINAL_VIDEO_MIME.includes(file.type as (typeof ALLOWED_REEL_FINAL_VIDEO_MIME)[number])) {
+    return "Formato inválido. Use MP4, MOV ou WebM.";
+  }
+  if (file.size > MAX_REEL_FINAL_VIDEO_FILE_SIZE) return "Arquivo acima de 300 MB.";
+  if (file.size === 0) return "Arquivo vazio ou corrompido.";
+  return null;
+}
+
+export function isReelFinalVideoAsset(asset: PieceAsset): boolean {
+  return asset.storage_path.includes("/final-video/") || asset.file_type.startsWith("video/");
+}
+
+export function isReelScriptVisualAsset(asset: PieceAsset): boolean {
+  return asset.storage_path.includes("/script-visual/");
 }
 
 export function validateScriptVisualFile(file: File): string | null {
@@ -213,6 +232,56 @@ export async function uploadReelScriptVisualAsset(params: {
       file_size: file.size,
       image_width: dims.width || null,
       image_height: dims.height || null,
+      display_order: params.displayOrder ?? 0,
+      include_in_client_pdf: true,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    await supabase.storage.from("piece-assets").remove([path]);
+    throw error;
+  }
+  return data as PieceAsset;
+}
+
+
+/**
+ * Faz upload do vídeo final do Reel 2.0.
+ * O arquivo fica ligado ao output do roteiro para manter o pacote do Reel em uma única aba,
+ * mas é marcado como arquivo publicável para aparecer no portal de aprovação.
+ */
+export async function uploadReelFinalVideoAsset(params: {
+  userId: string;
+  projectId: string;
+  outputId: string;
+  file: File;
+  displayOrder?: number;
+}): Promise<PieceAsset> {
+  const { userId, projectId, outputId, file } = params;
+  const err = validateReelFinalVideoFile(file);
+  if (err) throw new Error(err);
+
+  const path = `${userId}/${projectId}/${outputId}/final-video/${Date.now()}-${sanitizeName(file.name)}`;
+  const { error: upErr } = await supabase.storage.from("piece-assets").upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: file.type,
+  });
+  if (upErr) throw upErr;
+
+  const { data, error } = await supabase
+    .from("content_piece_assets")
+    .insert({
+      user_id: userId,
+      project_id: projectId,
+      output_id: outputId,
+      storage_path: path,
+      file_name: file.name,
+      file_type: file.type,
+      file_size: file.size,
+      image_width: null,
+      image_height: null,
       display_order: params.displayOrder ?? 0,
       include_in_client_pdf: true,
     })

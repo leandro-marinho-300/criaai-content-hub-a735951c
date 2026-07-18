@@ -12,6 +12,7 @@ import {
   Clock,
   FileText,
   ExternalLink,
+  FileVideo,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,6 +44,7 @@ interface PieceData {
     fileName: string;
     fileType: string;
     isScriptVisual: boolean;
+    isFinalVideo?: boolean;
   }>;
   decision: PieceDecision;
   comment: string;
@@ -427,13 +429,17 @@ function PortalPage() {
                 <div className="space-y-3">
                   {p.assets.map((a) => (
                     <div key={a.id} className="overflow-hidden rounded-md border bg-muted/40">
-                      {a.isScriptVisual && (
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-violet-500/5 px-3 py-2">
+                      {(a.isScriptVisual || a.isFinalVideo) && (
+                        <div className={a.isFinalVideo ? "flex flex-wrap items-center justify-between gap-2 border-b bg-orange-500/5 px-3 py-2" : "flex flex-wrap items-center justify-between gap-2 border-b bg-violet-500/5 px-3 py-2"}>
                           <div className="flex min-w-0 items-center gap-2">
-                            <FileText className="h-4 w-4 shrink-0 text-violet-600" />
+                            {a.isFinalVideo ? (
+                              <FileVideo className="h-4 w-4 shrink-0 text-orange-600" />
+                            ) : (
+                              <FileText className="h-4 w-4 shrink-0 text-violet-600" />
+                            )}
                             <div className="min-w-0">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
-                                Visual do roteiro
+                              <p className={a.isFinalVideo ? "text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300" : "text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300"}>
+                                {a.isFinalVideo ? "Vídeo final" : "Visual do roteiro"}
                               </p>
                               <p className="truncate text-xs text-muted-foreground">{a.fileName}</p>
                             </div>
@@ -453,6 +459,12 @@ function PortalPage() {
                             src={a.url}
                             title={a.isScriptVisual ? "Visual do roteiro" : a.fileName}
                             className="h-[70vh] min-h-[480px] w-full bg-white"
+                          />
+                        ) : a.fileType.startsWith("video/") ? (
+                          <video
+                            src={a.url}
+                            controls
+                            className="max-h-[80vh] w-full bg-black"
                           />
                         ) : (
                           <img

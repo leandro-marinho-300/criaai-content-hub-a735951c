@@ -150,20 +150,32 @@ export const Route = createFileRoute("/api/public/approval/$token")({
             const piece = parsePiece(o.edited_content ?? o.original_content ?? "");
             const outputAssets = (assets ?? []).filter((a) => a.output_id === o.id);
             const regularClientAssets = outputAssets.filter(
-              (a) => a.include_in_client_pdf && !a.storage_path.includes("/script-visual/"),
+              (a) =>
+                a.include_in_client_pdf &&
+                !a.storage_path.includes("/script-visual/") &&
+                !a.storage_path.includes("/final-video/") &&
+                !a.file_type.startsWith("video/"),
             );
             const latestScriptVisual = outputAssets
               .filter((a) => a.storage_path.includes("/script-visual/"))
               .sort(
                 (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
               )[0];
+            const latestFinalVideo = outputAssets
+              .filter((a) => a.storage_path.includes("/final-video/") || a.file_type.startsWith("video/"))
+              .sort(
+                (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+              )[0];
             // Compatibilidade com uploads antigos: o visual do roteiro era salvo com
             // include_in_client_pdf=false. Ainda assim, a versão mais recente deve
             // aparecer no portal para o cliente conferir se o storyboard corresponde
-            // ao pedido aprovado.
-            const pieceAssets = latestScriptVisual
-              ? [...regularClientAssets, latestScriptVisual]
-              : regularClientAssets;
+            // ao pedido aprovado. O mesmo vale para o vídeo final: só a versão mais
+            // recente deve ir ao cliente.
+            const pieceAssets = [
+              ...regularClientAssets,
+              ...(latestScriptVisual ? [latestScriptVisual] : []),
+              ...(latestFinalVideo ? [latestFinalVideo] : []),
+            ];
             const signed = await Promise.all(
               pieceAssets.map(async (a) => {
                 const { data: sig } = await supabaseAdmin.storage
@@ -177,6 +189,7 @@ export const Route = createFileRoute("/api/public/approval/$token")({
                   fileName: a.file_name,
                   fileType: a.file_type,
                   isScriptVisual: a.storage_path.includes("/script-visual/"),
+                  isFinalVideo: a.storage_path.includes("/final-video/") || a.file_type.startsWith("video/"),
                 };
               }),
             );

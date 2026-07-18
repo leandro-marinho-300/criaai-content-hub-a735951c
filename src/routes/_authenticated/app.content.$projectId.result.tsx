@@ -50,6 +50,7 @@ import { ImportReelScriptDialog } from "@/components/import-reel-script-dialog";
 import { ReelScriptView } from "@/components/reel-script-view";
 import { ReelScriptVisualPanel } from "@/components/reel-script-visual-panel";
 import { Reel2ResultOverview } from "@/components/reel2-result-overview";
+import { Reel2ProductionPanel } from "@/components/reel2-production-panel";
 import { getStoredReelScript, reelScriptToPlainText, type ReelScript } from "@/lib/reelScript";
 import { attachReelScriptVisualMeta, getStoredReelScriptVisualMeta } from "@/lib/reelScriptVisual";
 import { getReel2ScriptFromProject } from "@/lib/reel2Project";
@@ -1446,6 +1447,7 @@ function ReelTabs({
           <TabsTrigger value="capa">Capa</TabsTrigger>
           <TabsTrigger value="legenda">Legenda e hashtags</TabsTrigger>
           <TabsTrigger value="arquivos">Arquivos finais</TabsTrigger>
+          {reel2Script && <TabsTrigger value="producao">Produção final</TabsTrigger>}
           {otherPieces.length > 0 && (
             <TabsTrigger value="outros">Outros formatos ({otherPieces.length})</TabsTrigger>
           )}
@@ -1552,6 +1554,22 @@ function ReelTabs({
             <div key={entry.row.id}>{renderPiece(entry, "")}</div>
           ))}
         </TabsContent>
+
+
+        {reel2Script && roteiro && (
+          <TabsContent value="producao" className="mt-4 space-y-4">
+            <Reel2ProductionPanel
+              userId={userId}
+              projectId={project.id}
+              outputId={roteiro.row.id}
+              outputImportedContent={roteiro.row.imported_content}
+              script={reel2Script}
+              brand={project.brands}
+              assets={assets.filter((asset) => asset.output_id === roteiro.row.id)}
+              onChange={onAssetsChanged}
+            />
+          </TabsContent>
+        )}
 
         {otherPieces.length > 0 && (
           <TabsContent value="outros" className="mt-4 space-y-3">
