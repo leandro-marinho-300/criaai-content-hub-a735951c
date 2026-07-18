@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 export const Route = createFileRoute("/approval/$token")({
   head: () => ({ meta: [{ title: "Aprovação de conteúdo" }] }),
@@ -187,6 +188,18 @@ function PortalPage() {
     }
   };
 
+  const isReel2 = Boolean(data?.reel2);
+  const allowIndividualPieceApproval = Boolean(data?.allowPieceApproval && !isReel2);
+  const reel2Assets = useMemo(
+    () =>
+      isReel2
+        ? pieces
+            .flatMap((piece) => piece.assets)
+            .filter((asset) => asset.isScriptVisual || asset.isFinalVideo)
+        : [],
+    [isReel2, pieces],
+  );
+
   const updatePiece = (idx: number, patch: Partial<PieceData>) => {
     setPieces((prev) => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
     if (patch.decision && patch.decision !== "approved" && decision === "approved") {
@@ -213,7 +226,7 @@ function PortalPage() {
     if (clientName.trim().length < 2) return false;
     if ((decision === "changes_requested" || decision === "rejected") && !generalComment.trim())
       return false;
-    if (data?.allowPieceApproval) {
+    if (allowIndividualPieceApproval) {
       const invalid = pieces.find(
         (p) =>
           (p.decision === "changes_requested" || p.decision === "rejected") && !p.comment.trim(),
@@ -221,7 +234,7 @@ function PortalPage() {
       if (invalid) return false;
     }
     return true;
-  }, [decision, clientName, generalComment, pieces, data]);
+  }, [decision, clientName, generalComment, pieces, allowIndividualPieceApproval]);
 
   async function submit() {
     if (!canSubmit) return;
@@ -241,8 +254,8 @@ function PortalPage() {
           generalComment,
           pieces: pieces.map((p) => ({
             outputId: p.outputId,
-            decision: p.decision,
-            comment: p.comment,
+            decision: isReel2 ? reelPackageDecisionToPieceDecision(decision as GeneralDecision) : p.decision,
+            comment: isReel2 ? generalComment : p.comment,
           })),
         }),
       });
@@ -356,6 +369,10 @@ function PortalPage() {
     );
   }
 
+
+  const visiblePieces = isReel2 ? [] : pieces;
+  const showDecisionPanel = isReel2 || visiblePieces.length > 0;
+
   return (
     <div className="min-h-screen bg-muted/30 pb-32 sm:pb-24">
       <header className="border-b bg-card">
@@ -389,9 +406,9 @@ function PortalPage() {
           </Card>
         )}
 
-        {data.reel2 && <Reel2ApprovalCard reel={data.reel2} />}
+        {data.reel2 && <Reel2ApprovalCard reel={data.reel2} assets={reel2Assets} />}
 
-        {pieces.length === 0 && (
+        {!isReel2 && visiblePieces.length === 0 && (
           <Card>
             <CardContent className="p-6 text-center text-sm text-muted-foreground">
               Este conteúdo ainda não possui peças disponíveis para aprovação.
@@ -399,17 +416,17 @@ function PortalPage() {
           </Card>
         )}
 
-        {pieces.map((p, idx) => (
+        {visiblePieces.map((p, idx) => (
           <Card key={p.outputId} className="overflow-hidden">
             <CardContent className="space-y-4 p-4 sm:p-5">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">
-                    Peça {idx + 1} de {pieces.length}
+                    Peça {idx + 1} de {visiblePieces.length}
                   </p>
                   <h2 className="truncate font-semibold">{p.title}</h2>
                 </div>
-                {data.allowPieceApproval && (
+                {allowIndividualPieceApproval && (
                   <Badge
                     variant={
                       p.decision === "approved"
@@ -505,7 +522,7 @@ function PortalPage() {
                 </div>
               )}
 
-              {data.allowPieceApproval && (
+              {allowIndividualPieceApproval && (
                 <div className="space-y-2 rounded-md border p-3">
                   <Label className="text-xs uppercase text-muted-foreground">
                     Sua avaliação desta peça
@@ -547,7 +564,7 @@ function PortalPage() {
           </Card>
         ))}
 
-        {pieces.length > 0 && (
+        {showDecisionPanel && (
           <Card>
             <CardContent className="space-y-4 p-4 sm:p-5">
               <h2 className="font-semibold">
@@ -562,9 +579,11 @@ function PortalPage() {
                 <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer">
                   <RadioGroupItem value="approved" className="mt-1" />
                   <div>
-                    <p className="font-medium text-sm">Aprovar todo o conteúdo</p>
+                    <p className="font-medium text-sm">{isReel2 ? "Aprovar o pacote do Reel" : "Aprovar todo o conteúdo"}</p>
                     <p className="text-xs text-muted-foreground">
-                      Todas as peças serão marcadas como aprovadas e seguirão para publicação.
+                      {isReel2
+                        ? "O roteiro, capa/frame, legenda e materiais apresentados seguirão como aprovados."
+                        : "Todas as peças serão marcadas como aprovadas e seguirão para publicação."}
                     </p>
                   </div>
                 </label>
@@ -640,7 +659,7 @@ function PortalPage() {
                 decisão.
               </p>
 
-              {data.allowPieceApproval && (
+              {allowIndividualPieceApproval && (
                 <p className="text-xs text-muted-foreground">
                   Resumo: {summary.approved} aprovadas · {summary.adjust} com ajustes ·{" "}
                   {summary.rejected} recusadas ·{" "}
@@ -653,7 +672,7 @@ function PortalPage() {
         )}
       </main>
 
-      {pieces.length > 0 && (
+      {showDecisionPanel && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-card/95 px-3 py-3 backdrop-blur sm:px-4">
           <div className="mx-auto flex max-w-3xl items-center justify-end">
             <Button
@@ -689,17 +708,34 @@ function decisionLabel(d: GeneralDecision | null) {
   }[d];
 }
 
+function reelPackageDecisionToPieceDecision(d: GeneralDecision): PieceDecision {
+  if (d === "approved" || d === "approved_with_changes") return "approved";
+  if (d === "rejected") return "rejected";
+  return "changes_requested";
+}
 
-function Reel2ApprovalCard({ reel }: { reel: Reel2ApprovalSummary }) {
+type ApprovalAsset = PieceData["assets"][number];
+
+function Reel2ApprovalCard({ reel, assets }: { reel: Reel2ApprovalSummary; assets: ApprovalAsset[] }) {
+  const scriptVisuals = assets.filter((asset) => asset.isScriptVisual);
+  const finalVideos = assets.filter((asset) => asset.isFinalVideo);
+  const constructionSteps = reel.mainScenes.map((scene) => ({
+    title: scene.function || `Cena ${scene.index}`,
+    text: scene.onScreenText || scene.speech,
+  }));
+
   return (
     <Card className="border-orange-500/25 bg-orange-500/5">
-      <CardContent className="space-y-4 p-4 sm:p-5">
+      <CardContent className="space-y-5 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">
-              Resumo do Reel
+              Pacote do Reel para aprovação
             </p>
             <h2 className="text-lg font-semibold">{reel.centralIdea}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Revise o conceito, o roteiro resumido, a capa/frame e a legenda antes de registrar sua decisão.
+            </p>
           </div>
           <Badge className="bg-orange-500 text-white hover:bg-orange-500">Reel 2.0</Badge>
         </div>
@@ -708,62 +744,86 @@ function Reel2ApprovalCard({ reel }: { reel: Reel2ApprovalSummary }) {
           <InfoBlock label="Objetivo" value={reel.objective} />
           <InfoBlock label="Tipo" value={reel.reelType} />
           <InfoBlock label="Promessa" value={reel.promise} />
-          <InfoBlock label="Gancho" value={reel.selectedHook} />
+          <InfoBlock label="Gancho inicial" value={reel.selectedHook} />
         </div>
 
-        <div>
-          <Label className="text-xs uppercase text-muted-foreground">Roteiro principal</Label>
-          <div className="mt-2 space-y-2">
-            {reel.mainScenes.map((scene) => (
-              <div key={`${scene.index}-${scene.time}`} className="rounded-md border bg-card/80 p-3 text-sm">
-                <p className="text-xs font-semibold text-muted-foreground">
-                  Cena {scene.index} · {scene.time} · {scene.function}
+        <div className="rounded-md border bg-card/80 p-3">
+          <Label className="text-xs uppercase text-muted-foreground">Como o vídeo será construído</Label>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {constructionSteps.map((step, index) => (
+              <div key={`${step.title}-${index}`} className="rounded-md bg-background p-3 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {index + 1}. {step.title}
                 </p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-md bg-background p-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Fala / narração</p>
-                    <p className="mt-1">{scene.speech}</p>
-                  </div>
-                  <div className="rounded-md bg-background p-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Texto na tela</p>
-                    <p className="mt-1">{scene.onScreenText || "—"}</p>
-                  </div>
-                  <div className="rounded-md bg-background p-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cena / ação</p>
-                    <p className="mt-1">{scene.visualDirection || "—"}</p>
-                  </div>
-                </div>
+                <p className="mt-1 whitespace-pre-wrap break-words">{step.text || "—"}</p>
               </div>
             ))}
           </div>
         </div>
 
-
-        {reel.shortScenes.length > 0 && (
-          <div>
-            <Label className="text-xs uppercase text-muted-foreground">Versão reduzida</Label>
-            <div className="mt-2 space-y-2">
-              {reel.shortScenes.map((scene) => (
-                <div key={`short-${scene.index}-${scene.time}`} className="rounded-md border bg-card/80 p-3 text-sm">
-                  <p className="text-xs font-semibold text-muted-foreground">Cena {scene.index} · {scene.time} · {scene.function}</p>
-                  <p className="mt-1"><b>Fala:</b> {scene.speech}</p>
-                  {scene.onScreenText && <p className="mt-1 text-xs text-muted-foreground"><b>Texto na tela:</b> {scene.onScreenText}</p>}
+        <Accordion type="multiple" className="rounded-md border bg-card/70 px-3">
+          <AccordionItem value="technical-script" className="border-b">
+            <AccordionTrigger className="text-left text-sm font-semibold">
+              Ver roteiro completo por cenas
+            </AccordionTrigger>
+            <AccordionContent className="space-y-2 pb-4">
+              {reel.mainScenes.map((scene) => (
+                <div key={`${scene.index}-${scene.time}`} className="rounded-md border bg-background p-3 text-sm">
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    Cena {scene.index} · {scene.time} · {scene.function}
+                  </p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-md bg-muted/30 p-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Fala / narração</p>
+                      <p className="mt-1 whitespace-pre-wrap break-words">{scene.speech}</p>
+                    </div>
+                    <div className="rounded-md bg-muted/30 p-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Texto na tela</p>
+                      <p className="mt-1 whitespace-pre-wrap break-words">{scene.onScreenText || "—"}</p>
+                    </div>
+                    <div className="rounded-md bg-muted/30 p-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cena / ação</p>
+                      <p className="mt-1 whitespace-pre-wrap break-words">{scene.visualDirection || "—"}</p>
+                    </div>
+                  </div>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
+            </AccordionContent>
+          </AccordionItem>
+
+          {reel.shortScenes.length > 0 && (
+            <AccordionItem value="short-version" className="border-b">
+              <AccordionTrigger className="text-left text-sm font-semibold">
+                Ver versão reduzida
+              </AccordionTrigger>
+              <AccordionContent className="space-y-2 pb-4">
+                <p className="text-sm text-muted-foreground">
+                  Use esta versão se o vídeo precisar ficar mais curto ou virar variação para outra publicação.
+                </p>
+                {reel.shortScenes.map((scene) => (
+                  <div key={`short-${scene.index}-${scene.time}`} className="rounded-md border bg-background p-3 text-sm">
+                    <p className="text-xs font-semibold text-muted-foreground">Cena {scene.index} · {scene.time} · {scene.function}</p>
+                    <p className="mt-1"><b>Fala:</b> {scene.speech}</p>
+                    {scene.onScreenText && <p className="mt-1 text-xs text-muted-foreground"><b>Texto na tela:</b> {scene.onScreenText}</p>}
+                  </div>
+                ))}
+              </AccordionContent>
+            </AccordionItem>
+          )}
+        </Accordion>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label className="text-xs uppercase text-muted-foreground">Legenda completa para inserir no vídeo</Label>
-            <pre className="mt-1 whitespace-pre-wrap break-words rounded-md bg-muted/30 p-3 text-sm leading-relaxed">
-              {reel.videoCaption}
+            <p className="mt-1 text-xs text-muted-foreground">Texto para edição/acessibilidade. Não é a legenda da publicação.</p>
+            <pre className="mt-2 whitespace-pre-wrap break-words rounded-md bg-muted/30 p-3 text-sm leading-relaxed">
+              {reel.videoCaption || "—"}
             </pre>
           </div>
           <div>
             <Label className="text-xs uppercase text-muted-foreground">Capa / frame</Label>
-            <pre className="mt-1 whitespace-pre-wrap break-words rounded-md bg-muted/30 p-3 text-xs leading-relaxed">
+            <p className="mt-1 text-xs text-muted-foreground">Orientação para a embalagem visual do Reel.</p>
+            <pre className="mt-2 whitespace-pre-wrap break-words rounded-md bg-muted/30 p-3 text-xs leading-relaxed">
               {reel.coverMode}\n{reel.coverInstruction}
             </pre>
           </div>
@@ -779,8 +839,62 @@ function Reel2ApprovalCard({ reel }: { reel: Reel2ApprovalSummary }) {
             <p className="mt-1 break-words text-sm text-muted-foreground">{reel.hashtags.join(" ")}</p>
           )}
         </div>
+
+        {(scriptVisuals.length > 0 || finalVideos.length > 0) && (
+          <div className="space-y-3 rounded-md border bg-card/80 p-3">
+            <Label className="text-xs uppercase text-muted-foreground">Materiais anexados</Label>
+            {finalVideos.map((asset) => (
+              <ApprovalAssetPreview key={asset.id} asset={asset} label="Vídeo final" tone="orange" />
+            ))}
+            {scriptVisuals.map((asset) => (
+              <ApprovalAssetPreview key={asset.id} asset={asset} label="Storyboard visual" tone="violet" />
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function ApprovalAssetPreview({ asset, label, tone }: { asset: ApprovalAsset; label: string; tone: "orange" | "violet" }) {
+  return (
+    <div className="overflow-hidden rounded-md border bg-muted/40">
+      <div className={tone === "orange" ? "flex flex-wrap items-center justify-between gap-2 border-b bg-orange-500/5 px-3 py-2" : "flex flex-wrap items-center justify-between gap-2 border-b bg-violet-500/5 px-3 py-2"}>
+        <div className="flex min-w-0 items-center gap-2">
+          {asset.isFinalVideo ? (
+            <FileVideo className="h-4 w-4 shrink-0 text-orange-600" />
+          ) : (
+            <FileText className="h-4 w-4 shrink-0 text-violet-600" />
+          )}
+          <div className="min-w-0">
+            <p className={tone === "orange" ? "text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300" : "text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300"}>
+              {label}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">{asset.fileName}</p>
+          </div>
+        </div>
+        {asset.url && (
+          <Button asChild size="sm" variant="outline" className="h-8">
+            <a href={asset.url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Abrir
+            </a>
+          </Button>
+        )}
+      </div>
+      {asset.url ? (
+        asset.fileType === "application/pdf" ? (
+          <iframe src={asset.url} title={label} className="h-[70vh] min-h-[420px] w-full bg-white" />
+        ) : asset.fileType.startsWith("video/") ? (
+          <video src={asset.url} controls className="max-h-[70vh] w-full bg-black" />
+        ) : (
+          <img src={asset.url} alt={asset.fileName} className="h-auto max-h-[70vh] w-full object-contain" loading="lazy" />
+        )
+      ) : (
+        <div className="flex aspect-video items-center justify-center text-muted-foreground">
+          <ImageOff className="h-6 w-6" />
+        </div>
+      )}
+    </div>
   );
 }
 
