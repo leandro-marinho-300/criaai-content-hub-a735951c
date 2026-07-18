@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
@@ -139,6 +140,19 @@ export function CreateReel2() {
   useEffect(() => saveReel2Draft(draft), [draft]);
 
   const patch = (partial: Partial<Reel2Draft>) => setDraft((current) => ({ ...current, ...partial }));
+  const patchHookSource = (partial: Partial<Reel2Draft>) => {
+    setDraft((current) => {
+      const next = { ...current, ...partial };
+      if (!current.hook_options.length) return next;
+      return {
+        ...next,
+        hook_options: [],
+        selected_hook_index: null,
+        hooks_context_key: "",
+        hooks_need_regeneration: true,
+      };
+    });
+  };
 
   const canContinue = useMemo(() => {
     if (step === 0) return Boolean(draft.entry_mode);
@@ -166,7 +180,12 @@ export function CreateReel2() {
     setHookGenerationRound((currentRound) => {
       const nextRound = currentRound + 1;
       const options = buildLocalHookOptions(draft, selectedBrand, nextRound);
-      patch({ hook_options: options, selected_hook_index: 0 });
+      patch({
+        hook_options: options,
+        selected_hook_index: 0,
+        hooks_context_key: buildHookContextKey(draft, selectedBrand),
+        hooks_need_regeneration: false,
+      });
       toast.success(nextRound === 1 ? "3 opções de gancho foram preparadas." : "Novas opções de gancho foram preparadas.");
       return nextRound;
     });
@@ -194,6 +213,8 @@ export function CreateReel2() {
       promise: script.promise || current.promise,
       hook_options: hooks.length ? hooks : current.hook_options,
       selected_hook_index: hooks.length ? findSelectedHookIndex(script) : current.selected_hook_index,
+      hooks_context_key: hooks.length ? buildScriptHookContextKey(script) : current.hooks_context_key,
+      hooks_need_regeneration: false,
       cover_mode: script.cover.needs_cover ? "custom" : current.cover_mode,
     }));
     toast.success("JSON Reel 2.0 importado para o rascunho.");
@@ -209,6 +230,8 @@ export function CreateReel2() {
       promise: script.promise || current.promise,
       hook_options: convertImportedScriptHooks(script),
       selected_hook_index: findSelectedHookIndex(script),
+      hooks_context_key: buildScriptHookContextKey(script),
+      hooks_need_regeneration: false,
       cover_mode: script.cover.needs_cover ? "custom" : current.cover_mode,
     }));
   };
@@ -517,7 +540,7 @@ Projeto, aprovação e compatibilidade
                 })}
               </div>
 
-              <EntryFields draft={draft} patch={patch} presets={presets} onUsePreset={onUsePreset} />
+              <EntryFields draft={draft} patch={patch} patchHookSource={patchHookSource} presets={presets} onUsePreset={onUsePreset} />
             </StepShell>
           )}
 
@@ -592,7 +615,7 @@ Projeto, aprovação e compatibilidade
                       onClick={() => {
                         const currentType = draft.reel_type;
                         const suggested = objective.suggestedTypes[0];
-                        patch({ objective: objective.id, reel_type: currentType || suggested });
+                        patchHookSource({ objective: objective.id, reel_type: currentType || suggested });
                       }}
                     />
                   );
@@ -627,7 +650,7 @@ Projeto, aprovação e compatibilidade
                     type={type}
                     active={draft.reel_type === type.id}
                     recommended={Boolean(selectedObjective?.suggestedTypes.includes(type.id))}
-                    onClick={() => patch({ reel_type: type.id })}
+                    onClick={() => patchHookSource({ reel_type: type.id })}
                   />
                 ))}
               </div>
@@ -646,7 +669,7 @@ Projeto, aprovação e compatibilidade
                       type={type}
                       active={draft.reel_type === type.id}
                       recommended={Boolean(selectedObjective?.suggestedTypes.includes(type.id))}
-                      onClick={() => patch({ reel_type: type.id })}
+                      onClick={() => patchHookSource({ reel_type: type.id })}
                     />
                   ))}
                 </CollapsibleContent>
@@ -667,7 +690,7 @@ Projeto, aprovação e compatibilidade
                       <Label>Ideia central do Reel</Label>
                       <Input
                         value={draft.central_idea}
-                        onChange={(event) => patch({ central_idea: event.target.value })}
+                        onChange={(event) => patchHookSource({ central_idea: event.target.value })}
                         placeholder={brandExamples.ideaPlaceholder}
                       />
                     </div>
@@ -675,7 +698,7 @@ Projeto, aprovação e compatibilidade
                       <Label>Promessa do vídeo</Label>
                       <Textarea
                         value={draft.promise}
-                        onChange={(event) => patch({ promise: event.target.value })}
+                        onChange={(event) => patchHookSource({ promise: event.target.value })}
                         placeholder={brandExamples.promisePlaceholder}
                         rows={4}
                       />
@@ -684,7 +707,7 @@ Projeto, aprovação e compatibilidade
                       <Label>Observações extras para o Reel</Label>
                       <Textarea
                         value={draft.extra_notes}
-                        onChange={(event) => patch({ extra_notes: event.target.value })}
+                        onChange={(event) => patchHookSource({ extra_notes: event.target.value })}
                         placeholder={brandExamples.extraNotesPlaceholder}
                         rows={4}
                       />
@@ -714,16 +737,29 @@ Projeto, aprovação e compatibilidade
               description="O gancho é a frase, cena ou texto inicial que faz a pessoa decidir continuar assistindo."
             >
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/30 p-4">
-                <div>
-                  <p className="font-medium">Prepare 3 opções de gancho</p>
+                <div className="max-w-2xl">
+                  <p className="font-medium">Prepare 3 opções de gancho conectadas à promessa</p>
                   <p className="text-sm text-muted-foreground">
-                    Esta fase cria sugestões locais para estruturar a tela. O prompt externo entra na próxima fase.
+                    Os ganchos devem abrir caminho para a promessa atual, usando ideia central, objetivo, tipo de Reel e observações.
+                  </p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Base atual: <span className="font-medium text-foreground">{draft.promise || getEntryMainIdea(draft) || "promessa ainda não definida"}</span>
                   </p>
                 </div>
                 <Button onClick={onGenerateHooks} className="gap-2">
-                  <Sparkles className="h-4 w-4" /> {draft.hook_options.length ? "Gerar novas opções" : "Gerar opções"}
+                  <Sparkles className="h-4 w-4" /> {draft.hook_options.length ? "Gerar novas opções com esta promessa" : "Gerar opções"}
                 </Button>
               </div>
+
+              {draft.hooks_need_regeneration && (
+                <div className="flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div>
+                    <p className="font-medium text-amber-800 dark:text-amber-200">A promessa, ideia ou observações mudaram.</p>
+                    <p className="text-muted-foreground">Gere novos ganchos para evitar que os primeiros segundos falem de outro assunto.</p>
+                  </div>
+                </div>
+              )}
 
               <div className="grid gap-4 xl:grid-cols-3">
                 {draft.hook_options.map((hook, index) => (
@@ -931,11 +967,13 @@ function StepShell({ eyebrow, title, description, children }: { eyebrow: string;
 function EntryFields({
   draft,
   patch,
+  patchHookSource,
   presets,
   onUsePreset,
 }: {
   draft: Reel2Draft;
   patch: (partial: Partial<Reel2Draft>) => void;
+  patchHookSource: (partial: Partial<Reel2Draft>) => void;
   presets: ReturnType<typeof getAllPresets>;
   onUsePreset: (presetId: string) => void;
 }) {
@@ -948,7 +986,7 @@ function EntryFields({
             <Label>Qual é a ideia ou tema do Reel?</Label>
             <Input
               value={draft.central_idea}
-              onChange={(event) => patch({ central_idea: event.target.value })}
+              onChange={(event) => patchHookSource({ central_idea: event.target.value })}
               placeholder="Ex.: erros que reforçam comportamento indesejado"
             />
           </div>
@@ -986,7 +1024,7 @@ function EntryFields({
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label>Link da referência</Label>
-                <Input value={draft.reference_link} onChange={(event) => patch({ reference_link: event.target.value })} placeholder="Cole o link do Reel" />
+                <Input value={draft.reference_link} onChange={(event) => patchHookSource({ reference_link: event.target.value })} placeholder="Cole o link do Reel" />
               </div>
               <div className="space-y-2">
                 <Label>Tipo de adaptação</Label>
@@ -1002,7 +1040,7 @@ function EntryFields({
             </div>
             <div className="space-y-2">
               <Label>Transcrição, descrição ou estrutura percebida</Label>
-              <Textarea value={draft.reference_transcript} onChange={(event) => patch({ reference_transcript: event.target.value })} rows={5} placeholder="Cole a transcrição ou descreva o que acontece no vídeo." />
+              <Textarea value={draft.reference_transcript} onChange={(event) => patchHookSource({ reference_transcript: event.target.value })} rows={5} placeholder="Cole a transcrição ou descreva o que acontece no vídeo." />
             </div>
           </div>
         )}
@@ -1011,11 +1049,11 @@ function EntryFields({
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-2">
               <Label>Termo, áudio ou formato da trend</Label>
-              <Input value={draft.trend_term} onChange={(event) => patch({ trend_term: event.target.value })} placeholder="Ex.: áudio de comparação, mala inteligente, passeio sem puxar" />
+              <Input value={draft.trend_term} onChange={(event) => patchHookSource({ trend_term: event.target.value })} placeholder="Ex.: áudio de comparação, mala inteligente, passeio sem puxar" />
             </div>
             <div className="space-y-2">
               <Label>Fonte da tendência</Label>
-              <Input value={draft.trend_source} onChange={(event) => patch({ trend_source: event.target.value })} placeholder="Ex.: Instagram, TikTok, YouTube, Google Trends" />
+              <Input value={draft.trend_source} onChange={(event) => patchHookSource({ trend_source: event.target.value })} placeholder="Ex.: Instagram, TikTok, YouTube, Google Trends" />
             </div>
           </div>
         )}
@@ -1025,7 +1063,7 @@ function EntryFields({
             <Label>{draft.entry_mode === "adapt_existing" ? "Conteúdo base" : "Observação sobre o que você quer evitar ou explorar"}</Label>
             <Textarea
               value={draft.base_content}
-              onChange={(event) => patch({ base_content: event.target.value })}
+              onChange={(event) => patchHookSource({ base_content: event.target.value })}
               rows={5}
               placeholder={draft.entry_mode === "adapt_existing" ? "Cole o texto, post antigo ou material bruto." : "Ex.: evitar temas já usados sobre bagagem; buscar assuntos de planejamento familiar."}
             />
@@ -1180,151 +1218,415 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 }
 
 function buildLocalHookOptions(draft: Reel2Draft, brand?: Tables<"brands"> | null, round = 1): Reel2HookDraft[] {
+  const context = buildHookContext(draft, brand);
+  const pattern = inferHookPattern(context);
+  const pick = (items: HookTemplate[], offset = 0) => items[(Math.max(round, 1) + offset - 1) % items.length];
+  const templates = HOOK_TEMPLATE_LIBRARY[pattern] ?? HOOK_TEMPLATE_LIBRARY.generic;
+
+  const direct = materializeHookTemplate(pick(templates.direct, 0), context, "direct");
+  const curious = materializeHookTemplate(pick(templates.curious, 1), context, "curious");
+  const alert = materializeHookTemplate(pick(templates.alert, 2), context, "alert");
+
+  return [direct, curious, alert];
+}
+
+type HookPattern = "dog_signals" | "canine_walk" | "travel_decision" | "travel_generic" | "atelier" | "accounting" | "generic";
+type HookMode = Reel2HookDraft["mode"];
+type HookContext = {
+  brandText: string;
+  sourceText: string;
+  idea: string;
+  promise: string;
+  extraNotes: string;
+  objective: string;
+  reelType: string;
+  topic: string;
+  gain: string;
+};
+type HookTemplate = {
+  spoken: string;
+  screen?: string;
+  scene: string;
+  why: string;
+};
+
+function buildHookContext(draft: Reel2Draft, brand?: Tables<"brands"> | null): HookContext {
   const idea = getEntryMainIdea(draft) || "este assunto";
-  const ideaLower = idea.toLowerCase();
-  const text = `${brand?.name ?? ""} ${brand?.segment ?? ""} ${brand?.description ?? ""} ${brand?.audience ?? ""} ${idea}`.toLowerCase();
-  const canine = /cachorro|canino|adestra|comportamento animal|pet|tutor|passeio/.test(text);
-  const travel = /viagem|turismo|travel|hotel|destino|férias|roteiro|passagem|mala|bagagem/.test(text);
-  const atelier = /atelier|costura|bolsa|artesanal|moda|acessório/.test(text);
-  const accounting = /contabilidade|contador|fiscal|imposto|empresa|mei|cnpj|nota fiscal/.test(text);
+  const promise = draft.promise.trim();
+  const extraNotes = draft.extra_notes.trim();
+  const sourceText = [idea, promise, extraNotes, draft.objective, draft.reel_type].filter(Boolean).join(" ");
+  const brandText = [brand?.name, brand?.segment, brand?.description, brand?.audience].filter(Boolean).join(" ");
+  return {
+    brandText,
+    sourceText,
+    idea,
+    promise,
+    extraNotes,
+    objective: draft.objective,
+    reelType: draft.reel_type,
+    topic: inferHookTopic(idea, promise),
+    gain: inferPromiseGain(promise, idea),
+  };
+}
 
-  const pick = (items: string[], offset = 0) => items[(Math.max(round, 1) + offset - 1) % items.length];
+function buildHookContextKey(draft: Reel2Draft, brand?: Tables<"brands"> | null) {
+  const context = buildHookContext(draft, brand);
+  return normalizeComparable([context.idea, context.promise, context.extraNotes, context.objective, context.reelType, context.brandText].join("|"));
+}
 
-  const directOptions = canine
-    ? [
-        `Antes de dizer que seu cachorro não te respeita, observe isto.`,
-        `Seu cachorro não está tentando te desafiar: talvez ele só tenha aprendido outra coisa.`,
-        `Se o passeio virou uma disputa, comece olhando para este ponto.`,
-        `O problema de ${shortIdea(ideaLower)} pode estar sendo reforçado sem você perceber.`,
-      ]
-    : travel
-      ? [
-          `Antes de fechar sua próxima viagem, confira este detalhe.`,
-          `Se você está planejando viajar, não pule esta etapa.`,
-          `Viagem boa começa antes da reserva: veja o que conferir.`,
-          `Antes de escolher pelo menor preço, olhe isso com calma.`,
-        ]
-      : atelier
-        ? [
-            `Antes de escolher uma peça artesanal, repare neste detalhe.`,
-            `Uma peça bonita também precisa fazer sentido na sua rotina.`,
-            `O acabamento conta uma história antes mesmo da peça ser usada.`,
-          ]
-        : accounting
-          ? [
-              `Antes de resolver isso no automático, confira este ponto.`,
-              `Esse cuidado simples pode evitar retrabalho na rotina da empresa.`,
-              `Nem todo erro aparece na hora: alguns só surgem no fechamento.`,
-            ]
-          : [
-              `Antes de seguir com ${shortIdea(idea)}, veja este ponto.`,
-              `Se esse tema apareceu na sua rotina, comece por aqui.`,
-              `Tem um detalhe sobre ${shortIdea(idea)} que muita gente ignora.`,
-            ];
+function buildScriptHookContextKey(script: Reel2ImportedScript) {
+  return normalizeComparable([script.central_idea, script.promise, script.objective, script.reel_type].join("|"));
+}
 
-  const curiousOptions = canine
-    ? [
-        `O problema quase nunca começa onde você acha.`,
-        `O passeio começa antes da guia sair do gancho.`,
-        `O comportamento que incomoda pode estar sendo recompensado sem querer.`,
-        `O que parece teimosia pode ser comunicação confusa.`,
-      ]
-    : travel
-      ? [
-          `O detalhe que muita gente esquece antes de viajar.`,
-          `A parte mais importante da viagem pode não ser o destino.`,
-          `O que quase ninguém confere antes de pedir orçamento.`,
-          `Uma viagem tranquila começa em uma pergunta simples.`,
-        ]
-      : atelier
-        ? [
-            `O detalhe que diferencia uma peça bonita de uma peça bem pensada.`,
-            `Quase ninguém olha para isto antes de escolher uma bolsa.`,
-            `O processo por trás da peça muda a forma como você enxerga o resultado.`,
-          ]
-        : accounting
-          ? [
-              `O detalhe que muita empresa só percebe quando dá problema.`,
-              `Esse erro parece pequeno, mas bagunça a rotina depois.`,
-              `A organização fiscal começa antes da guia aparecer.`,
-            ]
-          : [
-              `Quase ninguém percebe isso sobre ${shortIdea(idea)}.`,
-              `O detalhe escondido neste tema pode mudar sua decisão.`,
-              `Tem uma forma mais simples de olhar para ${shortIdea(idea)}.`,
-            ];
+function inferHookPattern(context: HookContext): HookPattern {
+  const source = normalizeComparable(`${context.sourceText} ${context.brandText}`);
+  const promiseSource = normalizeComparable(`${context.promise} ${context.idea} ${context.extraNotes}`);
 
-  const alertOptions = canine
-    ? [
-        `Você pode estar reforçando esse comportamento sem perceber.`,
-        `Cuidado: corrigir na hora errada pode confundir ainda mais o cachorro.`,
-        `Não tente resolver ${shortIdea(ideaLower)} sem entender o que acontece antes.`,
-        `A bronca pode estar ensinando algo diferente do que você imagina.`,
-      ]
-    : travel
-      ? [
-          `Cuidado: o menor preço pode esconder pontos importantes.`,
-          `Não feche sua viagem sem entender o que está incluso.`,
-          `Um detalhe esquecido pode virar dor de cabeça durante a viagem.`,
-          `Nem todo orçamento de viagem compara as mesmas coisas.`,
-        ]
-      : atelier
-        ? [
-            `Cuidado: beleza sem funcionalidade pode frustrar no uso diário.`,
-            `Nem todo detalhe visual significa acabamento bem resolvido.`,
-            `Antes de comprar, pense em como essa peça vai viver com você.`,
-          ]
-        : accounting
-          ? [
-              `Cuidado: deixar isso para depois pode criar retrabalho.`,
-              `Não espere o problema aparecer para organizar esta rotina.`,
-              `Um campo preenchido errado pode mudar todo o fechamento.`,
-            ]
-          : [
-              `Cuidado com este erro ao falar sobre ${shortIdea(idea)}.`,
-              `Não avance nesse tema sem conferir este ponto.`,
-              `Uma decisão rápida demais pode atrapalhar o resultado.`,
-            ];
+  if (/(rosn|desconfort|reacao|reage|reagir|sinais?|corpo|linguagem corporal|boceja|lambe|desvia|olhar)/.test(promiseSource)
+    && /(cachorro|canino|pet|tutor|adestra|comportamento)/.test(source)) {
+    return "dog_signals";
+  }
+  if (/(passeio|guia|coleira|puxa|rua|respeita|obedec)/.test(promiseSource)
+    && /(cachorro|canino|pet|tutor|adestra|comportamento)/.test(source)) {
+    return "canine_walk";
+  }
+  if (/(destino|viagem|viajar|planejamento|prioridades|perguntas?|teste|ferias|férias|roteiro)/.test(promiseSource)
+    && /(viagem|turismo|travel|destino|férias|hotel|roteiro|passagem)/.test(source)) {
+    return "travel_decision";
+  }
+  if (/(viagem|turismo|travel|destino|férias|hotel|roteiro|passagem)/.test(source)) return "travel_generic";
+  if (/(atelier|costura|bolsa|artesanal|moda|acessório|acessorio)/.test(source)) return "atelier";
+  if (/(contabilidade|contador|fiscal|imposto|empresa|mei|cnpj|nota fiscal)/.test(source)) return "accounting";
+  return "generic";
+}
 
-  const direct = pick(directOptions, 0);
-  const curious = pick(curiousOptions, 1);
-  const alert = pick(alertOptions, 2);
+const HOOK_TEMPLATE_LIBRARY: Record<HookPattern, Record<HookMode, HookTemplate[]>> = {
+  dog_signals: {
+    direct: [
+      {
+        spoken: "Antes do seu cachorro rosnar, ele provavelmente já avisou de outras formas.",
+        screen: "Antes do rosnado, vem o aviso",
+        scene: "Mostrar uma situação cotidiana calma com o cachorro desviando o olhar, lambendo o focinho ou mudando a postura antes da reação.",
+        why: "Conecta diretamente a promessa aos sinais discretos que aparecem antes da reação intensa.",
+      },
+      {
+        spoken: "Seu cachorro quase nunca reage do nada. O corpo dele costuma avisar antes.",
+        screen: "Ele não reage do nada",
+        scene: "Começar com close no tutor observando o cachorro e inserir pequenos marcadores visuais nos sinais corporais.",
+        why: "Quebra a crença de que a reação aparece sem aviso e abre caminho para explicar sinais prévios.",
+      },
+      {
+        spoken: "Se você só percebe quando ele rosna, talvez esteja perdendo os sinais anteriores.",
+        screen: "Você percebe antes do rosnado?",
+        scene: "Apresentador em plano médio, tom acolhedor, apontando para três sinais na tela sem dramatizar o cachorro.",
+        why: "Cria identificação sem culpa e prepara a entrega dos sinais discretos prometidos.",
+      },
+    ],
+    curious: [
+      {
+        spoken: "O sinal mais importante pode acontecer antes do som aparecer.",
+        screen: "O aviso vem antes do som",
+        scene: "Abrir com uma cena silenciosa do cachorro mostrando desconforto corporal antes de qualquer vocalização.",
+        why: "Abre uma lacuna de curiosidade ligada ao comportamento corporal antes da reação.",
+      },
+      {
+        spoken: "Tem um momento antes da reação que muita gente não percebe.",
+        screen: "Muita gente perde este momento",
+        scene: "Mostrar uma pausa rápida no vídeo, como se congelasse o instante antes da reação, destacando o corpo do cachorro.",
+        why: "Promete uma descoberta observável e diretamente conectada à promessa.",
+      },
+      {
+        spoken: "O corpo do cachorro costuma contar a história antes do rosnado.",
+        screen: "O corpo avisa primeiro",
+        scene: "Intercalar apresentador e imagem do cachorro em situação cotidiana com setas discretas nos sinais.",
+        why: "Transforma a promessa em curiosidade visual e educativa.",
+      },
+    ],
+    alert: [
+      {
+        spoken: "Cuidado: ignorar esses sinais pode deixar a reação mais intensa.",
+        screen: "Não ignore os sinais antes",
+        scene: "Texto forte na tela, seguido de exemplos simples de sinais como desviar o corpo, lamber o focinho ou bocejar fora de contexto.",
+        why: "Cria urgência coerente com a promessa, sem exagerar nem culpar o tutor.",
+      },
+      {
+        spoken: "Não espere o rosnado para perceber que seu cachorro está desconfortável.",
+        screen: "Não espere o rosnado",
+        scene: "Apresentador faz gesto de pausa e mostra uma lista curta de sinais discretos.",
+        why: "Mostra exatamente por que assistir até o fim: reconhecer sinais antes da reação intensa.",
+      },
+      {
+        spoken: "Se a reação parece repentina, talvez os avisos tenham passado despercebidos.",
+        screen: "A reação não começa no rosnado",
+        scene: "Usar corte rápido entre uma situação calma e o apresentador explicando que existem avisos anteriores.",
+        why: "Reenquadra o problema e conecta alerta, promessa e aprendizado.",
+      },
+    ],
+  },
+  canine_walk: {
+    direct: [
+      {
+        spoken: "Antes de dizer que seu cachorro não te respeita no passeio, observe isto.",
+        screen: "Antes de culpar o passeio",
+        scene: "Apresentador com guia na mão, mostrando uma situação real de passeio sem tensionar a cena.",
+        why: "Vai direto ao ponto e conecta passeio com observação prática.",
+      },
+      {
+        spoken: "O passeio pode estar difícil por um motivo que começa antes da rua.",
+        screen: "O passeio começa antes da rua",
+        scene: "Mostrar preparação para sair: guia, porta, excitação e tutor organizando a rotina.",
+        why: "Traz uma causa anterior ao problema visível e aumenta a retenção.",
+      },
+    ],
+    curious: [
+      {
+        spoken: "O problema do passeio quase nunca começa onde você acha.",
+        screen: "O problema começa antes",
+        scene: "Abrir com uma cena aparentemente comum antes de sair de casa e segurar a explicação.",
+        why: "Cria curiosidade sobre a origem real do comportamento.",
+      },
+      {
+        spoken: "A guia pode só estar mostrando um problema que já começou antes.",
+        screen: "A guia mostra, mas nem sempre causa",
+        scene: "Close na guia e corte para o cachorro antes da saída.",
+        why: "Mostra um ângulo menos óbvio sobre o passeio.",
+      },
+    ],
+    alert: [
+      {
+        spoken: "Não tente corrigir o passeio sem entender o que acontece antes dele.",
+        screen: "Entenda antes de corrigir",
+        scene: "Texto de alerta na tela com exemplo prático de pré-passeio.",
+        why: "Cria cuidado sem prometer solução instantânea.",
+      },
+      {
+        spoken: "Cuidado: corrigir só na rua pode confundir ainda mais o cachorro.",
+        screen: "Corrigir só na rua pode confundir",
+        scene: "Apresentador faz gesto de pausa antes de mostrar o ponto de análise.",
+        why: "Conecta a consequência ao motivo de continuar assistindo.",
+      },
+    ],
+  },
+  travel_decision: {
+    direct: [
+      {
+        spoken: "Antes de escolher um destino, faça este teste rápido.",
+        screen: "Teste antes de escolher",
+        scene: "Apresentador olha para a câmera, levanta três dedos e mostra cartões de planejamento, experiência e tranquilidade.",
+        why: "Conecta promessa, decisão de viagem e utilidade prática nos primeiros segundos.",
+      },
+      {
+        spoken: "Antes de fechar sua próxima viagem, responda estas três perguntas.",
+        screen: "3 perguntas antes de decidir",
+        scene: "Mostrar checklist simples de viagem, sem preços ou promessas comerciais.",
+        why: "Promete método claro para decidir melhor, alinhado ao planejamento.",
+      },
+    ],
+    curious: [
+      {
+        spoken: "Um destino bonito pode não combinar com o seu momento agora.",
+        screen: "Bonito não é o único critério",
+        scene: "Alternar imagens de estilos diferentes de viagem e voltar ao apresentador com expressão reflexiva.",
+        why: "Abre curiosidade sobre critérios além da beleza do destino.",
+      },
+      {
+        spoken: "A melhor viagem nem sempre é o destino mais óbvio.",
+        screen: "A melhor escolha pode não ser a óbvia",
+        scene: "Mostrar opções diferentes de destino como cartões e destacar a ideia de prioridades.",
+        why: "Cria tensão positiva entre desejo e escolha consciente.",
+      },
+    ],
+    alert: [
+      {
+        spoken: "Cuidado: escolher só pelo destino pode gerar frustração depois.",
+        screen: "Não escolha só pelo destino",
+        scene: "Mostrar comparação entre destino bonito e checklist de organização da viagem.",
+        why: "Cria alerta coerente com planejamento, sem assustar ou prometer demais.",
+      },
+      {
+        spoken: "Não feche sua viagem antes de conferir se ela combina com suas prioridades.",
+        screen: "Confira suas prioridades",
+        scene: "Apresentador aponta para três critérios na tela: planejamento, experiência e tranquilidade.",
+        why: "Leva direto à promessa de avaliar se o destino combina com o momento da pessoa.",
+      },
+    ],
+  },
+  travel_generic: {
+    direct: [
+      {
+        spoken: "Antes de fechar sua próxima viagem, confira este detalhe.",
+        screen: "Antes de fechar a viagem",
+        scene: "Apresentador em ambiente limpo, com elementos discretos de viagem e texto forte na tela.",
+        why: "Vai direto a uma decisão prática de viagem.",
+      },
+      {
+        spoken: "Viagem tranquila começa antes da reserva.",
+        screen: "Começa antes da reserva",
+        scene: "Mostrar checklist e imagens de destino como apoio visual.",
+        why: "Conecta planejamento e benefício de tranquilidade.",
+      },
+    ],
+    curious: [
+      {
+        spoken: "O detalhe que muita gente esquece antes de viajar.",
+        screen: "Muita gente esquece isto",
+        scene: "Abrir com uma mala ou celular com opções de viagem e segurar a resposta para a cena seguinte.",
+        why: "Promete descoberta prática para quem está planejando viajar.",
+      },
+      {
+        spoken: "A parte mais importante da viagem pode não ser o destino.",
+        screen: "Não é só o destino",
+        scene: "Alternar destino bonito e organização prática da viagem.",
+        why: "Cria curiosidade sobre planejamento e experiência.",
+      },
+    ],
+    alert: [
+      {
+        spoken: "Não feche sua viagem sem entender o que está incluso.",
+        screen: "Entenda o que está incluso",
+        scene: "Texto de alerta com checklist visual, sem citar valores ou condições.",
+        why: "Mostra risco prático e orienta decisão consciente.",
+      },
+      {
+        spoken: "Cuidado: o menor preço pode esconder pontos importantes.",
+        screen: "Menor preço não é tudo",
+        scene: "Comparar dois cartões genéricos de viagem sem expor valores reais.",
+        why: "Cria alerta comercial leve e coerente com turismo.",
+      },
+    ],
+  },
+  atelier: {
+    direct: [
+      {
+        spoken: "Antes de escolher uma peça artesanal, repare neste detalhe.",
+        screen: "Repare neste detalhe",
+        scene: "Close no acabamento ou material da peça com iluminação suave.",
+        why: "Conecta decisão de compra com percepção de valor.",
+      },
+    ],
+    curious: [
+      {
+        spoken: "O detalhe que diferencia uma peça bonita de uma peça bem pensada.",
+        screen: "Bonita e bem pensada",
+        scene: "Mostrar detalhe interno, costura ou acabamento que normalmente passa despercebido.",
+        why: "Cria curiosidade sobre bastidor e qualidade.",
+      },
+    ],
+    alert: [
+      {
+        spoken: "Cuidado: beleza sem funcionalidade pode frustrar no uso diário.",
+        screen: "Beleza também precisa funcionar",
+        scene: "Mostrar uma situação real de uso da peça e destacar funcionalidade.",
+        why: "Traz um cuidado prático sem desvalorizar o produto.",
+      },
+    ],
+  },
+  accounting: {
+    direct: [
+      {
+        spoken: "Antes de resolver isso no automático, confira este ponto.",
+        screen: "Confira antes de seguir",
+        scene: "Tela limpa com checklist fiscal genérico, sem dados sensíveis.",
+        why: "Conecta rotina técnica com prevenção de erro.",
+      },
+    ],
+    curious: [
+      {
+        spoken: "O detalhe que muita empresa só percebe quando dá problema.",
+        screen: "Percebe tarde demais",
+        scene: "Mostrar documento genérico e marcador visual em um campo de atenção.",
+        why: "Cria curiosidade sobre um erro comum.",
+      },
+    ],
+    alert: [
+      {
+        spoken: "Cuidado: deixar isso para depois pode criar retrabalho.",
+        screen: "Evite retrabalho",
+        scene: "Apresentador aponta para uma lista simples de conferência.",
+        why: "Mostra consequência prática e segura.",
+      },
+    ],
+  },
+  generic: {
+    direct: [
+      {
+        spoken: "Antes de seguir com {topic}, entenda este ponto.",
+        screen: "Entenda este ponto primeiro",
+        scene: "Apresentador olha para a câmera e apresenta o tema de forma direta.",
+        why: "Liga o gancho à promessa atual sem depender de exemplos antigos da marca.",
+      },
+      {
+        spoken: "Esse detalhe muda a forma de olhar para {topic}.",
+        screen: "Esse detalhe muda tudo",
+        scene: "Abrir com o elemento principal do tema em destaque e texto curto na tela.",
+        why: "Promete uma mudança de percepção alinhada à promessa.",
+      },
+    ],
+    curious: [
+      {
+        spoken: "Quase ninguém percebe isto sobre {topic}.",
+        screen: "Quase ninguém percebe isto",
+        scene: "Mostrar uma situação comum e segurar a explicação para a cena seguinte.",
+        why: "Abre lacuna de curiosidade conectada ao tema atual.",
+      },
+      {
+        spoken: "O ponto mais importante sobre {topic} pode não ser o mais óbvio.",
+        screen: "Não é o ponto mais óbvio",
+        scene: "Usar cena simples de comparação antes/depois ou pergunta na tela.",
+        why: "Evita gancho genérico e conduz para a promessa definida.",
+      },
+    ],
+    alert: [
+      {
+        spoken: "Cuidado para não decidir sobre {topic} antes de entender isto.",
+        screen: "Entenda antes de decidir",
+        scene: "Texto de alerta com corte rápido para uma situação prática do tema.",
+        why: "Cria urgência coerente com a promessa atual.",
+      },
+      {
+        spoken: "Não avance com {topic} sem conferir este ponto.",
+        screen: "Confira este ponto antes",
+        scene: "Apresentador faz gesto de pausa e introduz o ponto principal.",
+        why: "Mostra motivo claro para continuar assistindo.",
+      },
+    ],
+  },
+};
 
-  return [
-    {
-      mode: "direct",
-      spoken_hook: direct,
-      on_screen_text: makeOnScreenText(direct),
-      scene_suggestion: pick([
-        "Apresentador olhando para a câmera, com corte rápido e expressão clara nos primeiros segundos.",
-        "Começar com uma cena real do problema e entrar com a fala logo no primeiro segundo.",
-        "Abrir com close no elemento principal do tema, seguido de fala direta para a câmera.",
-      ], 0),
-      why_it_works: "Vai direto ao ponto e conecta o tema a uma situação reconhecível.",
-    },
-    {
-      mode: "curious",
-      spoken_hook: curious,
-      on_screen_text: makeOnScreenText(curious),
-      scene_suggestion: pick([
-        "Começar mostrando a situação antes de explicar a causa, criando curiosidade visual.",
-        "Abrir com uma cena aparentemente comum e usar o texto na tela para provocar dúvida.",
-        "Mostrar rapidamente o antes/contexto e segurar a explicação para a cena seguinte.",
-      ], 1),
-      why_it_works: "Abre uma lacuna de curiosidade e promete uma descoberta.",
-    },
-    {
-      mode: "alert",
-      spoken_hook: alert,
-      on_screen_text: makeOnScreenText(alert),
-      scene_suggestion: pick([
-        "Texto forte na tela e corte para exemplo prático imediatamente depois.",
-        "Iniciar com uma situação de erro comum e pausar rápido para chamar atenção.",
-        "Mostrar o risco ou a consequência de forma simples, sem dramatizar demais.",
-      ], 2),
-      why_it_works: "Cria urgência sem depender de exagero ou promessa falsa.",
-    },
-  ];
+function materializeHookTemplate(template: HookTemplate, context: HookContext, mode: HookMode): Reel2HookDraft {
+  const spoken = template.spoken.replaceAll("{topic}", context.topic).replaceAll("{gain}", context.gain);
+  const screen = (template.screen || spoken).replaceAll("{topic}", context.topic).replaceAll("{gain}", context.gain);
+  return {
+    mode,
+    spoken_hook: spoken,
+    on_screen_text: makeOnScreenText(screen),
+    scene_suggestion: template.scene,
+    why_it_works: template.why,
+  };
+}
+
+function inferHookTopic(idea: string, promise: string) {
+  const cleanIdea = shortIdea(idea).replace(/^ex\.?:\s*/i, "");
+  if (cleanIdea && cleanIdea !== "este assunto") return cleanIdea;
+  const cleanPromise = promise
+    .replace(/^você vai\s+(entender|conhecer|descobrir|saber)\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return shortIdea(cleanPromise || "este assunto");
+}
+
+function inferPromiseGain(promise: string, idea: string) {
+  const source = (promise || idea || "um ponto importante").replace(/^você vai\s+/i, "").replace(/\s+/g, " ").trim();
+  return shortIdea(source);
+}
+
+function normalizeComparable(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function shortIdea(value: string) {

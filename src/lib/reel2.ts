@@ -71,6 +71,8 @@ export interface Reel2Draft {
   imported_script_warnings?: string[];
   imported_script_updated_at?: string;
   imported_script_needs_review?: boolean;
+  hooks_context_key?: string;
+  hooks_need_regeneration?: boolean;
   cover_mode: Reel2CoverMode;
   extra_notes: string;
   advanced_open: boolean;
@@ -149,6 +151,8 @@ export function resetReel2GeneratedFields(draft: Reel2Draft): Reel2Draft {
     imported_script_warnings: [],
     imported_script_updated_at: "",
     imported_script_needs_review: false,
+    hooks_context_key: "",
+    hooks_need_regeneration: false,
     cover_mode: "unsure",
   };
 }
@@ -310,6 +314,8 @@ export const DEFAULT_REEL2_DRAFT: Reel2Draft = {
   imported_script_warnings: [],
   imported_script_updated_at: "",
   imported_script_needs_review: false,
+  hooks_context_key: "",
+  hooks_need_regeneration: false,
   cover_mode: "unsure",
   extra_notes: "",
   advanced_open: false,
@@ -354,6 +360,8 @@ export function normalizeReel2Draft(value: unknown): Reel2Draft {
     imported_script_warnings: Array.isArray(v.imported_script_warnings) ? v.imported_script_warnings.filter((item): item is string => typeof item === "string") : [],
     imported_script_updated_at: typeof v.imported_script_updated_at === "string" ? v.imported_script_updated_at : "",
     imported_script_needs_review: typeof v.imported_script_needs_review === "boolean" ? v.imported_script_needs_review : false,
+    hooks_context_key: typeof v.hooks_context_key === "string" ? v.hooks_context_key : "",
+    hooks_need_regeneration: typeof v.hooks_need_regeneration === "boolean" ? v.hooks_need_regeneration : false,
   };
 }
 

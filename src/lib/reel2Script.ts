@@ -362,6 +362,9 @@ function qualityWarnings(script: Reel2ImportedScript): string[] {
   }
   if (!script.quality_check.has_0_3s_hook) warnings.push("ERRO: O quality_check informa que não há gancho nos primeiros 3 segundos.");
   if (!script.quality_check.has_clear_promise) warnings.push("O quality_check informa que a promessa pode não estar clara.");
+  if (!hookAlignsWithPromise(script)) {
+    warnings.push("O gancho escolhido pode não conversar bem com a promessa. Revise se os primeiros segundos abrem caminho para o ganho prometido.");
+  }
   if (!script.quality_check.has_video_caption || !script.short_version.full_video_caption.trim()) {
     warnings.push("ERRO: A versão reduzida precisa ter legenda completa para inserir no vídeo.");
   }
@@ -371,6 +374,41 @@ function qualityWarnings(script: Reel2ImportedScript): string[] {
   const invalidTimes = script.main_script.scenes.some((scene) => scene.end <= scene.start);
   if (invalidTimes) warnings.push("ERRO: Existem cenas com tempo final menor ou igual ao início.");
   return warnings;
+}
+
+function hookAlignsWithPromise(script: Reel2ImportedScript): boolean {
+  const promiseTokens = meaningfulTokens(`${script.central_idea} ${script.promise}`);
+  const hookTokens = meaningfulTokens(`${script.selected_hook.spoken_hook} ${script.selected_hook.on_screen_text}`);
+  if (!promiseTokens.length || !hookTokens.length) return true;
+  const overlap = hookTokens.filter((token) => promiseTokens.includes(token));
+  if (overlap.length >= 1) return true;
+
+  const combined = normalizeComparable(`${script.central_idea} ${script.promise} ${script.selected_hook.spoken_hook}`);
+  const semanticGroups = [
+    ["rosnar", "rosnado", "desconforto", "sinais", "reacao", "reagir", "corpo"],
+    ["passeio", "guia", "coleira", "rua", "puxa", "cachorro"],
+    ["destino", "viagem", "planejamento", "prioridades", "perguntas", "teste"],
+  ];
+  return semanticGroups.some((group) => group.filter((word) => combined.includes(word)).length >= 2);
+}
+
+function meaningfulTokens(value: string): string[] {
+  const stop = new Set([
+    "voce", "você", "para", "por", "que", "com", "uma", "um", "antes", "depois", "sobre", "este", "esta", "isso", "aqui", "mais", "seu", "sua", "seus", "suas", "vai", "entender", "conhecer", "saber", "descobrir", "final", "assistindo"
+  ]);
+  return normalizeComparable(value)
+    .split(" ")
+    .filter((token) => token.length >= 4 && !stop.has(token))
+    .slice(0, 24);
+}
+
+function normalizeComparable(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 export function convertImportedScriptHooks(script: Reel2ImportedScript): Reel2HookDraft[] {
@@ -407,6 +445,8 @@ export function buildReel2ExternalPrompt(draft: Reel2Draft, brand?: Tables<"bran
   lines.push(`- Use no máximo ${MAX_HASHTAGS} hashtags.`);
   lines.push("- A versão reduzida deve conter full_video_caption com a legenda completa para inserir no vídeo.");
   lines.push("- O primeiro bloco do roteiro deve começar em 0s e funcionar como gancho dos primeiros 3 segundos.");
+  lines.push("- Os 3 ganchos devem nascer da ideia central, da promessa do vídeo e das observações extras. Não use exemplos genéricos da marca como assunto principal.");
+  lines.push("- O gancho escolhido precisa abrir caminho para a promessa: se a promessa fala de sinais antes do rosnado, o gancho também deve falar de sinais antes da reação; se a promessa fala de perguntas antes de escolher destino, o gancho deve abrir essa decisão.");
   lines.push("- Separe: texto na tela, legenda completa do vídeo, legenda da publicação e título da capa.");
   lines.push("");
   lines.push("=== CONTEXTO DA MARCA ===");
@@ -465,6 +505,7 @@ export function buildReel2ExternalPrompt(draft: Reel2Draft, brand?: Tables<"bran
 
   lines.push("=== REGRAS DE QUALIDADE ===");
   lines.push("- O roteiro deve entregar valor antes de vender.");
+  lines.push("- Antes de escrever o roteiro, valide: o gancho, a promessa e a ideia central falam do mesmo assunto?");
   lines.push("- Cada cena precisa ter função clara.");
   lines.push("- Textos na tela devem ser curtos e legíveis.");
   lines.push("- O CTA deve combinar com o objetivo.");
