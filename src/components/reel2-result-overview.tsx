@@ -17,6 +17,14 @@ export function Reel2ResultOverview({ script }: { script: Reel2ImportedScript })
         <Badge className="bg-orange-500 text-white hover:bg-orange-500">Reel 2.0</Badge>
       </div>
 
+
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <StatusPill label="Roteiro principal" ok />
+        <StatusPill label="Versão reduzida" ok={Boolean(script.short_version.full_video_caption)} />
+        <StatusPill label="Capa / frame" ok={Boolean(script.cover.title || script.cover.mode)} />
+        <StatusPill label="Publicação" ok={Boolean(script.publication.caption)} />
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Card className="border-orange-500/25 bg-orange-500/5">
           <CardHeader>
@@ -63,9 +71,20 @@ export function Reel2ResultOverview({ script }: { script: Reel2ImportedScript })
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Cena {index + 1} · {scene.start}-{scene.end}s · {scene.function}
                 </p>
-                <p className="mt-1 font-medium">{scene.speech}</p>
-                {scene.on_screen_text && <p className="mt-1 text-xs text-muted-foreground">Tela: {scene.on_screen_text}</p>}
-                {scene.visual_direction && <p className="mt-1 text-xs text-muted-foreground">Visual: {scene.visual_direction}</p>}
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  <div className="rounded-lg bg-background p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Fala / narração</p>
+                    <p className="mt-1 text-sm leading-relaxed">{scene.speech}</p>
+                  </div>
+                  <div className="rounded-lg bg-background p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Texto na tela</p>
+                    <p className="mt-1 text-sm leading-relaxed">{scene.on_screen_text || "—"}</p>
+                  </div>
+                  <div className="rounded-lg bg-background p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cena / ação</p>
+                    <p className="mt-1 text-sm leading-relaxed">{scene.visual_direction || "—"}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </CardContent>
@@ -119,6 +138,15 @@ export function Reel2ResultOverview({ script }: { script: Reel2ImportedScript })
         </div>
       </div>
     </section>
+  );
+}
+
+function StatusPill({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl border bg-card p-3 text-sm">
+      <CheckCircle2 className={ok ? "h-4 w-4 text-emerald-500" : "h-4 w-4 text-amber-500"} />
+      <span>{label}</span>
+    </div>
   );
 }
 

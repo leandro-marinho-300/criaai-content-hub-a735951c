@@ -396,9 +396,11 @@ function ResultPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-lg font-semibold">
             {hasReel
-              ? isReelOnly
-                ? "Materiais do Reel"
-                : `Materiais do Reel e outros formatos (${pieces.length})`
+              ? reel2Script
+                ? "Pacote do Reel"
+                : isReelOnly
+                  ? "Materiais do Reel"
+                  : `Materiais do Reel e outros formatos (${pieces.length})`
               : `Peças geradas (${pieces.length})`}
           </h2>
           <div className="flex items-center gap-2">
@@ -416,7 +418,7 @@ function ResultPage() {
               ).length;
               return (
                 <Badge variant="outline" className="text-xs">
-                  Artes finais: {withArt} de {denom} peça(s)
+                  Arquivos finais anexados: {withArt} de {denom}
                 </Badge>
               );
             })()}
@@ -432,7 +434,9 @@ function ResultPage() {
         </div>
         {pieces.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Nenhuma peça foi gerada para este projeto.
+            {reel2Script
+              ? "O pacote do Reel 2.0 está organizado acima. Use as abas abaixo para anexar storyboard, capa, vídeo final e arquivos finais."
+              : "Nenhuma peça foi gerada para este projeto."}
           </p>
         )}
 

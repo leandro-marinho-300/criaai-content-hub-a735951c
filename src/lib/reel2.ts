@@ -75,6 +75,11 @@ export interface Reel2Draft {
   hooks_need_regeneration?: boolean;
   cover_mode: Reel2CoverMode;
   extra_notes: string;
+  topic_entity: string;
+  topic_entity_type: string;
+  topic_associations: string;
+  topic_cautions: string;
+  topic_do_not_invent: string;
   advanced_open: boolean;
 }
 
@@ -154,6 +159,11 @@ export function resetReel2GeneratedFields(draft: Reel2Draft): Reel2Draft {
     hooks_context_key: "",
     hooks_need_regeneration: false,
     cover_mode: "unsure",
+    topic_entity: "",
+    topic_entity_type: "",
+    topic_associations: "",
+    topic_cautions: "",
+    topic_do_not_invent: "",
   };
 }
 
@@ -318,6 +328,11 @@ export const DEFAULT_REEL2_DRAFT: Reel2Draft = {
   hooks_need_regeneration: false,
   cover_mode: "unsure",
   extra_notes: "",
+  topic_entity: "",
+  topic_entity_type: "",
+  topic_associations: "",
+  topic_cautions: "",
+  topic_do_not_invent: "",
   advanced_open: false,
 };
 
@@ -362,6 +377,11 @@ export function normalizeReel2Draft(value: unknown): Reel2Draft {
     imported_script_needs_review: typeof v.imported_script_needs_review === "boolean" ? v.imported_script_needs_review : false,
     hooks_context_key: typeof v.hooks_context_key === "string" ? v.hooks_context_key : "",
     hooks_need_regeneration: typeof v.hooks_need_regeneration === "boolean" ? v.hooks_need_regeneration : false,
+    topic_entity: typeof v.topic_entity === "string" ? v.topic_entity : "",
+    topic_entity_type: typeof v.topic_entity_type === "string" ? v.topic_entity_type : "",
+    topic_associations: typeof v.topic_associations === "string" ? v.topic_associations : "",
+    topic_cautions: typeof v.topic_cautions === "string" ? v.topic_cautions : "",
+    topic_do_not_invent: typeof v.topic_do_not_invent === "string" ? v.topic_do_not_invent : "",
   };
 }
 

@@ -77,6 +77,7 @@ import {
   type Reel2ImportResult,
 } from "@/lib/reel2Script";
 import { reel2ToLegacyReelScript } from "@/lib/reel2Project";
+import { analyzeReel2TopicContext, buildReel2TopicContextPrompt, labelEntityType, labelIntent } from "@/lib/reel2TopicContext";
 
 export const Route = createFileRoute("/_authenticated/app/create/reel")({
   head: () => ({ meta: [{ title: "Criar Reel 2.0 — Cria Aí" }] }),
@@ -148,6 +149,7 @@ export function CreateReel2() {
   const selectedHook = draft.selected_hook_index !== null ? draft.hook_options[draft.selected_hook_index] : null;
   const externalPrompt = useMemo(() => buildReel2ExternalPrompt(draft, selectedBrand), [draft, selectedBrand]);
   const brandExamples = useMemo(() => getReel2BrandExamples(selectedBrand), [selectedBrand]);
+  const topicContext = useMemo(() => analyzeReel2TopicContext(draft, selectedBrand), [draft, selectedBrand]);
 
   useEffect(() => saveReel2Draft(draft), [draft]);
 
@@ -731,6 +733,13 @@ Produção e vídeo final
                         rows={4}
                       />
                     </div>
+
+                    <TopicContextPanel
+                      draft={draft}
+                      brand={selectedBrand}
+                      context={topicContext}
+                      patchHookSource={patchHookSource}
+                    />
                   </CardContent>
                 </Card>
 
@@ -762,7 +771,7 @@ Produção e vídeo final
                     Os ganchos devem abrir caminho para a promessa atual, usando ideia central, objetivo, tipo de Reel e observações.
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Base atual: <span className="font-medium text-foreground">{draft.promise || getEntryMainIdea(draft) || "promessa ainda não definida"}</span>
+                    Base atual: <span className="font-medium text-foreground">{topicContext.summary || draft.promise || getEntryMainIdea(draft) || "promessa ainda não definida"}</span>
                   </p>
                 </div>
                 <Button onClick={onGenerateHooks} className="gap-2">
@@ -1205,6 +1214,108 @@ function HookCard({ hook, active, onSelect, onChange }: { hook: Reel2HookDraft; 
   );
 }
 
+
+function TopicContextPanel({
+  draft,
+  brand,
+  context,
+  patchHookSource,
+}: {
+  draft: Reel2Draft;
+  brand?: Tables<"brands"> | null;
+  context: ReturnType<typeof analyzeReel2TopicContext>;
+  patchHookSource: (partial: Partial<Reel2Draft>) => void;
+}) {
+  const enrichmentPrompt = buildReel2TopicContextPrompt(draft, brand);
+  return (
+    <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold">Contexto do tema</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            O Cria Aí não precisa saber tudo. Ele identifica o assunto e pede contexto quando faltar informação para não inventar.
+          </p>
+        </div>
+        <Badge variant={context.confidence === "alto" ? "default" : "outline"}>
+          Contexto {context.confidence}
+        </Badge>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Assunto principal</Label>
+          <Input
+            value={draft.topic_entity}
+            onChange={(event) => patchHookSource({ topic_entity: event.target.value })}
+            placeholder={context.topic || "Ex.: Campos do Jordão"}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Tipo de assunto</Label>
+          <Select
+            value={draft.topic_entity_type || "desconhecido"}
+            onValueChange={(value) => patchHookSource({ topic_entity_type: value })}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="desconhecido">Não sei / detectar</SelectItem>
+              <SelectItem value="destino">Destino</SelectItem>
+              <SelectItem value="local">Local</SelectItem>
+              <SelectItem value="produto">Produto</SelectItem>
+              <SelectItem value="servico">Serviço</SelectItem>
+              <SelectItem value="comportamento">Comportamento</SelectItem>
+              <SelectItem value="evento">Evento</SelectItem>
+              <SelectItem value="outro">Outro</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Palavras associadas</Label>
+          <Textarea
+            value={draft.topic_associations}
+            onChange={(event) => patchHookSource({ topic_associations: event.target.value })}
+            placeholder="Ex.: frio, fondue, natureza, casal, família"
+            rows={3}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Cuidados ou ângulos a evitar</Label>
+          <Textarea
+            value={draft.topic_cautions}
+            onChange={(event) => patchHookSource({ topic_cautions: event.target.value })}
+            placeholder="Ex.: não prometer preço, não inventar passeios específicos"
+            rows={3}
+          />
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        <Label>O que o Cria Aí não pode inventar</Label>
+        <Textarea
+          value={draft.topic_do_not_invent}
+          onChange={(event) => patchHookSource({ topic_do_not_invent: event.target.value })}
+          placeholder="Ex.: preços, datas, disponibilidade, atrações específicas não confirmadas"
+          rows={2}
+        />
+      </div>
+
+      <div className="mt-4 rounded-xl bg-background/80 p-3 text-xs text-muted-foreground">
+        <p><span className="font-medium text-foreground">Leitura atual:</span> {context.topic} · {labelEntityType(context.entityType)} · {labelIntent(context.intent)}</p>
+        {context.safeMode && (
+          <p className="mt-1 text-amber-700 dark:text-amber-300">
+            Contexto baixo: os ganchos serão seguros e não devem citar detalhes específicos que não foram informados.
+          </p>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <CopyButton text={enrichmentPrompt} label="Copiar pedido para enriquecer" variant="outline" size="sm" />
+        <Button type="button" variant="outline" size="sm" onClick={() => window.open("https://chat.openai.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT</Button>
+      </div>
+    </div>
+  );
+}
+
 function GuidanceCard({ title, icon: Icon, items }: { title: string; icon: typeof Lightbulb; items: string[] }) {
   return (
     <Card className="border-amber-500/20 bg-amber-500/5">
@@ -1240,6 +1351,8 @@ function buildLocalHookOptions(draft: Reel2Draft, brand?: Tables<"brands"> | nul
   const context = buildHookContext(draft, brand);
   const pattern = inferHookPattern(context);
   const pick = (items: HookTemplate[], offset = 0) => items[(Math.max(round, 1) + offset - 1) % items.length];
+  if (pattern === "travel_destination") return buildTravelDestinationHooks(context, round);
+
   const templates = HOOK_TEMPLATE_LIBRARY[pattern] ?? HOOK_TEMPLATE_LIBRARY.generic;
 
   const direct = materializeHookTemplate(pick(templates.direct, 0), context, "direct");
@@ -1249,7 +1362,7 @@ function buildLocalHookOptions(draft: Reel2Draft, brand?: Tables<"brands"> | nul
   return [direct, curious, alert];
 }
 
-type HookPattern = "dog_signals" | "canine_walk" | "travel_decision" | "travel_generic" | "atelier" | "accounting" | "generic";
+type HookPattern = "dog_signals" | "canine_walk" | "travel_destination" | "travel_decision" | "travel_generic" | "atelier" | "accounting" | "generic";
 type HookMode = Reel2HookDraft["mode"];
 type HookContext = {
   brandText: string;
@@ -1261,6 +1374,12 @@ type HookContext = {
   reelType: string;
   topic: string;
   gain: string;
+  entityType: string;
+  intent: string;
+  associations: string[];
+  cautions: string[];
+  doNotInvent: string[];
+  safeMode: boolean;
 };
 type HookTemplate = {
   spoken: string;
@@ -1275,6 +1394,7 @@ function buildHookContext(draft: Reel2Draft, brand?: Tables<"brands"> | null): H
   const extraNotes = draft.extra_notes.trim();
   const sourceText = [idea, promise, extraNotes, draft.objective, draft.reel_type].filter(Boolean).join(" ");
   const brandText = [brand?.name, brand?.segment, brand?.description, brand?.audience].filter(Boolean).join(" ");
+  const topicContext = analyzeReel2TopicContext(draft, brand);
   return {
     brandText,
     sourceText,
@@ -1283,14 +1403,20 @@ function buildHookContext(draft: Reel2Draft, brand?: Tables<"brands"> | null): H
     extraNotes,
     objective: draft.objective,
     reelType: draft.reel_type,
-    topic: inferHookTopic(idea, promise),
+    topic: topicContext.topic || inferHookTopic(idea, promise),
     gain: inferPromiseGain(promise, idea),
+    entityType: topicContext.entityType,
+    intent: topicContext.intent,
+    associations: topicContext.associations,
+    cautions: topicContext.cautions,
+    doNotInvent: topicContext.doNotInvent,
+    safeMode: topicContext.safeMode,
   };
 }
 
 function buildHookContextKey(draft: Reel2Draft, brand?: Tables<"brands"> | null) {
   const context = buildHookContext(draft, brand);
-  return normalizeComparable([context.idea, context.promise, context.extraNotes, context.objective, context.reelType, context.brandText].join("|"));
+  return normalizeComparable([context.idea, context.promise, context.extraNotes, context.objective, context.reelType, context.brandText, context.topic, context.associations.join(","), context.cautions.join(",")].join("|"));
 }
 
 function buildScriptHookContextKey(script: Reel2ImportedScript) {
@@ -1309,6 +1435,11 @@ function inferHookPattern(context: HookContext): HookPattern {
     && /(cachorro|canino|pet|tutor|adestra|comportamento)/.test(source)) {
     return "canine_walk";
   }
+  if ((context.entityType === "destino" || context.entityType === "local")
+    && /(o_que_fazer|responder_duvida|orientar|alerta|passo_a_passo)/.test(context.intent)
+    && /(viagem|turismo|travel|destino|férias|hotel|roteiro|passagem)/.test(source)) {
+    return "travel_destination";
+  }
   if (/(destino|viagem|viajar|planejamento|prioridades|perguntas?|teste|ferias|férias|roteiro)/.test(promiseSource)
     && /(viagem|turismo|travel|destino|férias|hotel|roteiro|passagem)/.test(source)) {
     return "travel_decision";
@@ -1320,6 +1451,11 @@ function inferHookPattern(context: HookContext): HookPattern {
 }
 
 const HOOK_TEMPLATE_LIBRARY: Record<HookPattern, Record<HookMode, HookTemplate[]>> = {
+  travel_destination: {
+    direct: [],
+    curious: [],
+    alert: [],
+  },
   dog_signals: {
     direct: [
       {
@@ -1611,6 +1747,70 @@ const HOOK_TEMPLATE_LIBRARY: Record<HookPattern, Record<HookMode, HookTemplate[]
     ],
   },
 };
+
+
+function buildTravelDestinationHooks(context: HookContext, round = 1): Reel2HookDraft[] {
+  const topic = context.topic || "esse destino";
+  const mainAssociation = context.associations[0] || "";
+  const secondAssociation = context.associations[1] || "";
+  const hasAssociations = Boolean(mainAssociation);
+  const rotations = [
+    {
+      direct: hasAssociations
+        ? `${topic} é muito mais do que ${mainAssociation} — veja como pensar seu roteiro.`
+        : `Vai para ${topic}? Veja como escolher o que fazer sem montar um roteiro genérico.`,
+      directScreen: hasAssociations ? `${topic} além de ${mainAssociation}` : `O que fazer em ${topic}`,
+      curious: hasAssociations && secondAssociation
+        ? `Por que ${topic} combina com ${mainAssociation}, ${secondAssociation} e muitos estilos de viagem?`
+        : `${topic} pode render viagens bem diferentes — depende do que você procura.`,
+      curiousScreen: hasAssociations ? `Por que ${topic} atrai tanta gente?` : `${topic} do seu jeito`,
+      alert: `Não escolha passeios em ${topic} só porque todo mundo recomenda.`,
+      alertScreen: `Cuidado com roteiro genérico`,
+    },
+    {
+      direct: `Se ${topic} está nos seus planos, comece escolhendo o tipo de experiência que você quer viver.`,
+      directScreen: `Antes de montar o roteiro`,
+      curious: hasAssociations
+        ? `${topic} não precisa ser só sobre ${mainAssociation}. O roteiro muda conforme seu momento.`
+        : `O melhor roteiro em ${topic} depende menos da lista pronta e mais do seu momento.`,
+      curiousScreen: `Roteiro não é lista pronta`,
+      alert: `Cuidado para transformar ${topic} em uma sequência de passeios que não combina com você.`,
+      alertScreen: `Passeio famoso nem sempre combina`,
+    },
+    {
+      direct: `Quer saber o que fazer em ${topic}? Primeiro defina o que você espera da viagem.`,
+      directScreen: `O que fazer em ${topic}?`,
+      curious: `${topic} pode ser descanso, descoberta ou experiência — a escolha muda tudo.`,
+      curiousScreen: `A escolha muda tudo`,
+      alert: `Antes de fechar passeios em ${topic}, confira se eles combinam com o seu estilo de viagem.`,
+      alertScreen: `Confira antes de fechar`,
+    },
+  ];
+  const selected = rotations[(Math.max(round, 1) - 1) % rotations.length];
+  return [
+    {
+      mode: "direct",
+      spoken_hook: selected.direct,
+      on_screen_text: makeOnScreenText(selected.directScreen),
+      scene_suggestion: `Abrir com o nome ${topic} em destaque e imagens de apoio gerais de viagem, sem citar detalhes não confirmados.`,
+      why_it_works: "Usa o destino específico como assunto principal e promete uma orientação prática sem inventar informações locais.",
+    },
+    {
+      mode: "curious",
+      spoken_hook: selected.curious,
+      on_screen_text: makeOnScreenText(selected.curiousScreen),
+      scene_suggestion: `Alternar imagens de estilos diferentes de viagem e voltar ao apresentador apresentando ${topic} como escolha que depende do perfil do viajante.`,
+      why_it_works: "Cria curiosidade sobre o destino sem trocar o assunto por viagem genérica.",
+    },
+    {
+      mode: "alert",
+      spoken_hook: selected.alert,
+      on_screen_text: makeOnScreenText(selected.alertScreen),
+      scene_suggestion: `Usar texto de alerta leve com checklist visual. Não citar preços, empresas, datas ou passeios específicos sem confirmação.`,
+      why_it_works: "Traz cuidado e decisão consciente ligados ao destino informado, sem acusação ou informação não verificada.",
+    },
+  ];
+}
 
 function materializeHookTemplate(template: HookTemplate, context: HookContext, mode: HookMode): Reel2HookDraft {
   const spoken = template.spoken.replaceAll("{topic}", context.topic).replaceAll("{gain}", context.gain);

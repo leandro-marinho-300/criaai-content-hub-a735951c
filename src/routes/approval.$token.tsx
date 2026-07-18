@@ -719,12 +719,40 @@ function Reel2ApprovalCard({ reel }: { reel: Reel2ApprovalSummary }) {
                 <p className="text-xs font-semibold text-muted-foreground">
                   Cena {scene.index} · {scene.time} · {scene.function}
                 </p>
-                <p className="mt-1">{scene.speech}</p>
-                {scene.onScreenText && <p className="mt-1 text-xs text-muted-foreground">Tela: {scene.onScreenText}</p>}
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-md bg-background p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Fala / narração</p>
+                    <p className="mt-1">{scene.speech}</p>
+                  </div>
+                  <div className="rounded-md bg-background p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Texto na tela</p>
+                    <p className="mt-1">{scene.onScreenText || "—"}</p>
+                  </div>
+                  <div className="rounded-md bg-background p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cena / ação</p>
+                    <p className="mt-1">{scene.visualDirection || "—"}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         </div>
+
+
+        {reel.shortScenes.length > 0 && (
+          <div>
+            <Label className="text-xs uppercase text-muted-foreground">Versão reduzida</Label>
+            <div className="mt-2 space-y-2">
+              {reel.shortScenes.map((scene) => (
+                <div key={`short-${scene.index}-${scene.time}`} className="rounded-md border bg-card/80 p-3 text-sm">
+                  <p className="text-xs font-semibold text-muted-foreground">Cena {scene.index} · {scene.time} · {scene.function}</p>
+                  <p className="mt-1"><b>Fala:</b> {scene.speech}</p>
+                  {scene.onScreenText && <p className="mt-1 text-xs text-muted-foreground"><b>Texto na tela:</b> {scene.onScreenText}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
