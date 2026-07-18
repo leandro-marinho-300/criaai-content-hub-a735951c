@@ -1227,6 +1227,20 @@ function TopicContextPanel({
   patchHookSource: (partial: Partial<Reel2Draft>) => void;
 }) {
   const enrichmentPrompt = buildReel2TopicContextPrompt(draft, brand);
+  const [contextJson, setContextJson] = useState("");
+
+  const onApplyContextJson = () => {
+    const result = parseTopicContextImport(contextJson, draft);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    patchHookSource(result.patch);
+    setContextJson("");
+    toast.success("Contexto enriquecido aplicado. Gere novos ganchos com esta base.");
+  };
+
   return (
     <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1312,8 +1326,139 @@ function TopicContextPanel({
         <CopyButton text={enrichmentPrompt} label="Copiar pedido para enriquecer" variant="outline" size="sm" />
         <Button type="button" variant="outline" size="sm" onClick={() => window.open("https://chat.openai.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT</Button>
       </div>
+
+      <div className="mt-4 rounded-xl border bg-background/80 p-3">
+        <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <Label>Importar contexto enriquecido</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Cole aqui o JSON devolvido pelo ChatGPT. Ele preenche os campos acima e invalida os ganchos antigos.
+            </p>
+          </div>
+          <Badge variant="outline">JSON</Badge>
+        </div>
+        <Textarea
+          value={contextJson}
+          onChange={(event) => setContextJson(event.target.value)}
+          placeholder={'Cole aqui o JSON com topic_entity, topic_associations, topic_cautions e topic_do_not_invent.'}
+          rows={5}
+          className="font-mono text-xs"
+        />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button type="button" size="sm" onClick={onApplyContextJson} disabled={!contextJson.trim()}>
+            Aplicar JSON ao contexto
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setContextJson("")} disabled={!contextJson.trim()}>
+            Limpar JSON
+          </Button>
+        </div>
+      </div>
     </div>
   );
+}
+
+type TopicContextImportResult =
+  | { ok: true; patch: Partial<Reel2Draft> }
+  | { ok: false; error: string };
+
+function parseTopicContextImport(raw: string, draft: Reel2Draft): TopicContextImportResult {
+  if (!raw.trim()) return { ok: false, error: "Cole o JSON de contexto antes de aplicar." };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "O contexto precisa estar em JSON válido." };
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, error: "O JSON precisa ser um objeto com os campos de contexto." };
+  }
+
+  const data = parsed as Record<string, unknown>;
+  const entity = readString(data, ["topic_entity", "topic", "assunto", "assunto_principal", "entity"]);
+  const entityType = normalizeTopicEntityType(readString(data, ["topic_entity_type", "type", "tipo", "tipo_assunto"]));
+  const associations = mergeTextLists(
+    draft.topic_associations,
+    readList(data.topic_associations),
+    readList(data.associations),
+    readList(data.palavras_associadas),
+    readList(data.safe_angles_for_hooks),
+    readList(data.angulos_seguros),
+  );
+  const cautions = mergeTextLists(
+    draft.topic_cautions,
+    readList(data.topic_cautions),
+    readList(data.cautions),
+    readList(data.cuidados),
+    readList(data.angles_to_avoid),
+    readList(data.unsafe_or_unconfirmed_angles),
+    readList(data.angulos_inseguros),
+  );
+  const doNotInvent = mergeTextLists(
+    draft.topic_do_not_invent,
+    readList(data.topic_do_not_invent),
+    readList(data.do_not_invent),
+    readList(data.nao_inventar),
+    readList(data.confirmation_needed),
+    readList(data.precisa_confirmar),
+  );
+
+  const patch: Partial<Reel2Draft> = {
+    topic_entity: entity || draft.topic_entity,
+    topic_entity_type: entityType || draft.topic_entity_type || "desconhecido",
+    topic_associations: associations,
+    topic_cautions: cautions,
+    topic_do_not_invent: doNotInvent,
+  };
+
+  if (!patch.topic_entity && !patch.topic_associations && !patch.topic_cautions && !patch.topic_do_not_invent) {
+    return { ok: false, error: "Não encontrei campos de contexto nesse JSON." };
+  }
+
+  return { ok: true, patch };
+}
+
+function readString(data: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function readList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(readList).filter(Boolean);
+  if (typeof value === "string") {
+    return value
+      .split(/[\n,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function mergeTextLists(current: string, ...lists: string[][]) {
+  const seen = new Set<string>();
+  const items = [current, ...lists.flat()]
+    .flatMap((item) => readList(item))
+    .filter((item) => {
+      const key = normalizeComparable(item);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 16);
+  return items.join(", ");
+}
+
+function normalizeTopicEntityType(value: string) {
+  const normalized = normalizeComparable(value);
+  if (["destino", "local", "produto", "servico", "comportamento", "evento", "outro", "desconhecido"].includes(normalized)) {
+    return normalized;
+  }
+  if (normalized === "serviço") return "servico";
+  return "";
 }
 
 function GuidanceCard({ title, icon: Icon, items }: { title: string; icon: typeof Lightbulb; items: string[] }) {
