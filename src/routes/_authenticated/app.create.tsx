@@ -29,11 +29,6 @@ import {
 import { OBJECTIVE_LABELS } from "@/lib/promptBuilder";
 import { rankPathsByObjective, type CreativePath } from "@/lib/creativePaths";
 import type { IdeaObjective } from "@/lib/ideaTaxonomy";
-import {
-  mapPresetObjectiveToReel,
-  snapshotBrand,
-  type Reel2Draft,
-} from "@/lib/reel2";
 
 export const Route = createFileRoute("/_authenticated/app/create")({
   head: () => ({ meta: [{ title: "Central de Ideias — Cria Aí" }] }),
@@ -519,36 +514,7 @@ function CentralIdeas() {
     ].join("\n");
 
     if (!isCampaign && selectedFormat === "reel") {
-      const reelPrefill: Partial<Reel2Draft> = {
-        entry_mode: "idea",
-        brand_id: brandId,
-        brand_snapshot: snapshotBrand(brand),
-        central_idea: centralIdea,
-        base_content: theme.trim(),
-        objective: mapPresetObjectiveToReel(objective),
-        reel_type:
-          objective === "educar" || objective === "informar"
-            ? "educativo"
-            : "comercial_leve",
-        promise,
-        extra_notes: [
-          `Público: ${audience.trim() || "Não informado"}`,
-          `Rota editorial: ${pathLabel}`,
-          `Tom editorial: ${tone}`,
-          `CTA aprovado: ${cta}`,
-          `O que precisa aparecer: ${mustAppear.trim() || "Não informado"}`,
-          `O que deve ser evitado: ${mustAvoid.trim() || "Não informado"}`,
-          `Informações a confirmar: ${confirmationText}`,
-        ].join("\n"),
-        topic_cautions: mustAvoid.trim(),
-        topic_do_not_invent: confirmationInfo.trim(),
-        advanced_open: Boolean(mustAvoid.trim() || confirmationInfo.trim()),
-      };
-      sessionStorage.setItem(
-        "cria-reel2-central-prefill-v1",
-        JSON.stringify(reelPrefill),
-      );
-      window.location.assign("/app/create/reel?origem=central");
+      window.location.assign("/app/create/reel");
       return;
     }
 
