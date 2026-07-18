@@ -37,6 +37,7 @@ import { effectiveDate, effectiveTime, formatDateBR, STATUS_LABELS, computeIsOve
 import { supabase } from "@/integrations/supabase/client";
 import { getProjectDisplayTitle } from "@/lib/displayTitle";
 import { FORMAT_LABELS } from "@/lib/promptBuilder";
+import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
