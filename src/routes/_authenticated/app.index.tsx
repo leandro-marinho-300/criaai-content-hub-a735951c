@@ -91,17 +91,61 @@ function Dashboard() {
   const recent = stats?.recent ?? [];
   const activeProjects = (stats?.drafts ?? 0) + (stats?.approved ?? 0);
 
-  const tiles = [
-    { label: "Marcas ativas", value: stats?.brands ?? 0, icon: Briefcase, tone: "violet" as const },
-    { label: "Em produção", value: activeProjects, icon: Clock3, tone: "yellow" as const },
-    { label: "Aprovados", value: stats?.approved ?? 0, icon: CheckCircle2, tone: "orange" as const },
-    { label: "Publicados", value: stats?.published ?? 0, icon: Send, tone: "violet" as const },
+  const headlineSignals = [
+    { label: "Em produção", value: activeProjects, helper: "conteúdos para continuar", icon: Clock3, tone: "yellow" as const },
+    { label: "Aprovados", value: stats?.approved ?? 0, helper: "prontos para organizar", icon: CheckCircle2, tone: "orange" as const },
+    { label: "Publicados", value: stats?.published ?? 0, helper: "histórico reaproveitável", icon: Send, tone: "violet" as const },
   ];
 
-  const createPaths = [
+  const flow = [
+    {
+      title: "Criar",
+      desc: "Escolha marca, caminho e formato sem preencher tudo de uma vez.",
+      action: "Começar pelo formato certo",
+      icon: Sparkles,
+      tone: "orange" as const,
+    },
+    {
+      title: "Desenvolver",
+      desc: "Monte roteiro, legenda, prompts visuais ou pacote multiformato.",
+      action: "Produzir com método",
+      icon: Wand2,
+      tone: "violet" as const,
+    },
+    {
+      title: "Revisar",
+      desc: "Separe fala, texto na tela, CTA, hashtags e materiais de apoio.",
+      action: "Conferir antes de enviar",
+      icon: Eye,
+      tone: "yellow" as const,
+    },
+    {
+      title: "Aprovar",
+      desc: "Envie um link claro para o cliente validar o pacote.",
+      action: "Coletar decisão",
+      icon: ShieldCheck,
+      tone: "orange" as const,
+    },
+    {
+      title: "Agendar",
+      desc: "Defina data, canal e status de publicação no calendário.",
+      action: "Organizar calendário",
+      icon: CalendarCheck,
+      tone: "violet" as const,
+    },
+    {
+      title: "Publicar",
+      desc: "Marque como publicado, arquive e reaproveite o que funcionou.",
+      action: "Registrar conclusão",
+      icon: Rocket,
+      tone: "orange" as const,
+    },
+  ];
+
+  const creationScenarios = [
     {
       title: "Criar Reel 2.0",
-      desc: "Comece pelo formato carro-chefe: promessa, gancho, roteiro, capa e aprovação.",
+      desc: "Fluxo completo para promessa, gancho, roteiro, capa/frame e aprovação.",
       to: "/app/create/reel",
       icon: Film,
       badge: "Carro-chefe",
@@ -117,7 +161,7 @@ function Dashboard() {
     },
     {
       title: "Estou sem ideias",
-      desc: "Receba caminhos editoriais e temas a partir do contexto da marca.",
+      desc: "Use contexto da marca para receber caminhos editoriais e temas.",
       to: "/app/ideas",
       icon: Lightbulb,
       badge: "Ideias",
@@ -125,7 +169,7 @@ function Dashboard() {
     },
     {
       title: "Seguir tendência",
-      desc: "Pesquise sinais externos e transforme em conteúdo sem IA interna.",
+      desc: "Pesquise sinais externos e transforme em briefing sem IA interna.",
       to: "/app/trends",
       icon: Compass,
       badge: "Pesquisa",
@@ -133,18 +177,10 @@ function Dashboard() {
     },
   ];
 
-  const flow = [
-    { title: "Criar", desc: "Escolha caminho, marca e formato.", icon: Sparkles },
-    { title: "Desenvolver", desc: "Construa roteiro, texto e pacote.", icon: Wand2 },
-    { title: "Aprovar", desc: "Envie uma prévia clara ao cliente.", icon: ShieldCheck },
-    { title: "Agendar", desc: "Organize data, canal e status.", icon: CalendarCheck },
-    { title: "Publicar", desc: "Finalize, reaproveite e acompanhe.", icon: Rocket },
-  ];
-
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       <section className="relative overflow-hidden rounded-[2rem] border border-border/60 bg-card p-6 shadow-sm sm:p-8 lg:p-10">
-        <div className="bg-studio-glow absolute inset-0 opacity-90" />
+        <div className="bg-studio-glow absolute inset-0 opacity-95" />
         <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
           <div className="space-y-5">
             <div className="inline-flex items-center gap-2 rounded-full border border-creative-violet bg-creative-violet-soft px-3 py-1 text-xs font-medium text-creative-violet">
@@ -153,11 +189,11 @@ function Dashboard() {
             </div>
             <div className="space-y-3">
               <h1 className="max-w-3xl text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
-                O que vamos criar hoje?
+                Da ideia à publicação, com um fluxo claro.
               </h1>
               <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-                Comece pela intenção, escolha o caminho certo e siga uma jornada clara: conteúdo, criação,
-                aprovação, agendamento e publicação. Menos painel técnico, mais produção com método.
+                O Cria Aí guia a criação, revisão, aprovação e organização do conteúdo. Ele não finge ser editor visual
+                nem publicador automático: você cria o pacote, aprova com clareza e marca a publicação no calendário.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -174,10 +210,10 @@ function Dashboard() {
                 </Link>
               </Button>
               <Button asChild variant="ghost" size="lg" className="gap-2 rounded-full">
-                <Link to="/app/ideas">
-                  <Lightbulb className="h-4 w-4" />
-                  Buscar ideias
-                </Link>
+                <a href="#continuar-producao">
+                  <FolderOpen className="h-4 w-4" />
+                  Continuar produção
+                </a>
               </Button>
             </div>
           </div>
@@ -185,22 +221,22 @@ function Dashboard() {
           <Card className="border-creative-yellow bg-creative-yellow-soft shadow-sm">
             <CardContent className="space-y-4 p-5">
               <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--creative-yellow)] text-creative-yellow shadow-sm">
-                <Clock3 className="h-5 w-5" />
+                <Info className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-semibold">Criação mais leve para o dia a dia</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Use o modo guiado para chegar a um pacote pronto sem precisar lembrar todos os campos técnicos.
+                <p className="text-sm font-semibold">Promessa honesta do app</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  Criamos roteiros, legendas, prompts e pacotes de aprovação. A arte final, o vídeo e a publicação entram como anexos ou status.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid gap-2 text-xs">
                 <div className="rounded-xl bg-background/70 p-3">
-                  <p className="font-semibold">Reel 2.0</p>
-                  <p className="text-muted-foreground">10–15 min</p>
+                  <p className="font-semibold">O Cria Aí ajuda</p>
+                  <p className="text-muted-foreground">a estruturar conteúdo e organizar a produção.</p>
                 </div>
                 <div className="rounded-xl bg-background/70 p-3">
-                  <p className="font-semibold">Post simples</p>
-                  <p className="text-muted-foreground">4–7 min</p>
+                  <p className="font-semibold">O Cria Aí não promete</p>
+                  <p className="text-muted-foreground">postar automaticamente nem substituir um editor visual.</p>
                 </div>
               </div>
             </CardContent>
@@ -208,52 +244,65 @@ function Dashboard() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {tiles.map((tile) => (
-          <HomeMetricCard key={tile.label} {...tile} />
-        ))}
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <Badge variant="outline" className="mb-2 rounded-full">Comece por aqui</Badge>
-            <h2 className="text-xl font-semibold">Caminhos principais de criação</h2>
-            <p className="text-sm text-muted-foreground">Escolha o que você quer fazer agora. O app mostra os detalhes depois.</p>
-          </div>
-          <Button asChild variant="ghost" size="sm" className="gap-1">
-            <Link to="/app/templates">
-              Ver presets
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-        <div className="grid gap-3 lg:grid-cols-4">
-          {createPaths.map((path) => (
-            <HomeActionCard key={path.title} {...path} />
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-border/60 bg-card/80 p-5 shadow-sm">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <section className="rounded-[2rem] border border-border/60 bg-card/90 p-5 shadow-sm sm:p-6">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <Badge variant="secondary" className="mb-2 rounded-full">Fluxo de uso</Badge>
-            <h2 className="text-xl font-semibold">Da ideia à publicação</h2>
-            <p className="text-sm text-muted-foreground">A jornada do Cria Aí 2.0 passa por cinco momentos simples.</p>
+            <h2 className="text-2xl font-semibold">Como o Cria Aí conduz seu conteúdo</h2>
+            <p className="text-sm text-muted-foreground">Uma jornada visual para não misturar criação, aprovação e publicação.</p>
           </div>
           <HelpDialog />
         </div>
-        <div className="grid gap-3 md:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {flow.map((item, index) => (
-            <CreationFlowStep key={item.title} index={index + 1} {...item} />
+            <FlowPreviewCard key={item.title} index={index + 1} {...item} />
           ))}
+        </div>
+      </section>
+
+      <section className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-3xl border border-border/60 bg-card/85 p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <Badge variant="outline" className="mb-2 rounded-full">Comece pelo cenário</Badge>
+              <h2 className="text-xl font-semibold">O que você quer fazer agora?</h2>
+              <p className="text-sm text-muted-foreground">Escolha um caminho. Os detalhes aparecem só depois.</p>
+            </div>
+            <Button asChild variant="ghost" size="sm" className="gap-1">
+              <Link to="/app/templates">
+                Ver presets
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {creationScenarios.map((path) => (
+              <HomeActionCard key={path.title} {...path} />
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-border/60 bg-card/85 p-5 shadow-sm">
+          <div className="mb-4">
+            <Badge variant="outline" className="mb-2 rounded-full">Hoje no estúdio</Badge>
+            <h2 className="text-xl font-semibold">Onde sua atenção pode ir</h2>
+            <p className="text-sm text-muted-foreground">Números compactos para ação, não para competir com a criação.</p>
+          </div>
+          <div className="grid gap-3">
+            {headlineSignals.map((signal) => (
+              <StudioSignalCard key={signal.label} {...signal} />
+            ))}
+          </div>
+          <div className="mt-4 rounded-2xl border border-border/60 bg-background/60 p-4 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">Próximo passo sugerido</p>
+            <p className="mt-1">Continue um rascunho ou resolva aprovações pendentes antes de criar novos conteúdos.</p>
+          </div>
         </div>
       </section>
 
       <QuickIdeaBlock />
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
+      <section id="continuar-producao" className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-lg font-semibold"><FolderOpen className="h-4 w-4" />Continuar produção</h2>
@@ -281,6 +330,47 @@ function Dashboard() {
           <UpcomingPublicationsSection />
         </div>
       </section>
+    </div>
+  );
+}
+
+function FlowPreviewCard({ index, title, desc, action, icon: Icon, tone }: { index: number; title: string; desc: string; action: string; icon: typeof Briefcase; tone: HomeTone }) {
+  return (
+    <div className="group relative overflow-hidden rounded-3xl border border-border/60 bg-background/60 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+      <div className="absolute right-4 top-4 opacity-10 transition-opacity group-hover:opacity-20">
+        <Icon className="h-16 w-16" />
+      </div>
+      <div className="relative space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <span className={cn("grid h-9 w-9 place-items-center rounded-full border text-sm font-bold", toneClasses(tone))}>{index}</span>
+          <Icon className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <p className="text-lg font-semibold">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{desc}</p>
+        </div>
+        <div className="rounded-2xl border border-border/50 bg-card/70 p-3 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">{action}</p>
+          <div className="mt-2 h-2 rounded-full bg-muted">
+            <div className="h-2 rounded-full bg-primary" style={{ width: `${Math.min(100, 20 + index * 12)}%` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StudioSignalCard({ label, value, helper, icon: Icon, tone }: { label: string; value: number; helper: string; icon: typeof Briefcase; tone: HomeTone }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/60 p-4">
+      <div className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-2xl border", toneClasses(tone))}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-2xl font-bold leading-none">{value}</p>
+        <p className="mt-1 text-sm font-medium">{label}</p>
+        <p className="truncate text-xs text-muted-foreground">{helper}</p>
+      </div>
     </div>
   );
 }
