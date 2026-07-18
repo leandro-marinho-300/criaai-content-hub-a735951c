@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createHash } from "crypto";
 import { parsePiece } from "@/lib/promptBuilder";
 import { verifyApprovalPassword } from "@/lib/approvalToken";
+import { getReel2ProjectData, reel2ScriptToApprovalSummary } from "@/lib/reel2Project";
 
 const MAX_PASSWORD_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
@@ -115,7 +116,7 @@ export const Route = createFileRoute("/api/public/approval/$token")({
         // Carrega dados autorizados
         const { data: project } = await supabaseAdmin
           .from("content_projects")
-          .select("id, display_title, internal_title, theme")
+          .select("id, display_title, internal_title, theme, campaign_content_json")
           .eq("id", approval.project_id)
           .single();
         const { data: brand } = approval.brand_id
@@ -193,6 +194,9 @@ export const Route = createFileRoute("/api/public/approval/$token")({
           }),
         );
 
+        const reel2Data = getReel2ProjectData(project?.campaign_content_json);
+        const reel2Summary = reel2Data?.script ? reel2ScriptToApprovalSummary(reel2Data.script) : null;
+
         return json({
           state: "ok",
           alreadyResponded: !!approval.submitted_at,
@@ -212,6 +216,7 @@ export const Route = createFileRoute("/api/public/approval/$token")({
           },
           brand: brand ? { name: brand.name, logoUrl: brand.logo_url } : null,
           project: { title: project?.display_title || project?.internal_title || "Campanha" },
+          reel2: reel2Summary,
           pieces: piecesPayload,
         });
       },

@@ -756,7 +756,47 @@ function joinHooks(script: Reel2ImportedScript): string {
     .join("\n\n");
 }
 
-export function buildReel2StoryboardPrompt(script: Reel2ImportedScript, brand?: Tables<"brands"> | null): string {
+export type Reel2StoryboardPromptMode = "complete" | "quick";
+
+function coverModeDescription(script: Reel2ImportedScript): string {
+  const mode = String(script.cover.mode || "unsure").toLowerCase();
+  if (script.cover.needs_cover || mode === "custom") return "capa personalizada";
+  if (mode === "frame") return "frame do próprio vídeo";
+  if (mode === "none") return "sem capa personalizada";
+  return "a definir";
+}
+
+function coverInstructionBlock(script: Reel2ImportedScript): string {
+  const mode = String(script.cover.mode || "unsure").toLowerCase();
+  if (script.cover.needs_cover || mode === "custom") {
+    return `Modo: capa personalizada
+Título: ${script.cover.title || "—"}
+Subtítulo: ${script.cover.subtitle || "—"}
+Prompt visual da capa: ${script.cover.visual_prompt || "—"}
+Área segura/corte: ${script.cover.safe_area_notes || "—"}
+Regra: criar uma orientação visual para capa vertical 9:16, respeitando área segura e identidade da marca.`;
+  }
+  if (mode === "frame") {
+    return `Modo: frame do próprio vídeo
+Título de apoio: ${script.cover.title || "—"}
+Subtítulo de apoio: ${script.cover.subtitle || "—"}
+Orientação de área segura/corte: ${script.cover.safe_area_notes || "Escolher um frame com rosto/ação clara, bom contraste e texto legível na área segura."}
+Regra: NÃO criar capa nova do zero. Sugerir qual cena/frame do roteiro deve ser usado como capa e explicar por quê.`;
+  }
+  if (mode === "none") {
+    return `Modo: não precisa de capa personalizada
+Regra: não criar capa nova. Apenas confirmar se algum frame natural do vídeo pode representar bem o Reel.`;
+  }
+  return `Modo: ainda não definido
+Regra: indicar se este Reel se beneficiaria de capa personalizada ou se um frame do vídeo já seria suficiente.`;
+}
+
+export function buildReel2StoryboardPrompt(
+  script: Reel2ImportedScript,
+  brand?: Tables<"brands"> | null,
+  options: { mode?: Reel2StoryboardPromptMode } = {},
+): string {
+  const promptMode = options.mode ?? "complete";
   const brandName = brand?.name || script.brand || "Marca não informada";
   const primaryColor = brand?.primary_color || "usar a cor principal da marca anexada";
   const secondaryColor = brand?.secondary_color || "usar uma cor secundária coerente";
@@ -764,9 +804,13 @@ export function buildReel2StoryboardPrompt(script: Reel2ImportedScript, brand?: 
   const visualStyle = brand?.visual_style || "visual profissional, claro e coerente com a marca";
   const tone = brand?.tone_of_voice || "claro, próximo e profissional";
   const hashtags = script.publication.hashtags.slice(0, MAX_HASHTAGS).join(" ");
-  const coverMode = script.cover.needs_cover || script.cover.mode === "custom" ? "capa personalizada" : script.cover.mode || "a definir";
+  const coverMode = coverModeDescription(script);
+  const quickMode = promptMode === "quick";
 
   return `Crie um PDF visual profissional de storyboard e guia de produção para um Reel.
+
+MODO DO PDF:
+- ${quickMode ? "Storyboard rápido: priorizar leitura objetiva em 1 a 2 páginas, sem perder roteiro, CTA e legenda." : "Storyboard completo: organizar em páginas editoriais, com cards por cena e guia de produção."}
 
 IMPORTANTE:
 - Não use IA interna de outro aplicativo.
@@ -791,10 +835,18 @@ DIREÇÃO DO PDF:
 - Destaques em cores da marca.
 - Cards por cena.
 - Não cortar textos.
-- Se não couber em 2 páginas, criar página adicional.
+- ${quickMode ? "Se não couber em 1 página, usar 2 páginas." : "Se não couber em 2 páginas, criar página adicional."}
 - Preservar tempos, falas, CTA, legenda e hashtags.
 
-PÁGINA 1 — ROTEIRO PRINCIPAL:
+${quickMode ? `ESTRUTURA DO PDF RÁPIDO:
+Mostrar em leitura compacta:
+- logo oficial;
+- título, objetivo, tipo de Reel e promessa;
+- gancho escolhido;
+- roteiro principal resumido por cenas;
+- versão reduzida;
+- decisão de capa;
+- legenda da publicação, CTA e hashtags.` : `PÁGINA 1 — ROTEIRO PRINCIPAL:
 Mostrar:
 - logo oficial;
 - título do Reel;
@@ -814,7 +866,7 @@ Mostrar:
 - legenda da publicação;
 - CTA;
 - até 5 hashtags;
-- ganchos alternativos.
+- ganchos alternativos.`}
 
 DADOS DO REEL:
 Título/ideia central: ${script.central_idea}
@@ -836,11 +888,8 @@ LEGENDA COMPLETA PARA INSERIR NO VÍDEO:
 ${script.short_version.full_video_caption}
 
 CAPA DO REEL:
-Modo: ${coverMode}
-Título: ${script.cover.title || "—"}
-Subtítulo: ${script.cover.subtitle || "—"}
-Prompt visual da capa: ${script.cover.visual_prompt || "—"}
-Área segura/corte: ${script.cover.safe_area_notes || "—"}
+Decisão: ${coverMode}
+${coverInstructionBlock(script)}
 
 PUBLICAÇÃO:
 Legenda: ${script.publication.caption}

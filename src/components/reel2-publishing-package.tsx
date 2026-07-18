@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Captions, Clapperboard, ExternalLink, FileText, Hash, ImageIcon, MessageSquareText, MonitorPlay, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +42,8 @@ const COVER_OPTIONS = [
 ] as const;
 
 export function Reel2PublishingPackage({ script, brand, onChange }: Reel2PublishingPackageProps) {
-  const storyboardPrompt = useMemo(() => buildReel2StoryboardPrompt(script, brand), [script, brand]);
+  const [storyboardMode, setStoryboardMode] = useState<"complete" | "quick">("complete");
+  const storyboardPrompt = useMemo(() => buildReel2StoryboardPrompt(script, brand, { mode: storyboardMode }), [script, brand, storyboardMode]);
   const hasCustomCover = script.cover.needs_cover || script.cover.mode === "custom";
   const hashtagText = script.publication.hashtags.join(" ");
 
@@ -167,10 +168,28 @@ export function Reel2PublishingPackage({ script, brand, onChange }: Reel2Publish
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
                   Copie este pedido para o ChatGPT gerar o PDF visual do roteiro. O logo e referências precisam ser anexados manualmente na conversa.
                 </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={storyboardMode === "complete" ? "default" : "outline"}
+                    onClick={() => setStoryboardMode("complete")}
+                  >
+                    Storyboard completo
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={storyboardMode === "quick" ? "default" : "outline"}
+                    onClick={() => setStoryboardMode("quick")}
+                  >
+                    Storyboard rápido
+                  </Button>
+                </div>
                 <Textarea value={storyboardPrompt} readOnly rows={10} className="font-mono text-xs" />
               </div>
               <div className="space-y-3 rounded-2xl border bg-background p-4">

@@ -48,6 +48,25 @@ interface PieceData {
   comment: string;
 }
 
+interface Reel2ApprovalSummary {
+  centralIdea: string;
+  objective: string;
+  reelType: string;
+  promise: string;
+  selectedHook: string;
+  selectedHookText: string;
+  coverMode: string;
+  coverTitle: string;
+  coverSubtitle: string;
+  coverInstruction: string;
+  publicationCaption: string;
+  cta: string;
+  hashtags: string[];
+  videoCaption: string;
+  mainScenes: Array<{ index: number; time: string; function: string; speech: string; onScreenText: string; visualDirection: string }>;
+  shortScenes: Array<{ index: number; time: string; function: string; speech: string; onScreenText: string; visualDirection: string }>;
+}
+
 interface Payload {
   state: "ok" | "expired" | "revoked" | "password_required" | "password_invalid" | "locked";
   alreadyResponded: boolean;
@@ -67,6 +86,7 @@ interface Payload {
   };
   brand: { name: string; logoUrl: string | null } | null;
   project: { title: string };
+  reel2?: Reel2ApprovalSummary | null;
   pieces: PieceData[];
   attemptsLeft?: number;
   lockedUntil?: string | null;
@@ -367,6 +387,8 @@ function PortalPage() {
           </Card>
         )}
 
+        {data.reel2 && <Reel2ApprovalCard reel={data.reel2} />}
+
         {pieces.length === 0 && (
           <Card>
             <CardContent className="p-6 text-center text-sm text-muted-foreground">
@@ -653,6 +675,82 @@ function decisionLabel(d: GeneralDecision | null) {
     changes_requested: "Ajustes solicitados",
     rejected: "Recusado",
   }[d];
+}
+
+
+function Reel2ApprovalCard({ reel }: { reel: Reel2ApprovalSummary }) {
+  return (
+    <Card className="border-orange-500/25 bg-orange-500/5">
+      <CardContent className="space-y-4 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">
+              Resumo do Reel
+            </p>
+            <h2 className="text-lg font-semibold">{reel.centralIdea}</h2>
+          </div>
+          <Badge className="bg-orange-500 text-white hover:bg-orange-500">Reel 2.0</Badge>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <InfoBlock label="Objetivo" value={reel.objective} />
+          <InfoBlock label="Tipo" value={reel.reelType} />
+          <InfoBlock label="Promessa" value={reel.promise} />
+          <InfoBlock label="Gancho" value={reel.selectedHook} />
+        </div>
+
+        <div>
+          <Label className="text-xs uppercase text-muted-foreground">Roteiro principal</Label>
+          <div className="mt-2 space-y-2">
+            {reel.mainScenes.map((scene) => (
+              <div key={`${scene.index}-${scene.time}`} className="rounded-md border bg-card/80 p-3 text-sm">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Cena {scene.index} · {scene.time} · {scene.function}
+                </p>
+                <p className="mt-1">{scene.speech}</p>
+                {scene.onScreenText && <p className="mt-1 text-xs text-muted-foreground">Tela: {scene.onScreenText}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label className="text-xs uppercase text-muted-foreground">Legenda completa para inserir no vídeo</Label>
+            <pre className="mt-1 whitespace-pre-wrap break-words rounded-md bg-muted/30 p-3 text-sm leading-relaxed">
+              {reel.videoCaption}
+            </pre>
+          </div>
+          <div>
+            <Label className="text-xs uppercase text-muted-foreground">Capa / frame</Label>
+            <pre className="mt-1 whitespace-pre-wrap break-words rounded-md bg-muted/30 p-3 text-xs leading-relaxed">
+              {reel.coverMode}\n{reel.coverInstruction}
+            </pre>
+          </div>
+        </div>
+
+        <div>
+          <Label className="text-xs uppercase text-muted-foreground">Legenda da publicação</Label>
+          <pre className="mt-1 whitespace-pre-wrap break-words rounded-md bg-muted/30 p-3 text-sm leading-relaxed">
+            {reel.publicationCaption}
+          </pre>
+          <p className="mt-2 text-sm"><b>CTA:</b> {reel.cta}</p>
+          {reel.hashtags.length > 0 && (
+            <p className="mt-1 break-words text-sm text-muted-foreground">{reel.hashtags.join(" ")}</p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function InfoBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border bg-card/80 p-3 text-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 whitespace-pre-wrap break-words">{value || "—"}</p>
+    </div>
+  );
 }
 
 function CenterMsg({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {

@@ -45,6 +45,7 @@ interface Props {
   script: ReelScript;
   scriptVersion: number;
   brand: Tables<"brands"> | null;
+  promptOverride?: string;
   assets: PieceAsset[];
   onChange: () => void;
 }
@@ -93,6 +94,7 @@ export function ReelScriptVisualPanel({
   script,
   scriptVersion,
   brand,
+  promptOverride,
   assets,
   onChange,
 }: Props) {
@@ -102,8 +104,8 @@ export function ReelScriptVisualPanel({
   const [urls, setUrls] = useState<Record<string, string>>({});
 
   const prompt = useMemo(
-    () => buildReelScriptVisualPrompt({ script, brand, projectTitle }),
-    [script, brand, projectTitle],
+    () => promptOverride || buildReelScriptVisualPrompt({ script, brand, projectTitle }),
+    [promptOverride, script, brand, projectTitle],
   );
   const [meta, setMeta] = useState<ReelScriptVisualMeta>(() =>
     getStoredReelScriptVisualMeta(outputImportedContent),

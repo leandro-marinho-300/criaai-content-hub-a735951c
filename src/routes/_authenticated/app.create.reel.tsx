@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -46,6 +46,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getAllPresets } from "@/lib/contentPresets";
+import { buildPrompts, parsePiece } from "@/lib/promptBuilder";
 import {
   createReel2Draft,
   getReel2BrandExamples,
@@ -74,6 +75,7 @@ import {
   type Reel2ImportedScript,
   type Reel2ImportResult,
 } from "@/lib/reel2Script";
+import { reel2ToLegacyReelScript } from "@/lib/reel2Project";
 
 export const Route = createFileRoute("/_authenticated/app/create/reel")({
   head: () => ({ meta: [{ title: "Criar Reel 2.0 — Cria Aí" }] }),
@@ -96,6 +98,7 @@ const entryIconMap: Record<Reel2EntryMode, typeof Lightbulb> = {
 
 export function CreateReel2() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [step, setStep] = useState<StepIndex>(0);
   const [draft, setDraft] = useState<Reel2Draft>(() => {
     if (typeof window !== "undefined") {
@@ -210,11 +213,168 @@ export function CreateReel2() {
     }));
   };
 
+  const createProjectFromReel2 = useMutation({
+    mutationFn: async () => {
+      if (!selectedBrand) throw new Error("Selecione uma marca antes de criar o projeto.");
+      const script = draft.imported_script;
+      if (!script) throw new Error("Importe e revise o JSON Reel 2.0 antes de criar o projeto.");
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("Não autenticado.");
+
+      const legacyScript = reel2ToLegacyReelScript(script, selectedBrand);
+      const formats = script.cover.needs_cover || script.cover.mode === "custom" ? ["reel", "capa_reel"] : ["reel"];
+      const payload = {
+        user_id: u.user.id,
+        brand_id: selectedBrand.id,
+        internal_title: `Reel 2.0 — ${script.central_idea}`.slice(0, 160),
+        display_title: script.central_idea.slice(0, 120),
+        theme: script.central_idea,
+        objective: draft.objective || "educar",
+        specific_audience: selectedBrand.audience || null,
+        audience_problem: selectedBrand.audience_difficulties || null,
+        main_message: script.promise,
+        mandatory_information: [
+          `Gancho escolhido: ${script.selected_hook.spoken_hook}`,
+          `Legenda completa para inserir no vídeo: ${script.short_version.full_video_caption}`,
+          `Tipo de Reel: ${script.reel_type}`,
+        ].join("\n"),
+        call_to_action: script.publication.cta || null,
+        desired_style: `${script.reel_type} · Reel 2.0 guiado com gancho, promessa, cenas, capa e publicação.`,
+        restrictions: selectedBrand.forbidden_inventions || "Não copiar referências externas. Usar referências apenas para aprender estrutura.",
+        notes: [
+          "Origem: Criar Reel 2.0 — projeto criado direto do módulo guiado.",
+          `Promessa: ${script.promise}`,
+          `Gancho: ${script.selected_hook.spoken_hook}`,
+          `Capa: ${script.cover.mode}`,
+          `CTA: ${script.publication.cta}`,
+        ].join("\n"),
+        selected_formats: formats,
+        selected_outputs: ["roteiro_reel", "legenda_completa", "hashtags"],
+        generation_mode: "safe" as const,
+        status: "draft" as const,
+        content_source: "external_chatgpt",
+        content_development_status: "script_imported" as const,
+        campaign_content_json: {
+          source: "reel_2_0",
+          reel2: script,
+          caption: { text: script.publication.caption, hashtags: script.publication.hashtags },
+          pieces: [],
+          created_at: new Date().toISOString(),
+        },
+        imported_at: draft.imported_script_imported_at || new Date().toISOString(),
+      };
+
+      const { data: project, error } = await supabase.from("content_projects").insert(payload).select("*").single();
+      if (error) throw error;
+
+      const result = buildPrompts({ brand: selectedBrand, project: project as any });
+      const rows = result.blocks.map((block, index) => {
+        const piece = block.key === "piece" ? parsePiece(block.content) : null;
+        const isReelScript = piece?.formatKey === "reel" && piece.role === "roteiro";
+        const isReelCaption = piece?.formatKey === "reel" && piece.role === "legenda";
+        const isReelCover = piece?.formatKey === "reel" && piece.role === "capa";
+        let title = block.title;
+        let content = block.content;
+
+        if (piece && isReelScript) {
+          const updatedPiece = {
+            ...piece,
+            name: "Reel 2.0 — Roteiro completo",
+            objective: "roteiro completo do vídeo, importado do fluxo guiado Reel 2.0",
+            mainText: script.central_idea,
+            supportText: script.promise,
+            bullets: script.main_script.scenes.map((scene) => `${scene.start}-${scene.end}s · ${scene.function}: ${scene.speech}`).slice(0, 10),
+            cta: script.publication.cta,
+            contentStage: "script_complete",
+            copySource: "external_chatgpt",
+            qualityStatus: "approved",
+            qualityIssues: undefined,
+            readyPrompt: "Roteiro Reel 2.0 já importado. Use o bloco de roteiro, versão reduzida, capa, publicação e storyboard nesta página.",
+          };
+          title = updatedPiece.name;
+          content = JSON.stringify(updatedPiece);
+        }
+
+        if (piece && isReelCaption) {
+          const updatedPiece = {
+            ...piece,
+            name: "Reel 2.0 — Legenda da publicação",
+            mainText: "",
+            supportText: "",
+            bullets: [],
+            caption: script.publication.caption,
+            hashtags: script.publication.hashtags,
+            cta: script.publication.cta,
+            contentStage: "publication_copy",
+            copySource: "external_chatgpt",
+            qualityStatus: "approved",
+            qualityIssues: undefined,
+            readyPrompt: [`Texto da publicação — Legenda do Reel 2.0.`, ``, script.publication.caption, script.publication.hashtags.join(" ")].filter(Boolean).join("\n"),
+          };
+          title = updatedPiece.name;
+          content = JSON.stringify(updatedPiece);
+        }
+
+        if (piece && isReelCover) {
+          const coverMode = script.cover.needs_cover || script.cover.mode === "custom" ? "capa personalizada" : script.cover.mode === "frame" ? "frame do vídeo" : "a definir";
+          const updatedPiece = {
+            ...piece,
+            name: "Reel 2.0 — Capa / frame",
+            mainText: script.cover.title || script.selected_hook.on_screen_text || script.central_idea,
+            supportText: script.cover.subtitle || `Modo: ${coverMode}`,
+            cta: "",
+            productionNotes: [
+              script.cover.needs_cover || script.cover.mode === "custom" ? "Criar capa personalizada 9:16 respeitando área segura." : "Escolher frame do próprio vídeo; não criar capa nova se o modo for frame.",
+              script.cover.safe_area_notes || "Manter título legível na área central superior.",
+            ],
+            copySource: "external_chatgpt",
+            readyPrompt: script.cover.needs_cover || script.cover.mode === "custom" ? script.cover.visual_prompt || piece.readyPrompt : `Usar frame do próprio vídeo como capa. Frame sugerido: ${script.selected_hook.scene_suggestion}. Título de apoio: ${script.cover.title || script.central_idea}.`,
+          };
+          title = updatedPiece.name;
+          content = JSON.stringify(updatedPiece);
+        }
+
+        return {
+          project_id: project.id,
+          user_id: u.user!.id,
+          output_type: block.key,
+          title,
+          original_content: content,
+          display_order: index,
+          imported_content: isReelScript
+            ? (legacyScript as any)
+            : isReelCaption
+              ? ({ caption: script.publication.caption, hashtags: script.publication.hashtags, cta: script.publication.cta, source_schema: "reel_2_0" } as any)
+              : isReelCover
+                ? ({ cover: script.cover, source_schema: "reel_2_0" } as any)
+                : null,
+          source: isReelScript || isReelCaption || isReelCover ? "external_chatgpt" : undefined,
+          copy_status: isReelScript || isReelCaption || isReelCover ? "review" : undefined,
+          version: isReelScript ? 1 : undefined,
+        };
+      });
+      if (rows.length) {
+        const { error: rowsError } = await supabase.from("content_outputs").insert(rows);
+        if (rowsError) throw rowsError;
+      }
+      return project.id as string;
+    },
+    onSuccess: (projectId) => {
+      clearReel2Draft();
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      qc.invalidateQueries({ queryKey: ["library"] });
+      toast.success("Projeto Reel 2.0 criado.");
+      navigate({ to: "/app/content/$projectId/result", params: { projectId } });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Não foi possível criar o projeto.");
+    },
+  });
+
   const onContinueToClassicWizard = () => {
     try {
       localStorage.setItem(REEL2_WIZARD_PREFILL_KEY, JSON.stringify(buildReel2WizardPrefill(draft, selectedBrand)));
       toast.success("Rascunho enviado para o wizard atual.");
-      // Navegação robusta para preservar o prefill em produção e evitar cliques sem efeito.
       window.location.assign("/app/content/new");
     } catch {
       toast.error("Não foi possível preparar o wizard atual.");
@@ -235,10 +395,10 @@ export function CreateReel2() {
           <div className="max-w-3xl space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="rounded-full bg-orange-500 text-white hover:bg-orange-500">
-Fase 4 · Cria Aí 2.0
+Fase 5 · Cria Aí 2.0
               </Badge>
               <Badge variant="secondary" className="rounded-full">
-Capa, publicação e storyboard
+Projeto, aprovação e compatibilidade
               </Badge>
             </div>
             <div>
@@ -592,9 +752,9 @@ Capa, publicação e storyboard
 
           {step === 6 && (
             <StepShell
-              eyebrow="Resumo da Fase 4"
-              title="Pacote de Reel pronto para produção"
-              description="Revise roteiro, capa, publicação e gere o pedido visual do storyboard antes de seguir para o wizard atual."
+              eyebrow="Resumo da Fase 5"
+              title="Pacote de Reel pronto para virar projeto"
+              description="Revise roteiro, capa, publicação e crie o projeto profissional do Reel 2.0."
             >
               <div className="space-y-4">
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -620,10 +780,10 @@ Capa, publicação e storyboard
                       <RouteIcon className="h-4 w-4 text-orange-500" /> Caminho de continuidade
                     </div>
                     <p className="text-sm text-muted-foreground">
-Com o JSON importado e o pacote revisado, o wizard atual recebe roteiro, legenda do vídeo, capa, publicação, CTA, hashtags e orientações do storyboard no campo de observações.
+Com o JSON importado e o pacote revisado, o Cria Aí cria um projeto com roteiro, legenda do vídeo, capa, publicação, CTA, hashtags e storyboard conectados à aprovação.
                     </p>
-                    <Button onClick={onContinueToClassicWizard} className="w-full gap-2">
-                      Usar no wizard atual <ArrowRight className="h-4 w-4" />
+                    <Button onClick={() => createProjectFromReel2.mutate()} disabled={createProjectFromReel2.isPending || !draft.imported_script} className="w-full gap-2">
+                      Criar projeto com este Reel <ArrowRight className="h-4 w-4" />
                     </Button>
                     <Button asChild variant="outline" className="w-full">
                       <Link to="/app/create">Voltar para Criar</Link>
@@ -687,8 +847,8 @@ Com o JSON importado e o pacote revisado, o wizard atual recebe roteiro, legenda
                   Continuar <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               ) : (
-                <Button onClick={onContinueToClassicWizard}>
-                  Usar no wizard atual <ArrowRight className="ml-1 h-4 w-4" />
+                <Button onClick={() => createProjectFromReel2.mutate()} disabled={createProjectFromReel2.isPending || !draft.imported_script}>
+                  Criar projeto com este Reel <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               )}
             </div>

@@ -49,8 +49,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImportReelScriptDialog } from "@/components/import-reel-script-dialog";
 import { ReelScriptView } from "@/components/reel-script-view";
 import { ReelScriptVisualPanel } from "@/components/reel-script-visual-panel";
+import { Reel2ResultOverview } from "@/components/reel2-result-overview";
 import { getStoredReelScript, reelScriptToPlainText, type ReelScript } from "@/lib/reelScript";
 import { attachReelScriptVisualMeta, getStoredReelScriptVisualMeta } from "@/lib/reelScriptVisual";
+import { getReel2ScriptFromProject } from "@/lib/reel2Project";
+import { buildReel2StoryboardPrompt } from "@/lib/reel2Script";
 import { inferReelDurationSeconds } from "@/lib/reelContent";
 import { MAX_HASHTAGS, normalizeHashtags } from "@/lib/hashtags";
 import { presetFromProject, saveUserPreset } from "@/lib/contentPresets";
@@ -138,6 +141,7 @@ function ResultPage() {
   if (!data) return <p>Projeto não encontrado.</p>;
 
   const project = data.project;
+  const reel2Script = getReel2ScriptFromProject(project);
 
   const pieces: { row: Output; piece: Piece | null }[] = pieceRows.map((row) => {
     const piece = parsePiece(row.edited_content ?? row.original_content);
@@ -370,6 +374,8 @@ function ResultPage() {
         onOpenAddToCalendar={() => setAddToCalOpen(true)}
       />
 
+      {reel2Script && <Reel2ResultOverview script={reel2Script} />}
+
       {/* SEÇÃO 1 — RESUMO DA CAMPANHA */}
       {summaryRow && (
         <section className="space-y-2">
@@ -435,6 +441,7 @@ function ResultPage() {
               pieces={reelPieces}
               otherPieces={nonReelPieces}
               project={project}
+              reel2Script={reel2Script}
               assets={data.assets ?? []}
               userId={user?.id ?? ""}
               onCopyAndOpen={copyAndOpenChatGPT}
@@ -1266,6 +1273,7 @@ function ReelTabs({
   pieces,
   otherPieces = [],
   project,
+  reel2Script,
   assets,
   userId,
   onCopyAndOpen,
@@ -1274,6 +1282,7 @@ function ReelTabs({
   pieces: { row: Output; piece: Piece | null }[];
   otherPieces?: { row: Output; piece: Piece | null }[];
   project: Tables<"content_projects"> & { brands: Tables<"brands"> | null };
+  reel2Script?: import("@/lib/reel2Script").Reel2ImportedScript | null;
   assets: PieceAsset[];
   userId: string;
   onCopyAndOpen: (text: string) => void;
@@ -1291,6 +1300,7 @@ function ReelTabs({
   const expectedPoints = roteiro?.piece?.campaignPoints ?? [];
   const expectedCta = roteiro?.piece?.cta ?? project.call_to_action ?? "";
   const expectedDuration = inferReelDurationSeconds(project);
+  const reel2StoryboardPrompt = reel2Script ? buildReel2StoryboardPrompt(reel2Script, project.brands, { mode: "complete" }) : undefined;
 
   const importScript = useMutation({
     mutationFn: async ({ script }: { script: ReelScript; raw: string }) => {
@@ -1501,6 +1511,7 @@ function ReelTabs({
                   script={storedScript}
                   scriptVersion={roteiro.row.version ?? 1}
                   brand={project.brands}
+                  promptOverride={reel2StoryboardPrompt}
                   assets={assets.filter((asset) => asset.output_id === roteiro.row.id)}
                   onChange={onAssetsChanged}
                 />
