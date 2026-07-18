@@ -13,25 +13,45 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Reel2ImportedScript } from "@/lib/reel2Script";
 import { reel2CoverInstruction, reel2CoverModeLabel } from "@/lib/reel2Project";
 
-export function Reel2ResultOverview({ script }: { script: Reel2ImportedScript }) {
+interface Reel2ResultOverviewProps {
+  script: Reel2ImportedScript;
+  projectStatus?: string | null;
+  approvalStatus?: string | null;
+  hasSchedule?: boolean;
+  hasFinalVideo?: boolean;
+}
+
+export function Reel2ResultOverview({
+  script,
+  projectStatus,
+  approvalStatus,
+  hasSchedule,
+  hasFinalVideo,
+}: Reel2ResultOverviewProps) {
   const coverInstruction = formatBlockText(reel2CoverInstruction(script));
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="font-display text-lg font-semibold">Resumo estratégico do Reel 2.0</h2>
+          <h2 className="font-display text-lg font-semibold">Pacote do Reel 2.0</h2>
           <p className="text-sm text-muted-foreground">
-            Pacote criado no fluxo guiado: estratégia, roteiro, versão curta, capa e publicação.
+            Visão única do Reel: conteúdo, criação, aprovação, agendamento e publicação.
           </p>
         </div>
         <Badge className="bg-orange-500 text-white hover:bg-orange-500">Reel 2.0</Badge>
       </div>
 
-      <Reel2PackageJourney script={script} />
+      <Reel2PackageJourney
+        script={script}
+        projectStatus={projectStatus}
+        approvalStatus={approvalStatus}
+        hasSchedule={hasSchedule}
+        hasFinalVideo={hasFinalVideo}
+      />
 
       <Tabs defaultValue="estrategia" className="w-full">
         <TabsList className="flex w-full flex-wrap gap-1 overflow-x-auto">
-          <TabsTrigger value="estrategia">Estratégia</TabsTrigger>
+          <TabsTrigger value="estrategia">Conteúdo</TabsTrigger>
           <TabsTrigger value="roteiro">Roteiro</TabsTrigger>
           <TabsTrigger value="curta">Versão curta</TabsTrigger>
           <TabsTrigger value="capa">Capa/frame</TabsTrigger>
@@ -51,14 +71,14 @@ export function Reel2ResultOverview({ script }: { script: Reel2ImportedScript })
             <Card className="border-orange-500/25 bg-orange-500/5">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Clapperboard className="h-4 w-4 text-orange-500" /> Estratégia do vídeo
+                  <Clapperboard className="h-4 w-4 text-orange-500" /> Conteúdo do Reel
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
                 <Info label="Ideia central" value={script.central_idea} />
                 <Info label="Objetivo" value={script.objective} />
                 <Info label="Tipo de Reel" value={script.reel_type} />
-                <Info label="Gancho escolhido" value={script.selected_hook.spoken_hook} />
+                <Info label="Gancho inicial" value={script.selected_hook.spoken_hook} />
                 <div className="sm:col-span-2">
                   <Info label="Promessa" value={script.promise} />
                 </div>
@@ -71,11 +91,11 @@ export function Reel2ResultOverview({ script }: { script: Reel2ImportedScript })
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Target className="h-4 w-4 text-violet-500" /> Como o vídeo será construído
+                  <Target className="h-4 w-4 text-violet-500" /> Construção do vídeo
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                {script.main_script.scenes.slice(0, 6).map((scene, index) => (
+                {script.main_script.scenes.slice(0, 7).map((scene, index) => (
                   <div key={`${scene.start}-${scene.end}-${index}`} className="rounded-xl border bg-background p-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {index + 1}. {scene.function}
@@ -209,7 +229,23 @@ export function Reel2ResultOverview({ script }: { script: Reel2ImportedScript })
   );
 }
 
-function Reel2PackageJourney({ script }: { script: Reel2ImportedScript }) {
+function Reel2PackageJourney({
+  script,
+  projectStatus,
+  approvalStatus,
+  hasSchedule,
+  hasFinalVideo,
+}: Reel2ResultOverviewProps) {
+  const approvalDone =
+    isApprovedStatus(approvalStatus) || projectStatus === "approved" || projectStatus === "published";
+  const scheduleDone = Boolean(hasSchedule || projectStatus === "scheduled" || projectStatus === "published");
+  const publishDone = projectStatus === "published";
+  const creationDone = Boolean(
+    script.main_script?.scenes?.length &&
+      script.short_version?.full_video_caption &&
+      script.publication?.caption,
+  );
+
   const steps = [
     {
       title: "1. Conteúdo",
@@ -218,25 +254,30 @@ function Reel2PackageJourney({ script }: { script: Reel2ImportedScript }) {
     },
     {
       title: "2. Criação",
-      text: script.main_script?.scenes?.length ? "Roteiro, versão curta e legenda do vídeo organizados." : "Gerar roteiro por cenas.",
-      done: Boolean(script.main_script?.scenes?.length),
+      text: creationDone ? "Roteiro, versão curta e legenda organizados." : "Gerar roteiro, versão curta e legenda.",
+      done: creationDone,
     },
     {
       title: "3. Aprovação",
-      text: "Enviar o pacote para revisão do cliente ou responsável.",
-      done: false,
+      text: approvalDone ? "Pacote aprovado ou aprovado com ajustes." : "Enviar o pacote para revisão do cliente.",
+      done: approvalDone,
     },
     {
       title: "4. Agendamento",
-      text: "Definir data e canal depois da aprovação.",
-      done: false,
+      text: scheduleDone ? "Publicação já encaminhada para agenda." : "Definir data e canal depois da aprovação.",
+      done: scheduleDone,
     },
     {
       title: "5. Publicação",
-      text: "Publicar com vídeo final, capa/frame e legenda.",
-      done: false,
+      text: publishDone
+        ? "Reel marcado como publicado."
+        : hasFinalVideo
+          ? "Vídeo final anexado. Falta publicar ou marcar como publicado."
+          : "Publicar com vídeo final, capa/frame e legenda.",
+      done: publishDone,
     },
   ];
+  const currentIndex = Math.max(0, steps.findIndex((step) => !step.done));
 
   return (
     <Card className="border-violet-500/20 bg-violet-500/5">
@@ -244,18 +285,32 @@ function Reel2PackageJourney({ script }: { script: Reel2ImportedScript }) {
         <CardTitle className="text-base">Jornada do Reel</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-2 md:grid-cols-5">
-        {steps.map((step) => (
-          <div key={step.title} className="rounded-xl border bg-background p-3 text-sm">
-            <p className="font-semibold">{step.title}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{step.text}</p>
-            <Badge variant={step.done ? "default" : "outline"} className="mt-3 text-[10px]">
-              {step.done ? "Pronto" : "Próximo"}
-            </Badge>
-          </div>
-        ))}
+        {steps.map((step, index) => {
+          const current = index === currentIndex && !step.done;
+          return (
+            <div
+              key={step.title}
+              className={[
+                "rounded-xl border bg-background p-3 text-sm",
+                step.done ? "border-emerald-500/30 bg-emerald-500/5" : current ? "border-orange-500/50 bg-orange-500/5" : "",
+              ].filter(Boolean).join(" ")}
+            >
+              <p className="font-semibold">{step.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{step.text}</p>
+              <Badge variant={step.done ? "default" : current ? "secondary" : "outline"} className="mt-3 text-[10px]">
+                {step.done ? "Concluído" : current ? "Agora" : "Pendente"}
+              </Badge>
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );
+}
+
+function isApprovedStatus(value?: string | null): boolean {
+  if (!value) return false;
+  return ["approved", "approved_with_changes", "aprovado", "aprovado_com_ajustes"].includes(value);
 }
 
 function StatusPill({ label, ok }: { label: string; ok: boolean }) {

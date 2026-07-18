@@ -758,44 +758,93 @@ Produção e vídeo final
 
           {step === 6 && (
             <StepShell
-              eyebrow="Resumo da Fase 5"
-              title="Pacote de Reel pronto para virar projeto"
-              description="Revise roteiro, capa, publicação e crie o projeto profissional do Reel 2.0."
+              eyebrow="Fechamento da jornada"
+              title="Revise o pacote antes de criar o projeto"
+              description="Confira se conteúdo, criação e publicação estão coerentes. Depois disso, o Reel entra no fluxo de produção, aprovação, agenda e publicação."
             >
               <div className="space-y-4">
+                <Card className="border-orange-500/25 bg-orange-500/5">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Jornada depois da criação</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-2 md:grid-cols-5">
+                    {[
+                      {
+                        title: "1. Conteúdo",
+                        text: "Ideia, promessa e gancho definidos.",
+                        done: Boolean(draft.promise && (draft.imported_script?.selected_hook?.spoken_hook || selectedHook?.spoken_hook)),
+                      },
+                      {
+                        title: "2. Criação",
+                        text: draft.imported_script
+                          ? "Roteiro, versão curta, capa/frame e publicação importados."
+                          : "Importe o JSON para montar o roteiro completo.",
+                        done: Boolean(draft.imported_script),
+                      },
+                      {
+                        title: "3. Aprovação",
+                        text: "O pacote será enviado ao cliente ou responsável.",
+                        done: false,
+                      },
+                      {
+                        title: "4. Agendamento",
+                        text: "Depois da aprovação, defina data e canal.",
+                        done: false,
+                      },
+                      {
+                        title: "5. Publicação",
+                        text: "Publique com vídeo final, capa/frame e legenda.",
+                        done: false,
+                      },
+                    ].map((item) => (
+                      <div key={item.title} className="rounded-xl border bg-background p-3 text-sm">
+                        <p className="font-semibold">{item.title}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{item.text}</p>
+                        <Badge variant={item.done ? "default" : "outline"} className="mt-3 text-[10px]">
+                          {item.done ? "Pronto" : "Depois"}
+                        </Badge>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">Resumo do Reel</CardTitle>
+                      <CardTitle className="text-lg">Pacote revisado</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4 text-sm">
+                    <CardContent className="grid gap-3 text-sm md:grid-cols-2">
                       <SummaryRow label="Marca" value={selectedBrand?.name || "Não selecionada"} />
                       <SummaryRow label="Entrada" value={REEL2_ENTRY_OPTIONS.find((item) => item.id === draft.entry_mode)?.title || "Não definida"} />
                       <SummaryRow label="Objetivo" value={selectedObjective?.title || draft.imported_script?.objective || "Não definido"} />
                       <SummaryRow label="Tipo" value={selectedType?.title || draft.imported_script?.reel_type || "Não definido"} />
-                      <SummaryRow label="Ideia" value={draft.imported_script?.central_idea || getEntryMainIdea(draft) || "Não definida"} />
-                      <SummaryRow label="Promessa" value={draft.imported_script?.promise || draft.promise || "Não definida"} />
+                      <div className="md:col-span-2">
+                        <SummaryRow label="Ideia central" value={draft.imported_script?.central_idea || getEntryMainIdea(draft) || "Não definida"} />
+                      </div>
+                      <div className="md:col-span-2">
+                        <SummaryRow label="Promessa" value={draft.imported_script?.promise || draft.promise || "Não definida"} />
+                      </div>
                       <SummaryRow label="Gancho escolhido" value={draft.imported_script?.selected_hook?.spoken_hook || selectedHook?.spoken_hook || selectedHook?.on_screen_text || "Não escolhido"} />
-                      <SummaryRow label="Capa" value={draft.imported_script?.cover?.needs_cover ? "Capa personalizada sugerida" : coverModeLabel(draft.cover_mode)} />
+                      <SummaryRow label="Capa / frame" value={draft.imported_script?.cover?.needs_cover ? "Capa personalizada sugerida" : coverModeLabel(draft.cover_mode)} />
                     </CardContent>
                   </Card>
 
-                  <Card className="border-orange-500/30 bg-orange-500/5">
-                  <CardContent className="space-y-3 p-5">
-                    <div className="flex items-center gap-2 font-semibold">
-                      <RouteIcon className="h-4 w-4 text-orange-500" /> Caminho de continuidade
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-Com o JSON importado e o pacote revisado, o Cria Aí cria um projeto com roteiro, legenda do vídeo, capa, publicação, CTA, hashtags e storyboard conectados à aprovação.
-                    </p>
-                    <Button onClick={() => createProjectFromReel2.mutate()} disabled={createProjectFromReel2.isPending || !draft.imported_script} className="w-full gap-2">
-                      Criar projeto com este Reel <ArrowRight className="h-4 w-4" />
-                    </Button>
-                    <Button asChild variant="outline" className="w-full">
-                      <Link to="/app/create">Voltar para Criar</Link>
-                    </Button>
-                  </CardContent>
-                </Card>
+                  <Card className="border-violet-500/30 bg-violet-500/5">
+                    <CardContent className="space-y-3 p-5">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <RouteIcon className="h-4 w-4 text-violet-500" /> Próximo passo
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Com o JSON importado e o pacote revisado, crie o projeto para liberar resultado, produção final, storyboard e aprovação.
+                      </p>
+                      <Button onClick={() => createProjectFromReel2.mutate()} disabled={createProjectFromReel2.isPending || !draft.imported_script} className="w-full gap-2">
+                        Criar projeto com este Reel <ArrowRight className="h-4 w-4" />
+                      </Button>
+                      <Button asChild variant="outline" className="w-full">
+                        <Link to="/app/create">Voltar para Criar</Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
                 </div>
 
                 <Card className="border-violet-500/30 bg-violet-500/5">

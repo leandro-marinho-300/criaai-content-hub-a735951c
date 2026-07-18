@@ -38,7 +38,7 @@ import { OUTPUT_KIND_LABEL, type OutputKind } from "@/lib/formatOutputRules";
 import type { Json, Tables } from "@/integrations/supabase/types";
 import { AdjustPieceDialog } from "@/components/adjust-piece-dialog";
 import { PieceAssetUploader } from "@/components/piece-asset-uploader";
-import { fetchAssetsForProject, type PieceAsset } from "@/lib/pieceAssets";
+import { fetchAssetsForProject, isReelFinalVideoAsset, type PieceAsset } from "@/lib/pieceAssets";
 import { useAuth } from "@/hooks/use-auth";
 import { FileImage } from "lucide-react";
 import { AddToCalendarDialog } from "@/components/calendar/add-to-calendar-dialog";
@@ -89,10 +89,24 @@ function ResultPage() {
         .order("display_order");
       if (e2) throw e2;
       const assets = await fetchAssetsForProject(projectId);
+      const { data: latestApproval } = await supabase
+        .from("client_approvals")
+        .select("id,status,decision,submitted_at")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const { data: scheduleItems } = await supabase
+        .from("publication_schedule_items")
+        .select("id,schedule_status,confirmed_date,suggested_date,published_at")
+        .eq("project_id", projectId)
+        .limit(5);
       return {
         project: project as Tables<"content_projects"> & { brands: Tables<"brands"> | null },
         outputs: outputs as Output[],
         assets,
+        latestApproval,
+        scheduleItems: scheduleItems ?? [],
       };
     },
   });
@@ -353,7 +367,7 @@ function ResultPage() {
         </div>
       </header>
 
-      {summaryRow && (
+      {summaryRow && !reel2Script && (
         <section className="space-y-2">
           <h2 className="font-display text-lg font-semibold">Resumo da campanha</h2>
           <Card>
@@ -366,14 +380,22 @@ function ResultPage() {
         </section>
       )}
 
+      {reel2Script && (
+        <Reel2ResultOverview
+          script={reel2Script}
+          projectStatus={project.status}
+          approvalStatus={(data.latestApproval as { status?: string; decision?: string } | null | undefined)?.status ?? (data.latestApproval as { decision?: string } | null | undefined)?.decision}
+          hasSchedule={Boolean(project.publication_date || (data.scheduleItems ?? []).length)}
+          hasFinalVideo={(data.assets ?? []).some(isReelFinalVideoAsset)}
+        />
+      )}
+
       {/* Aprovação do cliente */}
       <ClientApprovalPanel
         projectId={projectId}
         onOpenSendDialog={() => setApprovalOpen(true)}
         onOpenAddToCalendar={() => setAddToCalOpen(true)}
       />
-
-      {reel2Script && <Reel2ResultOverview script={reel2Script} />}
 
 
       {/* SEÇÃO 2 — PEÇAS GERADAS */}
@@ -382,7 +404,7 @@ function ResultPage() {
           <h2 className="font-display text-lg font-semibold">
             {hasReel
               ? reel2Script
-                ? "Pacote do Reel"
+                ? "Produção e arquivos do Reel"
                 : isReelOnly
                   ? "Materiais do Reel"
                   : `Materiais do Reel e outros formatos (${pieces.length})`

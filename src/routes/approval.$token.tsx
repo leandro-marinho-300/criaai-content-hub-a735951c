@@ -398,10 +398,12 @@ function PortalPage() {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6">
-        {data.approval.introductionMessage && (
+        {(data.approval.introductionMessage || isReel2) && (
           <Card>
             <CardContent className="p-4 text-sm leading-relaxed sm:p-5">
-              {data.approval.introductionMessage}
+              {isReel2
+                ? "Olá! Preparamos este pacote de Reel para sua aprovação. Revise o conceito, o roteiro resumido, a capa/frame e a legenda da publicação antes de registrar sua decisão."
+                : data.approval.introductionMessage}
             </CardContent>
           </Card>
         )}
@@ -582,7 +584,7 @@ function PortalPage() {
                     <p className="font-medium text-sm">{isReel2 ? "Aprovar o pacote do Reel" : "Aprovar todo o conteúdo"}</p>
                     <p className="text-xs text-muted-foreground">
                       {isReel2
-                        ? "O roteiro, capa/frame, legenda e materiais apresentados seguirão como aprovados."
+                        ? "O roteiro, capa/frame, legenda e materiais anexados, se houver, seguirão como aprovados."
                         : "Todas as peças serão marcadas como aprovadas e seguirão para publicação."}
                     </p>
                   </div>
