@@ -78,6 +78,12 @@ const STEPS = [
 ] as const;
 
 type State = {
+  source?: "central_ideas" | string;
+  schema_version?: number;
+  briefing_approved?: boolean;
+  format_approved?: boolean;
+  start_at?: "package" | "review" | string;
+  allow_briefing_edit?: boolean;
   brand_id: string | null;
   objective: string;
   selected_formats: string[];
@@ -106,6 +112,12 @@ type State = {
 };
 
 const DEFAULT_STATE: State = {
+  source: undefined,
+  schema_version: undefined,
+  briefing_approved: false,
+  format_approved: false,
+  start_at: undefined,
+  allow_briefing_edit: false,
   brand_id: null,
   objective: "",
   selected_formats: [],
@@ -173,6 +185,10 @@ function ContentWizard() {
     } catch {}
     return DEFAULT_STATE;
   });
+  const [fromCentral] = useState(
+    () => state.source === "central_ideas" && state.briefing_approved === true,
+  );
+  const [centralReturnStep, setCentralReturnStep] = useState(5);
   const [showErrors, setShowErrors] = useState(false);
 
   // Pre-select format from query (?format=post) e flag de "vindo de ideia"
@@ -189,6 +205,10 @@ function ContentWizard() {
       sessionStorage.removeItem("cria-wizard-from-idea");
       // Pula direto para a etapa de Briefing quando vem do laboratório
       setStep(3);
+    } else if (fromCentral) {
+      // A Central já concluiu marca, objetivo, formato e briefing.
+      // Pacote é o primeiro ponto seguro porque entregas e modo ainda são decisões do wizard.
+      setStep(state.start_at === "review" ? 7 : 5);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -316,6 +336,11 @@ function ContentWizard() {
       toast.error("Complete os campos obrigatórios do briefing.");
       return;
     }
+    if (fromCentral && step === 3 && centralReturnStep >= 5) {
+      setShowErrors(false);
+      setStep(centralReturnStep);
+      return;
+    }
     setStep((s) => Math.min(STEPS.length - 1, s + 1));
   };
 
@@ -419,7 +444,10 @@ function ContentWizard() {
     onError: (e: Error) => toast.error("Falha ao gerar", { description: e.message }),
   });
 
-  const goToBriefing = () => setStep(3);
+  const goToBriefing = () => {
+    if (fromCentral && step >= 5) setCentralReturnStep(step);
+    setStep(3);
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -445,6 +473,20 @@ function ContentWizard() {
             Briefing iniciado a partir de uma ideia do Laboratório. Revise e complemente os dados
             factuais antes de gerar o prompt.
           </p>
+        )}
+
+        {fromCentral && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs">
+            <span>
+              Briefing e formato aprovados na Central de Ideias. Continue pelo pacote de entregas.
+            </span>
+            {state.allow_briefing_edit && step >= 5 && (
+              <Button size="sm" variant="outline" onClick={goToBriefing}>
+                <PenSquare className="mr-2 h-3 w-3" />
+                Alterar briefing
+              </Button>
+            )}
+          </div>
         )}
 
         {state.selected_formats.length > 0 && (
@@ -533,15 +575,15 @@ function ContentWizard() {
       <div className="flex justify-between gap-2">
         <Button
           variant="ghost"
-          onClick={() => setStep((s) => Math.max(0, s - 1))}
-          disabled={step === 0}
+          onClick={() => setStep((s) => Math.max(fromCentral ? 5 : 0, s - 1))}
+          disabled={step === 0 || (fromCentral && step === 5)}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Voltar
         </Button>
         {step < STEPS.length - 1 ? (
           <Button onClick={handleNext} disabled={!canNext()}>
-            Continuar
+            {fromCentral && step === 3 ? "Salvar briefing" : "Continuar"}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         ) : (
