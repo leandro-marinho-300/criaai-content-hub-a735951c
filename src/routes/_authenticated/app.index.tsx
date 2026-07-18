@@ -311,36 +311,9 @@ function Dashboard() {
           </div>
         </div>
 
-        <Card className="border-border/60 bg-[var(--studio-dark)] text-white shadow-sm">
-          <CardContent className="flex h-full flex-col justify-between gap-8 p-6">
-            <div className="space-y-4">
-              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold leading-tight">
-                  Entrada simples, produção guiada.
-                </h2>
-                <p className="mt-3 text-sm leading-6 text-white/75">
-                  Escolha o que criar ou continue uma produção. O passo a passo fica onde realmente
-                  ajuda: dentro da tela de criação.
-                </p>
-              </div>
-            </div>
-            <div className="grid gap-3 text-sm">
-              <div className="rounded-2xl bg-white/12 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/75">Marcas</span>
-                  <strong className="text-2xl">{stats?.brands ?? 0}</strong>
-                </div>
-              </div>
-              <div className="rounded-2xl bg-white/12 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/75">Em produção</span>
-                  <strong className="text-2xl">{activeProjects}</strong>
-                </div>
-              </div>
-            </div>
+        <Card className="border-border/60 bg-card shadow-sm">
+          <CardContent className="h-full p-5 sm:p-6">
+            <UpcomingPublicationsSection variant="hero" />
           </CardContent>
         </Card>
       </section>
@@ -445,7 +418,6 @@ function Dashboard() {
 
         <div className="space-y-5">
           <ClientApprovalsSection />
-          <UpcomingPublicationsSection />
         </div>
       </section>
     </div>
@@ -751,7 +723,7 @@ function statusLabel(s: string) {
   );
 }
 
-function UpcomingPublicationsSection() {
+function UpcomingPublicationsSection({ variant = "default" }: { variant?: "default" | "hero" }) {
   const { data } = useQuery({
     queryKey: ["dashboard-schedule"],
     queryFn: () => listScheduleItems(),
@@ -795,27 +767,45 @@ function UpcomingPublicationsSection() {
     noDate: items.filter((it) => it.schedule_status === "sem_data").length,
   };
 
+  const metricGridClass =
+    variant === "hero" ? "grid grid-cols-2 gap-2" : "grid grid-cols-2 gap-2 sm:grid-cols-5";
+  const visibleUpcoming = variant === "hero" ? upcoming.slice(0, 2) : upcoming;
+
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <CalendarCheck className="h-4 w-4" />
-          Próximas publicações
-        </h2>
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/app/calendar">Ver calendário</Link>
+    <section className={cn("space-y-3", variant === "hero" && "h-full")}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Badge variant="outline" className="mb-2 rounded-full">
+            Calendário
+          </Badge>
+          <h2 className="flex items-center gap-2 text-xl font-semibold">
+            <CalendarCheck className="h-4 w-4 text-primary" />
+            Próximas publicações
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Resumo rápido do que precisa entrar no calendário ou sair do papel.
+          </p>
+        </div>
+        <Button asChild variant="ghost" size="sm" className="shrink-0">
+          <Link to="/app/calendar">Ver</Link>
         </Button>
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <MetricTile label="Agendadas esta semana" value={metrics.scheduledWeek} />
-        <MetricTile label="Aguardando aprovação" value={metrics.waitingApproval} />
+      <div className={metricGridClass}>
+        <MetricTile label="Agendadas" value={metrics.scheduledWeek} />
+        <MetricTile label="Aprovação" value={metrics.waitingApproval} />
         <MetricTile label="Atrasadas" value={metrics.overdue} highlight={metrics.overdue > 0} />
-        <MetricTile label="Publicadas no mês" value={metrics.publishedMonth} />
-        <MetricTile label="Sem data" value={metrics.noDate} />
+        <MetricTile label="Publicadas" value={metrics.publishedMonth} />
+        {variant !== "hero" && <MetricTile label="Sem data" value={metrics.noDate} />}
       </div>
-      {upcoming.length ? (
+      {metrics.noDate > 0 && variant === "hero" && (
+        <div className="rounded-2xl border border-creative-violet/25 bg-creative-violet-soft/60 p-3 text-sm">
+          <span className="font-semibold text-creative-violet">{metrics.noDate} sem data</span>
+          <span className="text-muted-foreground"> · organize quando esses conteúdos devem sair.</span>
+        </div>
+      )}
+      {visibleUpcoming.length ? (
         <div className="grid gap-2">
-          {upcoming.map((it) => {
+          {visibleUpcoming.map((it) => {
             const d = effectiveDate(it);
             const t = effectiveTime(it);
             const title = getScheduleItemTitle(it);
