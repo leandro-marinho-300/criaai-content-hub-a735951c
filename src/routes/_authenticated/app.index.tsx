@@ -2,58 +2,25 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
-  Plus,
-  Briefcase,
-  FileText,
-  CheckCircle2,
-  Send,
-  Heart,
-  Image as ImageIcon,
-  Layers,
-  Smartphone,
-  Film,
-  MessageCircle,
-  Info,
-  ClipboardList,
-  Wand2,
-  Copy,
-  Lightbulb,
-  Sparkles,
-  RefreshCw,
   ArrowRight,
   CalendarCheck,
-  ShieldCheck,
-  Clock3,
-  Rocket,
-  CheckCircle,
-  PenLine,
-  Eye,
+  CheckCircle2,
+  ClipboardList,
   Compass,
-  Star,
+  Film,
   FolderOpen,
+  Image as ImageIcon,
+  Layers,
+  Lightbulb,
+  MessageCircle,
+  RefreshCw,
+  Send,
+  Sparkles,
+  Star,
 } from "lucide-react";
-import { listScheduleItems, getScheduleItemTitle } from "@/lib/scheduleQueries";
-import {
-  effectiveDate,
-  effectiveTime,
-  formatDateBR,
-  STATUS_LABELS,
-  computeIsOverdue,
-  CHANNEL_LABELS,
-  type ScheduleStatus,
-  type ChannelKind,
-} from "@/lib/calendar";
-import { supabase } from "@/integrations/supabase/client";
-import { getProjectDisplayTitle } from "@/lib/displayTitle";
-import { FORMAT_LABELS } from "@/lib/promptBuilder";
-import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { HelpDialog } from "@/components/help-dialog";
-import { ChooseIdeaFormatsDialog } from "@/components/choose-idea-formats-dialog";
-import { quickIdea, type Idea } from "@/lib/ideaGenerator";
-import type { Tables } from "@/integrations/supabase/types";
 import {
   Select,
   SelectContent,
@@ -61,6 +28,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ChooseIdeaFormatsDialog } from "@/components/choose-idea-formats-dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { FORMAT_LABELS } from "@/lib/promptBuilder";
+import { quickIdea, type Idea } from "@/lib/ideaGenerator";
+import { getProjectDisplayTitle } from "@/lib/displayTitle";
+import { listScheduleItems, getScheduleItemTitle } from "@/lib/scheduleQueries";
+import { effectiveDate, effectiveTime, formatDateBR, STATUS_LABELS } from "@/lib/calendar";
+import { cn } from "@/lib/utils";
+import type { Tables } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app/")({
@@ -68,54 +44,53 @@ export const Route = createFileRoute("/_authenticated/app/")({
   component: Dashboard,
 });
 
+type ProjectRow = {
+  id: string;
+  internal_title: string | null;
+  display_title: string | null;
+  theme: string | null;
+  main_message: string | null;
+  status: string;
+  updated_at: string;
+  brand_id: string | null;
+  brands: { name: string } | null;
+};
+
+type HomeTone = "orange" | "lavender" | "violet" | "graphite";
+
 function Dashboard() {
   const { data: stats } = useQuery({
-    queryKey: ["dashboard-stats"],
+    queryKey: ["dashboard-creative-home"],
     queryFn: async () => {
-      const [brandsRes, draftsRes, approvedRes, publishedRes, favRes, recentRes] =
-        await Promise.all([
-          supabase.from("brands").select("id", { count: "exact", head: true }),
-          supabase
-            .from("content_projects")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "draft"),
-          supabase
-            .from("content_projects")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "approved"),
-          supabase
-            .from("content_projects")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "published"),
-          supabase
-            .from("content_projects")
-            .select("id", { count: "exact", head: true })
-            .eq("is_favorite", true),
-          supabase
-            .from("content_projects")
-            .select(
-              "id, internal_title, display_title, theme, main_message, status, updated_at, brand_id, brands(name)",
-            )
-            .order("updated_at", { ascending: false })
-            .limit(6),
-        ]);
+      const [brandsRes, draftsRes, approvedRes, publishedRes, recentRes] = await Promise.all([
+        supabase.from("brands").select("id", { count: "exact", head: true }),
+        supabase
+          .from("content_projects")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "draft"),
+        supabase
+          .from("content_projects")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "approved"),
+        supabase
+          .from("content_projects")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "published"),
+        supabase
+          .from("content_projects")
+          .select(
+            "id, internal_title, display_title, theme, main_message, status, updated_at, brand_id, brands(name)",
+          )
+          .order("updated_at", { ascending: false })
+          .limit(5),
+      ]);
+
       return {
         brands: brandsRes.count ?? 0,
         drafts: draftsRes.count ?? 0,
         approved: approvedRes.count ?? 0,
         published: publishedRes.count ?? 0,
-        favorites: favRes.count ?? 0,
-        recent: (recentRes.data ?? []) as Array<{
-          id: string;
-          internal_title: string | null;
-          display_title: string | null;
-          theme: string | null;
-          main_message: string | null;
-          status: string;
-          updated_at: string;
-          brand_id: string | null;
-          brands: { name: string } | null;
-        }>,
+        recent: (recentRes.data ?? []) as ProjectRow[],
       };
     },
   });
@@ -123,430 +98,209 @@ function Dashboard() {
   const recent = stats?.recent ?? [];
   const activeProjects = (stats?.drafts ?? 0) + (stats?.approved ?? 0);
 
-  const headlineSignals = [
-    {
-      label: "Em produção",
-      value: activeProjects,
-      helper: "conteúdos para continuar",
-      icon: Clock3,
-      tone: "yellow" as const,
-    },
-    {
-      label: "Aprovados",
-      value: stats?.approved ?? 0,
-      helper: "prontos para organizar",
-      icon: CheckCircle2,
-      tone: "orange" as const,
-    },
-    {
-      label: "Publicados",
-      value: stats?.published ?? 0,
-      helper: "histórico reaproveitável",
-      icon: Send,
-      tone: "violet" as const,
-    },
-  ];
-
-  const flow = [
-    {
-      title: "Criar",
-      desc: "Escolha marca, caminho e formato sem preencher tudo de uma vez.",
-      action: "Começar pelo formato certo",
-      icon: Sparkles,
-      tone: "orange" as const,
-    },
-    {
-      title: "Desenvolver",
-      desc: "Monte roteiro, legenda, prompts visuais ou pacote multiformato.",
-      action: "Produzir com método",
-      icon: Wand2,
-      tone: "violet" as const,
-    },
-    {
-      title: "Revisar",
-      desc: "Separe fala, texto na tela, CTA, hashtags e materiais de apoio.",
-      action: "Conferir antes de enviar",
-      icon: Eye,
-      tone: "yellow" as const,
-    },
-    {
-      title: "Aprovar",
-      desc: "Envie um link claro para o cliente validar o pacote.",
-      action: "Coletar decisão",
-      icon: ShieldCheck,
-      tone: "orange" as const,
-    },
-    {
-      title: "Agendar",
-      desc: "Defina data, canal e status de publicação no calendário.",
-      action: "Organizar calendário",
-      icon: CalendarCheck,
-      tone: "violet" as const,
-    },
-    {
-      title: "Publicar",
-      desc: "Marque como publicado, arquive e reaproveite o que funcionou.",
-      action: "Registrar conclusão",
-      icon: Rocket,
-      tone: "orange" as const,
-    },
-  ];
-
-  const creationScenarios = [
-    {
-      title: "Criar Reel 2.0",
-      desc: "Fluxo completo para promessa, gancho, roteiro, capa/frame e aprovação.",
-      to: "/app/create/reel",
-      icon: Film,
-      badge: "Carro-chefe",
-      tone: "orange" as const,
-    },
-    {
-      title: "Criar conteúdo",
-      desc: "Post, carrossel, story, status ou pacote multiformato com briefing guiado.",
-      to: "/app/create",
-      icon: PenLine,
-      badge: "Guiado",
-      tone: "violet" as const,
-    },
-    {
-      title: "Estou sem ideias",
-      desc: "Use contexto da marca para receber caminhos editoriais e temas.",
-      to: "/app/ideas",
-      icon: Lightbulb,
-      badge: "Ideias",
-      tone: "yellow" as const,
-    },
-    {
-      title: "Seguir tendência",
-      desc: "Pesquise sinais externos e transforme em briefing sem IA interna.",
-      to: "/app/trends",
-      icon: Compass,
-      badge: "Pesquisa",
-      tone: "violet" as const,
-    },
-  ];
-
-  const formatQuickCards = [
-    {
-      title: "Reels",
-      desc: "Roteiro, gancho, capa/frame e aprovação.",
-      to: "/app/create/reel",
-      icon: Film,
-      tone: "orange" as const,
-      label: "Carro-chefe",
-    },
-    {
-      title: "Post",
-      desc: "Uma mensagem visual, direta e fácil de aprovar.",
-      to: "/app/content/new",
-      search: { format: "post" },
-      icon: ImageIcon,
-      tone: "violet" as const,
-      label: "Rápido",
-    },
-    {
-      title: "Carrossel",
-      desc: "Conteúdo dividido em etapas, listas ou explicações.",
-      to: "/app/content/new",
-      search: { format: "carrossel" },
-      icon: Layers,
-      tone: "yellow" as const,
-      label: "Explicativo",
-    },
-    {
-      title: "Status",
-      desc: "Mensagem curta para WhatsApp, direta e fácil de responder.",
-      to: "/app/content/new",
-      search: { format: "status_whatsapp" },
-      icon: Smartphone,
-      tone: "orange" as const,
-      label: "Curto",
-    },
-  ];
-
   return (
-    <div className="mx-auto max-w-7xl space-y-8">
-      <section className="relative overflow-hidden rounded-[2rem] border border-border/60 bg-card p-6 shadow-sm sm:p-8 lg:p-10">
-        <div className="bg-studio-glow absolute inset-0 opacity-95" />
-        <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
-          <div className="space-y-5">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-creative-violet bg-creative-violet-soft px-3 py-1 text-xs font-medium text-creative-violet">
-              <Sparkles className="h-3.5 w-3.5" />
-              Cria Aí 2.0 · Estúdio criativo guiado
-            </div>
-            <div className="space-y-3">
-              <h1 className="max-w-3xl text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
-                O que você quer criar hoje?
-              </h1>
-              <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-                Escolha o formato pelo tipo de conteúdo que você quer produzir. Os detalhes,
-                contexto da marca e passo a passo aparecem depois, na tela de criação.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild size="lg" className="gap-2 rounded-full">
-                <Link to="/app/create/reel">
-                  <Film className="h-4 w-4" />
-                  Criar Reel 2.0
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                size="lg"
-                className="gap-2 rounded-full bg-background/70"
-              >
-                <Link to="/app/content/new" search={{ format: "post" }}>
-                  <ImageIcon className="h-4 w-4" />
-                  Criar Post
-                </Link>
-              </Button>
-              <Button asChild variant="ghost" size="lg" className="gap-2 rounded-full">
-                <Link to="/app/library">
-                  <FolderOpen className="h-4 w-4" />
-                  Continuar produção
-                </Link>
-              </Button>
-            </div>
-          </div>
-
-          <Card className="border-creative-yellow bg-creative-yellow-soft shadow-sm">
-            <CardContent className="space-y-4 p-5">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--creative-yellow)] text-creative-yellow shadow-sm">
-                <Info className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold">Comece simples</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  A Home agora é uma porta de entrada. O fluxo completo fica dentro da criação, para
-                  não misturar escolha de formato com acompanhamento técnico.
+    <div className="mx-auto max-w-7xl space-y-6">
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">
+        <div className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card p-6 shadow-sm sm:p-8">
+          <div className="bg-studio-glow absolute inset-0 opacity-95" />
+          <div className="relative space-y-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-2">
+                <Badge className="rounded-full bg-accent/10 text-accent hover:bg-accent/10">
+                  Cria Aí 2.0 · Estúdio criativo guiado
+                </Badge>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Olá 👋</p>
+                  <h1 className="mt-1 max-w-2xl text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
+                    O que você quer criar hoje?
+                  </h1>
+                </div>
+                <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+                  Comece pelo formato. Marca, briefing, contexto, aprovação e calendário aparecem no
+                  momento certo, sem misturar tudo na entrada.
                 </p>
               </div>
-              <div className="grid gap-2 text-xs">
-                <div className="rounded-xl bg-background/70 p-3">
-                  <p className="font-semibold">Reel 2.0</p>
-                  <p className="text-muted-foreground">10–15 min para montar um pacote guiado.</p>
-                </div>
-                <div className="rounded-xl bg-background/70 p-3">
-                  <p className="font-semibold">Post simples</p>
-                  <p className="text-muted-foreground">4–7 min para briefing e prompt.</p>
-                </div>
+              <div className="rounded-2xl border border-border/70 bg-background/75 p-3 text-sm shadow-sm">
+                <p className="font-semibold">Hoje no estúdio</p>
+                <p className="text-muted-foreground">
+                  {activeProjects} em produção · {stats?.approved ?? 0} aprovados
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <Badge variant="secondary" className="mb-2 rounded-full">
-              Escolha rápida
-            </Badge>
-            <h2 className="text-2xl font-semibold">Formatos principais</h2>
-            <p className="text-sm text-muted-foreground">
-              Comece pelo formato. O Cria Aí conduz o restante depois.
-            </p>
-          </div>
-          <Button asChild variant="ghost" size="sm" className="gap-1">
-            <Link to="/app/create">
-              Ver todos os formatos
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {formatQuickCards.map((format) => (
-            <QuickFormatCard key={format.title} {...format} />
-          ))}
-        </div>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="rounded-[2rem] border border-border/60 bg-card/90 p-5 shadow-sm sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <Badge variant="outline" className="mb-2 rounded-full">
-                Atalhos criativos
-              </Badge>
-              <h2 className="text-xl font-semibold">Não quer começar pelo formato?</h2>
-              <p className="text-sm text-muted-foreground">
-                Use uma ideia, tendência ou preset para chegar no conteúdo.
-              </p>
             </div>
-            <Button asChild variant="ghost" size="sm" className="gap-1">
-              <Link to="/app/templates">
-                Ver presets
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {creationScenarios
-              .filter((path) => !["Criar Reel 2.0", "Criar conteúdo"].includes(path.title))
-              .map((path) => (
-                <HomeActionCard key={path.title} {...path} />
-              ))}
-            <HomeActionCard
-              title="Usar preset"
-              desc="Comece com um modelo pronto de roteiro, legenda ou campanha."
-              to="/app/templates"
-              icon={Star}
-              badge="Modelo"
-              tone="violet"
-            />
-            <HomeActionCard
-              title="Criar campanha"
-              desc="Monte um pacote com formatos conectados por uma ideia central."
-              to="/app/create"
-              icon={ClipboardList}
-              badge="Pacote"
-              tone="orange"
-            />
-          </div>
-        </div>
 
-        <Card className="border-border/60 bg-card/90 shadow-sm">
-          <CardContent className="space-y-4 p-5">
-            <div>
-              <Badge variant="outline" className="mb-2 rounded-full">
-                Resumo leve
-              </Badge>
-              <h2 className="text-xl font-semibold">Hoje no estúdio</h2>
-              <p className="text-sm text-muted-foreground">
-                Só o essencial para não perder o controle.
-              </p>
-            </div>
-            <div className="grid gap-3">
-              <StudioSignalCard
-                label="Em produção"
-                value={activeProjects}
-                helper="rascunhos e aprovados"
-                icon={Clock3}
-                tone="yellow"
-              />
-              <StudioSignalCard
-                label="Aprovados"
-                value={stats?.approved ?? 0}
-                helper="prontos para calendário"
-                icon={CheckCircle2}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <FormatTile
+                title="Reels"
+                desc="Roteiro, gancho, capa/frame e aprovação."
+                to="/app/create/reel"
+                icon={Film}
                 tone="orange"
+                label="Carro-chefe"
               />
-              <StudioSignalCard
-                label="Publicados"
-                value={stats?.published ?? 0}
-                helper="histórico reaproveitável"
-                icon={Send}
+              <FormatTile
+                title="Post"
+                desc="Mensagem visual direta, com legenda e CTA."
+                to="/app/content/new"
+                search={{ format: "post" }}
+                icon={ImageIcon}
+                tone="lavender"
+                label="Rápido"
+              />
+              <FormatTile
+                title="Carrossel"
+                desc="Conteúdo dividido em etapas ou listas."
+                to="/app/content/new"
+                search={{ format: "carrossel" }}
+                icon={Layers}
                 tone="violet"
+                label="Explicativo"
+              />
+              <FormatTile
+                title="Status"
+                desc="Mensagem curta para WhatsApp."
+                to="/app/content/new"
+                search={{ format: "status_whatsapp" }}
+                icon={MessageCircle}
+                tone="graphite"
+                label="Curto"
               />
             </div>
-            <Button asChild variant="outline" className="w-full rounded-full">
-              <Link to="/app/library">Abrir produção e biblioteca</Link>
-            </Button>
+          </div>
+        </div>
+
+        <Card className="border-border/70 bg-[var(--creative-graphite)] text-white shadow-sm">
+          <CardContent className="flex h-full flex-col justify-between gap-5 p-6">
+            <div className="space-y-2">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <h2 className="text-2xl font-bold">Entrada simples, produção guiada.</h2>
+              <p className="text-sm leading-6 text-white/70">
+                A Home agora serve para escolher o que criar ou continuar. O passo a passo fica
+                dentro da criação, onde ele realmente ajuda.
+              </p>
+            </div>
+            <div className="grid gap-2 text-sm">
+              <HomeMiniStat label="Marcas" value={stats?.brands ?? 0} />
+              <HomeMiniStat label="Publicados" value={stats?.published ?? 0} />
+            </div>
           </CardContent>
         </Card>
       </section>
 
-      <QuickIdeaBlock />
-    </div>
-  );
-}
-
-function FlowPreviewCard({
-  index,
-  title,
-  desc,
-  action,
-  icon: Icon,
-  tone,
-}: {
-  index: number;
-  title: string;
-  desc: string;
-  action: string;
-  icon: typeof Briefcase;
-  tone: HomeTone;
-}) {
-  return (
-    <div className="group relative overflow-hidden rounded-3xl border border-border/60 bg-background/60 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
-      <div className="absolute right-4 top-4 opacity-10 transition-opacity group-hover:opacity-20">
-        <Icon className="h-16 w-16" />
-      </div>
-      <div className="relative space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <span
-            className={cn(
-              "grid h-9 w-9 place-items-center rounded-full border text-sm font-bold",
-              toneClasses(tone),
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <Card className="border-border/70 bg-card shadow-sm">
+          <CardContent className="space-y-4 p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <Badge variant="outline" className="mb-2 rounded-full">
+                  Produção
+                </Badge>
+                <h2 className="text-xl font-semibold">Continuar produção</h2>
+                <p className="text-sm text-muted-foreground">
+                  Retome o que já está em andamento, aprovado ou aguardando ajuste.
+                </p>
+              </div>
+              <Button asChild variant="ghost" size="sm" className="gap-1">
+                <Link to="/app/library">
+                  Ver biblioteca
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+            {recent.length > 0 ? (
+              <div className="grid gap-3">
+                {recent.map((project) => (
+                  <ProjectResumeCard key={project.id} project={project} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="Nenhum conteúdo recente"
+                desc="Crie o primeiro conteúdo para começar sua linha de produção."
+                action="Criar conteúdo"
+                to="/app/create"
+              />
             )}
-          >
-            {index}
-          </span>
-          <Icon className="h-5 w-5 text-primary" />
+          </CardContent>
+        </Card>
+
+        <div className="space-y-5">
+          <AttentionPanel />
+          <NextPublicationPanel />
         </div>
-        <div>
-          <p className="text-lg font-semibold">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">{desc}</p>
-        </div>
-        <div className="rounded-2xl border border-border/50 bg-card/70 p-3 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">{action}</p>
-          <div className="mt-2 h-2 rounded-full bg-muted">
-            <div
-              className="h-2 rounded-full bg-primary"
-              style={{ width: `${Math.min(100, 20 + index * 12)}%` }}
-            />
-          </div>
-        </div>
-      </div>
+      </section>
+
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <Card className="border-border/70 bg-card shadow-sm">
+          <CardContent className="space-y-4 p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <Badge variant="outline" className="mb-2 rounded-full">
+                  Caminhos criativos
+                </Badge>
+                <h2 className="text-xl font-semibold">Não quer começar pelo formato?</h2>
+                <p className="text-sm text-muted-foreground">
+                  Use ideias, tendências, presets ou campanhas quando o formato ainda não estiver
+                  claro.
+                </p>
+              </div>
+              <Button asChild variant="ghost" size="sm" className="gap-1">
+                <Link to="/app/templates">
+                  Ver presets
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <CreativeShortcut
+                title="Estou sem ideias"
+                desc="Receba caminhos editoriais a partir da marca."
+                to="/app/ideas"
+                icon={Lightbulb}
+                tone="violet"
+              />
+              <CreativeShortcut
+                title="Seguir tendência"
+                desc="Transforme sinais externos em briefing."
+                to="/app/trends"
+                icon={Compass}
+                tone="lavender"
+              />
+              <CreativeShortcut
+                title="Usar preset"
+                desc="Comece com um modelo salvo."
+                to="/app/templates"
+                icon={Star}
+                tone="graphite"
+              />
+              <CreativeShortcut
+                title="Criar campanha"
+                desc="Monte um pacote com formatos conectados."
+                to="/app/create"
+                icon={ClipboardList}
+                tone="orange"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <QuickIdeaBlock />
+      </section>
     </div>
   );
 }
 
-function StudioSignalCard({
-  label,
-  value,
-  helper,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: number;
-  helper: string;
-  icon: typeof Briefcase;
-  tone: HomeTone;
-}) {
+function HomeMiniStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/60 p-4">
-      <div
-        className={cn(
-          "grid h-11 w-11 shrink-0 place-items-center rounded-2xl border",
-          toneClasses(tone),
-        )}
-      >
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-2xl font-bold leading-none">{value}</p>
-        <p className="mt-1 text-sm font-medium">{label}</p>
-        <p className="truncate text-xs text-muted-foreground">{helper}</p>
-      </div>
+    <div className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3">
+      <span className="text-white/75">{label}</span>
+      <span className="text-xl font-bold">{value}</span>
     </div>
   );
 }
 
-type HomeTone = "orange" | "yellow" | "violet";
-
-function toneClasses(tone: HomeTone) {
-  const map = {
-    orange: "border-primary/35 bg-primary/10 text-primary",
-    yellow: "border-creative-yellow bg-creative-yellow-soft text-creative-yellow",
-    violet: "border-creative-violet bg-creative-violet-soft text-creative-violet",
-  };
-  return map[tone];
-}
-
-function QuickFormatCard({
+function FormatTile({
   title,
   desc,
   to,
@@ -559,7 +313,7 @@ function QuickFormatCard({
   desc: string;
   to: string;
   search?: Record<string, string>;
-  icon: typeof Briefcase;
+  icon: typeof Film;
   tone: HomeTone;
   label: string;
 }) {
@@ -567,7 +321,7 @@ function QuickFormatCard({
     <Link
       to={to as any}
       search={search as any}
-      className="group rounded-3xl border border-border/60 bg-card/90 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-lg"
+      className="group rounded-3xl border border-border/70 bg-card/95 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/55 hover:shadow-lg"
     >
       <div className="flex items-start justify-between gap-3">
         <div
@@ -579,9 +333,9 @@ function QuickFormatCard({
           {label}
         </Badge>
       </div>
-      <p className="mt-5 text-xl font-semibold">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">{desc}</p>
-      <div className="mt-5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+      <p className="mt-4 text-xl font-semibold">{title}</p>
+      <p className="mt-1 min-h-[44px] text-sm leading-5 text-muted-foreground">{desc}</p>
+      <div className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary">
         Criar agora
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
       </div>
@@ -589,70 +343,32 @@ function QuickFormatCard({
   );
 }
 
-function HomeMetricCard({
-  label,
-  value,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: number;
-  icon: typeof Briefcase;
-  tone: HomeTone;
-}) {
-  return (
-    <Card className="border-border/60 bg-card/85 shadow-sm">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div
-          className={cn(
-            "grid h-11 w-11 shrink-0 place-items-center rounded-2xl border",
-            toneClasses(tone),
-          )}
-        >
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-2xl font-bold leading-none">{value}</p>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{label}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function HomeActionCard({
+function CreativeShortcut({
   title,
   desc,
   to,
   icon: Icon,
-  badge,
   tone,
 }: {
   title: string;
   desc: string;
   to: string;
-  icon: typeof Briefcase;
-  badge: string;
+  icon: typeof Film;
   tone: HomeTone;
 }) {
   return (
     <Link
       to={to as any}
-      className="group rounded-3xl border border-border/60 bg-card/85 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-lg"
+      className="group rounded-2xl border border-border/70 bg-background/70 p-4 transition-all hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div
-          className={cn("grid h-11 w-11 place-items-center rounded-2xl border", toneClasses(tone))}
-        >
-          <Icon className="h-5 w-5" />
-        </div>
-        <Badge variant="outline" className="rounded-full text-[11px]">
-          {badge}
-        </Badge>
+      <div
+        className={cn("grid h-10 w-10 place-items-center rounded-2xl border", toneClasses(tone))}
+      >
+        <Icon className="h-4 w-4" />
       </div>
       <p className="mt-4 font-semibold">{title}</p>
       <p className="mt-1 text-sm leading-5 text-muted-foreground">{desc}</p>
-      <div className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary">
+      <div className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary">
         Começar
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
       </div>
@@ -660,58 +376,20 @@ function HomeActionCard({
   );
 }
 
-function CreationFlowStep({
-  index,
-  title,
-  desc,
-  icon: Icon,
-}: {
-  index: number;
-  title: string;
-  desc: string;
-  icon: typeof Briefcase;
-}) {
-  return (
-    <div className="relative rounded-2xl border border-border/60 bg-background/55 p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-          {index}
-        </span>
-        <Icon className="h-4 w-4 text-primary" />
-      </div>
-      <p className="font-semibold">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">{desc}</p>
-    </div>
-  );
-}
-
-function ProjectResumeCard({
-  project,
-}: {
-  project: {
-    id: string;
-    internal_title: string | null;
-    display_title: string | null;
-    theme: string | null;
-    main_message: string | null;
-    status: string;
-    updated_at: string;
-    brand_id: string | null;
-    brands: { name: string } | null;
-  };
-}) {
+function ProjectResumeCard({ project }: { project: ProjectRow }) {
   const display = getProjectDisplayTitle(project);
   return (
     <Link
       to="/app/content/$projectId/result"
       params={{ projectId: project.id }}
       title={display}
-      className="grid min-w-0 gap-3 rounded-2xl border border-border/60 bg-card/85 p-4 transition-colors hover:border-primary/45 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+      className="grid min-w-0 gap-3 rounded-2xl border border-border/70 bg-background/70 p-4 transition-colors hover:border-primary/45 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
     >
       <div className="min-w-0">
         <p className="line-clamp-2 break-words font-medium">{display}</p>
         <p className="mt-1 truncate text-xs text-muted-foreground">
-          {project.brands?.name ?? "Sem marca"}
+          {project.brands?.name ?? "Sem marca"} · atualizado{" "}
+          {formatRelativeDate(project.updated_at)}
         </p>
       </div>
       <Badge variant="outline" className="w-fit shrink-0 capitalize">
@@ -721,37 +399,87 @@ function ProjectResumeCard({
   );
 }
 
-function ExampleRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2 border-b border-border/40 pb-1">
-      <span className="text-muted-foreground">{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}
-
-function statusLabel(s: string) {
-  return (
-    {
-      draft: "Rascunho",
-      review: "Em revisão",
-      approved: "Aprovado",
-      published: "Publicado",
-      archived: "Arquivado",
-    }[s] ?? s
-  );
-}
-
-function UpcomingPublicationsSection() {
+function AttentionPanel() {
   const { data } = useQuery({
-    queryKey: ["dashboard-schedule"],
+    queryKey: ["dashboard-attention-approvals"],
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from("client_approvals")
+        .select(
+          "id, status, submitted_at, project_id, title, client_name, updated_at, content_projects(internal_title, display_title)",
+        )
+        .order("updated_at", { ascending: false })
+        .limit(30);
+      const list = rows ?? [];
+      const pending = list.filter(
+        (a) => a.status === "enviado_para_aprovacao" || a.status === "visualizado_pelo_cliente",
+      );
+      const changes = list.filter(
+        (a) => a.status === "ajustes_solicitados" || a.status === "recusado",
+      );
+      return {
+        pendingCount: pending.length,
+        changesCount: changes.length,
+        recent: [...pending, ...changes].slice(0, 2),
+      };
+    },
+  });
+
+  return (
+    <Card className="border-border/70 bg-card shadow-sm">
+      <CardContent className="space-y-4 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Badge variant="outline" className="mb-2 rounded-full">
+              Atenção
+            </Badge>
+            <h2 className="text-xl font-semibold">Aprovações</h2>
+            <p className="text-sm text-muted-foreground">O que depende de resposta do cliente.</p>
+          </div>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/app/library" search={{ status: "awaiting_approval" }}>
+              Ver
+            </Link>
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <FocusMetric label="Aguardando" value={data?.pendingCount ?? 0} tone="orange" />
+          <FocusMetric label="Com ajuste" value={data?.changesCount ?? 0} tone="violet" />
+        </div>
+        {data?.recent?.length ? (
+          <div className="grid gap-2">
+            {data.recent.map((a) => {
+              const projectTitle =
+                a.content_projects?.display_title ?? a.content_projects?.internal_title ?? a.title;
+              return (
+                <Link
+                  key={a.id}
+                  to="/app/content/$projectId/result"
+                  params={{ projectId: a.project_id }}
+                  className="rounded-2xl border border-border/70 bg-background/70 p-3 hover:border-primary/45"
+                >
+                  <p className="line-clamp-2 text-sm font-medium">{projectTitle}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {a.client_name ?? "Cliente"} · {approvalStatusLabel(a.status)}
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function NextPublicationPanel() {
+  const { data } = useQuery({
+    queryKey: ["dashboard-next-publication-compact"],
     queryFn: () => listScheduleItems(),
   });
+  const todayIso = new Date().toISOString().slice(0, 10);
   const items = data ?? [];
-  const now = new Date();
-  const todayIso = now.toISOString().slice(0, 10);
-
-  const upcoming = items
+  const next = items
     .filter((it) => {
       const d = effectiveDate(it);
       return (
@@ -765,108 +493,86 @@ function UpcomingPublicationsSection() {
       const da = `${effectiveDate(a)}T${effectiveTime(a) ?? "00:00"}`;
       const db = `${effectiveDate(b)}T${effectiveTime(b) ?? "00:00"}`;
       return da.localeCompare(db);
-    })
-    .slice(0, 5);
-
-  const weekEnd = new Date(now);
-  weekEnd.setDate(weekEnd.getDate() + 7);
-  const weekIso = weekEnd.toISOString().slice(0, 10);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-
-  const metrics = {
-    scheduledWeek: items.filter((it) => {
-      const d = effectiveDate(it);
-      return d && d >= todayIso && d <= weekIso && it.schedule_status === "agendado";
-    }).length,
-    waitingApproval: items.filter((it) => it.schedule_status === "aguardando_aprovacao").length,
-    overdue: items.filter((it) => computeIsOverdue(it)).length,
-    publishedMonth: items.filter(
-      (it) => it.schedule_status === "publicado" && (effectiveDate(it) ?? "") >= monthStart,
-    ).length,
-    noDate: items.filter((it) => it.schedule_status === "sem_data").length,
-  };
+    })[0];
+  const noDate = items.filter((it) => it.schedule_status === "sem_data").length;
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <CalendarCheck className="h-4 w-4" />
-          Próximas publicações
-        </h2>
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/app/calendar">Ver calendário</Link>
-        </Button>
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <MetricTile label="Agendadas esta semana" value={metrics.scheduledWeek} />
-        <MetricTile label="Aguardando aprovação" value={metrics.waitingApproval} />
-        <MetricTile label="Atrasadas" value={metrics.overdue} highlight={metrics.overdue > 0} />
-        <MetricTile label="Publicadas no mês" value={metrics.publishedMonth} />
-        <MetricTile label="Sem data" value={metrics.noDate} />
-      </div>
-      {upcoming.length ? (
-        <div className="grid gap-2">
-          {upcoming.map((it) => {
-            const d = effectiveDate(it);
-            const t = effectiveTime(it);
-            const title = getScheduleItemTitle(it);
-            const fmt = it.format ? (FORMAT_LABELS[it.format] ?? it.format) : null;
-            const ch = it.channel
-              ? (CHANNEL_LABELS[it.channel as ChannelKind] ?? it.channel)
-              : null;
-            return (
-              <Link
-                key={it.id}
-                to="/app/calendar"
-                title={title}
-                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border/60 bg-card p-3 transition-colors hover:border-primary/40"
-              >
-                <div className="min-w-0">
-                  <p className="line-clamp-2 break-words text-sm font-medium">{title}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {d ? `${formatDateBR(d)}${t ? ` às ${t}` : ""} · ` : ""}
-                    {it.brands?.name ?? "Sem marca"}
-                    {fmt ? ` · ${fmt}` : ""}
-                    {ch ? ` · ${ch}` : ""}
-                  </p>
-                </div>
-                <Badge variant="outline" className="shrink-0">
-                  {STATUS_LABELS[(it.schedule_status ?? "sem_data") as ScheduleStatus]}
-                </Badge>
-              </Link>
-            );
-          })}
+    <Card className="border-border/70 bg-card shadow-sm">
+      <CardContent className="space-y-4 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Badge variant="outline" className="mb-2 rounded-full">
+              Calendário
+            </Badge>
+            <h2 className="text-xl font-semibold">Próxima publicação</h2>
+            <p className="text-sm text-muted-foreground">Só o suficiente para agir.</p>
+          </div>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/app/calendar">Abrir</Link>
+          </Button>
         </div>
-      ) : (
-        <Card className="border-dashed">
-          <CardContent className="grid place-items-center gap-2 p-6 text-center">
-            <p className="text-sm text-muted-foreground">Nenhuma publicação próxima.</p>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/app/calendar">Abrir calendário</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-    </section>
+        {next ? (
+          <Link
+            to="/app/calendar"
+            className="block rounded-2xl border border-border/70 bg-background/70 p-4 hover:border-primary/45"
+          >
+            <p className="line-clamp-2 text-sm font-medium">{getScheduleItemTitle(next)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatDateBR(effectiveDate(next) ?? "")}{" "}
+              {effectiveTime(next) ? `às ${effectiveTime(next)}` : ""}
+            </p>
+            <Badge variant="outline" className="mt-3">
+              {STATUS_LABELS[next.schedule_status as keyof typeof STATUS_LABELS] ??
+                next.schedule_status}
+            </Badge>
+          </Link>
+        ) : (
+          <EmptyState
+            title="Nada agendado"
+            desc="Organize uma data quando o conteúdo estiver aprovado."
+            to="/app/calendar"
+            action="Abrir calendário"
+          />
+        )}
+        {noDate > 0 && (
+          <div className="rounded-2xl border border-creative-lavender bg-creative-lavender-soft p-3 text-sm">
+            <p className="font-semibold">{noDate} conteúdo(s) sem data</p>
+            <p className="text-muted-foreground">Vale organizar antes de perder o timing.</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
-function MetricTile({
-  label,
-  value,
-  highlight,
+function FocusMetric({ label, value, tone }: { label: string; value: number; tone: HomeTone }) {
+  return (
+    <div className={cn("rounded-2xl border p-4", toneClasses(tone))}>
+      <p className="text-3xl font-bold leading-none">{value}</p>
+      <p className="mt-1 text-xs font-medium">{label}</p>
+    </div>
+  );
+}
+
+function EmptyState({
+  title,
+  desc,
+  action,
+  to,
 }: {
-  label: string;
-  value: number;
-  highlight?: boolean;
+  title: string;
+  desc: string;
+  action: string;
+  to: string;
 }) {
   return (
-    <Card className={highlight ? "border-red-500/40" : "border-border/60"}>
-      <CardContent className="p-3">
-        <p className="text-2xl font-bold leading-none">{value}</p>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{label}</p>
-      </CardContent>
-    </Card>
+    <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 p-5 text-center">
+      <p className="font-semibold">{title}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
+      <Button asChild size="sm" variant="outline" className="mt-3 rounded-full">
+        <Link to={to as any}>{action}</Link>
+      </Button>
+    </div>
   );
 }
 
@@ -968,21 +674,21 @@ function QuickIdeaBlock() {
   };
 
   return (
-    <section className="rounded-2xl border border-accent/30 bg-accent/5 p-5">
-      <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
-        <div className="space-y-1">
-          <Badge variant="outline" className="gap-1">
+    <Card className="border-creative-lavender bg-creative-lavender-soft shadow-sm">
+      <CardContent className="space-y-4 p-5">
+        <div className="space-y-2">
+          <Badge variant="outline" className="gap-1 rounded-full bg-background/70">
             <Sparkles className="h-3 w-3" />
             Ideia rápida
           </Badge>
-          <h2 className="text-lg font-semibold">Precisa postar, mas não sabe o quê?</h2>
-          <p className="text-sm text-muted-foreground">
-            Escolha a marca e receba uma sugestão pronta, baseada no que ela já tem cadastrado.
+          <h2 className="text-xl font-semibold">Precisa postar, mas não sabe o quê?</h2>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Escolha uma marca e receba uma sugestão baseada no cadastro dela.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid gap-2">
           <Select value={brandId} onValueChange={setBrandId}>
-            <SelectTrigger className="w-[220px]">
+            <SelectTrigger className="bg-background/80">
               <SelectValue placeholder="Selecione a marca" />
             </SelectTrigger>
             <SelectContent>
@@ -993,71 +699,98 @@ function QuickIdeaBlock() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={generate} className="gap-2">
+          <Button onClick={generate} className="gap-2 rounded-full">
             <Sparkles className="h-4 w-4" />
-            Gerar uma ideia rápida
+            Gerar ideia
           </Button>
         </div>
-      </div>
 
-      {idea && (
-        <Card className="mt-4 border-border/60 bg-card">
-          <CardContent className="space-y-2 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <p className="font-semibold">{idea.title}</p>
-              <Badge variant="outline">{idea.novelty_badge}</Badge>
-            </div>
-            <div className="flex flex-wrap gap-1 text-xs">
-              <Badge variant="outline" className="font-normal">
-                Sugestão: {idea.recommended_format}
-              </Badge>
-              <Badge variant="outline" className="font-normal">
-                {idea.content_pillar}
-              </Badge>
-              <Badge variant="outline" className="font-normal">
-                {idea.objective}
-              </Badge>
-            </div>
-            {idea.hook && (
-              <p className="text-sm text-muted-foreground italic">Gancho: “{idea.hook}”</p>
-            )}
-            {idea.suggested_cta && (
-              <p className="text-sm">
-                <span className="text-muted-foreground">CTA: </span>
-                {idea.suggested_cta}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Button size="sm" onClick={useIt} className="gap-1">
-                <ArrowRight className="h-3 w-3" />
-                Usar esta ideia
-              </Button>
-              <Button size="sm" variant="outline" onClick={generate} className="gap-1">
-                <RefreshCw className="h-3 w-3" />
-                Gerar outra
-              </Button>
-              <Button size="sm" variant="ghost" onClick={save}>
-                Salvar para depois
-              </Button>
-              <Button asChild size="sm" variant="ghost">
-                <Link to="/app/ideas">Abrir Laboratório</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      {idea && (
-        <ChooseIdeaFormatsDialog
-          open={showFormatDialog}
-          onOpenChange={setShowFormatDialog}
-          ideaTitle={idea.title}
-          recommendedFormat={recommendedFormat}
-          initialFormats={recommendedFormat ? [recommendedFormat] : []}
-          onContinue={continueWithFormats}
-        />
-      )}
-    </section>
+        {idea && (
+          <Card className="border-border/70 bg-card">
+            <CardContent className="space-y-3 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="font-semibold">{idea.title}</p>
+                <Badge variant="outline">{idea.novelty_badge}</Badge>
+              </div>
+              {idea.hook && <p className="text-sm text-muted-foreground italic">“{idea.hook}”</p>}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button size="sm" onClick={useIt} className="gap-1 rounded-full">
+                  <ArrowRight className="h-3 w-3" />
+                  Usar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={generate}
+                  className="gap-1 rounded-full"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Outra
+                </Button>
+                <Button size="sm" variant="ghost" onClick={save}>
+                  Salvar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {idea && (
+          <ChooseIdeaFormatsDialog
+            open={showFormatDialog}
+            onOpenChange={setShowFormatDialog}
+            ideaTitle={idea.title}
+            recommendedFormat={recommendedFormat}
+            initialFormats={recommendedFormat ? [recommendedFormat] : []}
+            onContinue={continueWithFormats}
+          />
+        )}
+      </CardContent>
+    </Card>
   );
+}
+
+function toneClasses(tone: HomeTone) {
+  const map = {
+    orange: "border-creative-orange bg-creative-orange-soft text-creative-orange",
+    lavender: "border-creative-lavender bg-creative-lavender-soft text-[var(--creative-graphite)]",
+    violet: "border-creative-violet bg-creative-violet-soft text-creative-violet",
+    graphite:
+      "border-[var(--creative-graphite)]/20 bg-[var(--creative-graphite)]/10 text-[var(--creative-graphite)] dark:text-white",
+  };
+  return map[tone];
+}
+
+function statusLabel(s: string) {
+  return (
+    {
+      draft: "Rascunho",
+      review: "Em revisão",
+      approved: "Aprovado",
+      published: "Publicado",
+      archived: "Arquivado",
+    }[s] ?? s
+  );
+}
+
+function approvalStatusLabel(s: string) {
+  return (
+    {
+      enviado_para_aprovacao: "aguardando",
+      visualizado_pelo_cliente: "visualizado",
+      aprovado: "aprovado",
+      aprovado_com_ajustes: "aprovado com ajustes",
+      ajustes_solicitados: "ajustes solicitados",
+      recusado: "não aprovado",
+    }[s] ?? s
+  );
+}
+
+function formatRelativeDate(date: string) {
+  const updated = new Date(date).getTime();
+  const diffHours = Math.max(1, Math.round((Date.now() - updated) / 1000 / 60 / 60));
+  if (diffHours < 24) return `há ${diffHours}h`;
+  const diffDays = Math.round(diffHours / 24);
+  return `há ${diffDays}d`;
 }
 
 function formatLabelToWizardKey(label: string): string | null {
@@ -1072,89 +805,4 @@ function formatLabelToWizardKey(label: string): string | null {
     "status whatsapp": "status_whatsapp",
   };
   return aliases[normalized] ?? null;
-}
-
-function ClientApprovalsSection() {
-  const { data } = useQuery({
-    queryKey: ["dashboard-approvals"],
-    queryFn: async () => {
-      const { data: rows } = await supabase
-        .from("client_approvals")
-        .select(
-          "id, status, submitted_at, last_viewed_at, project_id, title, client_name, updated_at, content_projects(internal_title, display_title)",
-        )
-        .order("updated_at", { ascending: false })
-        .limit(50);
-      const list = rows ?? [];
-      const pending = list.filter(
-        (a) => a.status === "enviado_para_aprovacao" || a.status === "visualizado_pelo_cliente",
-      ).length;
-      const approved = list.filter(
-        (a) => a.status === "aprovado" || a.status === "aprovado_com_ajustes",
-      ).length;
-      const changes = list.filter(
-        (a) => a.status === "ajustes_solicitados" || a.status === "recusado",
-      ).length;
-      const recent = list.filter((a) => a.submitted_at).slice(0, 3);
-      return { pending, approved, changes, recent };
-    },
-  });
-
-  if (!data) return null;
-  const hasAny = data.pending + data.approved + data.changes > 0;
-  if (!hasAny) return null;
-
-  return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4" />
-          Aprovações do cliente
-        </h2>
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/app/library" search={{ status: "awaiting_approval" }}>
-            Ver aguardando
-          </Link>
-        </Button>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <MetricTile label="Aguardando" value={data.pending} highlight={data.pending > 0} />
-        <MetricTile label="Aprovadas" value={data.approved} />
-        <MetricTile label="Com ajustes / recusadas" value={data.changes} />
-      </div>
-      {data.recent.length > 0 && (
-        <div className="grid gap-2">
-          {data.recent.map((a) => {
-            const projectTitle =
-              a.content_projects?.display_title ?? a.content_projects?.internal_title ?? a.title;
-            const statusText: Record<string, string> = {
-              aprovado: "Aprovado",
-              aprovado_com_ajustes: "Aprovado com ajustes",
-              ajustes_solicitados: "Ajustes solicitados",
-              recusado: "Não aprovado",
-            };
-            return (
-              <Link
-                key={a.id}
-                to="/app/content/$projectId/result"
-                params={{ projectId: a.project_id }}
-                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border/60 bg-card p-3 transition-colors hover:border-primary/40"
-              >
-                <div className="min-w-0">
-                  <p className="line-clamp-2 break-words text-sm font-medium">{projectTitle}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {a.client_name ?? "Cliente"} ·{" "}
-                    {a.submitted_at ? new Date(a.submitted_at).toLocaleDateString("pt-BR") : ""}
-                  </p>
-                </div>
-                <Badge variant="outline" className="shrink-0">
-                  {statusText[a.status] ?? a.status}
-                </Badge>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </section>
-  );
 }
