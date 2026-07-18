@@ -300,41 +300,43 @@ function ResultPage() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-2 rounded-2xl border bg-card p-3">
-          <Button asChild variant="default" size="sm">
-            <Link to="/app/content/$projectId/client-pdf" params={{ projectId }}>
-              <FileImage className="mr-2 h-4 w-4" />
-              PDF para cliente
-            </Link>
-          </Button>
-          <Button variant="default" size="sm" onClick={() => setAddToCalOpen(true)}>
-            <CalendarCheck className="mr-2 h-4 w-4" />
-            Calendário
-          </Button>
-          <Button variant="default" size="sm" onClick={() => setApprovalOpen(true)}>
-            <ShieldCheck className="mr-2 h-4 w-4" />
-            Aprovação
-          </Button>
-          <CopyButton text={fullExport} label="Copiar pacote" variant="outline" />
-          <Button variant="outline" size="sm" onClick={exportTxt}>
-            <Download className="mr-2 h-4 w-4" />
-            TXT
-          </Button>
-          <Button variant="outline" size="sm" onClick={saveProjectAsPreset}>
-            <SlidersHorizontal className="mr-2 h-4 w-4" />
-            Salvar preset
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/app/content/new">
-              <PenSquare className="mr-2 h-4 w-4" />
-              Melhorar briefing
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="mr-2 h-4 w-4" />
-            Relatório interno
-          </Button>
-        </div>
+        {!reel2Script && (
+          <div className="flex flex-wrap gap-2 rounded-2xl border bg-card p-3">
+            <Button asChild variant="default" size="sm">
+              <Link to="/app/content/$projectId/client-pdf" params={{ projectId }}>
+                <FileImage className="mr-2 h-4 w-4" />
+                PDF para cliente
+              </Link>
+            </Button>
+            <Button variant="default" size="sm" onClick={() => setAddToCalOpen(true)}>
+              <CalendarCheck className="mr-2 h-4 w-4" />
+              Calendário
+            </Button>
+            <Button variant="default" size="sm" onClick={() => setApprovalOpen(true)}>
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              Aprovação
+            </Button>
+            <CopyButton text={fullExport} label="Copiar pacote" variant="outline" />
+            <Button variant="outline" size="sm" onClick={exportTxt}>
+              <Download className="mr-2 h-4 w-4" />
+              TXT
+            </Button>
+            <Button variant="outline" size="sm" onClick={saveProjectAsPreset}>
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              Salvar preset
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/app/content/new">
+                <PenSquare className="mr-2 h-4 w-4" />
+                Melhorar briefing
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="mr-2 h-4 w-4" />
+              Relatório interno
+            </Button>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => updateStatus.mutate("approved")}>
@@ -351,16 +353,6 @@ function ResultPage() {
         </div>
       </header>
 
-      {/* Aprovação do cliente */}
-      <ClientApprovalPanel
-        projectId={projectId}
-        onOpenSendDialog={() => setApprovalOpen(true)}
-        onOpenAddToCalendar={() => setAddToCalOpen(true)}
-      />
-
-      {reel2Script && <Reel2ResultOverview script={reel2Script} />}
-
-      {/* SEÇÃO 1 — RESUMO DA CAMPANHA */}
       {summaryRow && (
         <section className="space-y-2">
           <h2 className="font-display text-lg font-semibold">Resumo da campanha</h2>
@@ -373,6 +365,16 @@ function ResultPage() {
           </Card>
         </section>
       )}
+
+      {/* Aprovação do cliente */}
+      <ClientApprovalPanel
+        projectId={projectId}
+        onOpenSendDialog={() => setApprovalOpen(true)}
+        onOpenAddToCalendar={() => setAddToCalOpen(true)}
+      />
+
+      {reel2Script && <Reel2ResultOverview script={reel2Script} />}
+
 
       {/* SEÇÃO 2 — PEÇAS GERADAS */}
       <section className="space-y-3">

@@ -27,6 +27,8 @@ export function Reel2ResultOverview({ script }: { script: Reel2ImportedScript })
         <Badge className="bg-orange-500 text-white hover:bg-orange-500">Reel 2.0</Badge>
       </div>
 
+      <Reel2PackageJourney script={script} />
+
       <Tabs defaultValue="estrategia" className="w-full">
         <TabsList className="flex w-full flex-wrap gap-1 overflow-x-auto">
           <TabsTrigger value="estrategia">Estratégia</TabsTrigger>
@@ -204,6 +206,55 @@ export function Reel2ResultOverview({ script }: { script: Reel2ImportedScript })
         </TabsContent>
       </Tabs>
     </section>
+  );
+}
+
+function Reel2PackageJourney({ script }: { script: Reel2ImportedScript }) {
+  const steps = [
+    {
+      title: "1. Conteúdo",
+      text: script.promise ? "Promessa, gancho e ideia central definidos." : "Definir promessa e gancho.",
+      done: Boolean(script.promise && script.selected_hook?.spoken_hook),
+    },
+    {
+      title: "2. Criação",
+      text: script.main_script?.scenes?.length ? "Roteiro, versão curta e legenda do vídeo organizados." : "Gerar roteiro por cenas.",
+      done: Boolean(script.main_script?.scenes?.length),
+    },
+    {
+      title: "3. Aprovação",
+      text: "Enviar o pacote para revisão do cliente ou responsável.",
+      done: false,
+    },
+    {
+      title: "4. Agendamento",
+      text: "Definir data e canal depois da aprovação.",
+      done: false,
+    },
+    {
+      title: "5. Publicação",
+      text: "Publicar com vídeo final, capa/frame e legenda.",
+      done: false,
+    },
+  ];
+
+  return (
+    <Card className="border-violet-500/20 bg-violet-500/5">
+      <CardHeader>
+        <CardTitle className="text-base">Jornada do Reel</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-2 md:grid-cols-5">
+        {steps.map((step) => (
+          <div key={step.title} className="rounded-xl border bg-background p-3 text-sm">
+            <p className="font-semibold">{step.title}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{step.text}</p>
+            <Badge variant={step.done ? "default" : "outline"} className="mt-3 text-[10px]">
+              {step.done ? "Pronto" : "Próximo"}
+            </Badge>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 

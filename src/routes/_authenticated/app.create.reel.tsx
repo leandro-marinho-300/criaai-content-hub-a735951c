@@ -9,7 +9,6 @@ import {
   BookOpenCheck,
   Braces,
   Check,
-  ChevronDown,
   Clapperboard,
   CopyCheck,
   Film,
@@ -42,7 +41,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getAllPresets } from "@/lib/contentPresets";
@@ -517,9 +515,12 @@ Produção e vídeo final
               title="Para qual marca este Reel será criado?"
               description="A marca define nicho, tom, público, restrições e CTAs. Essa etapa evita misturar linguagem de viagem, comportamento canino, atelier ou outros segmentos."
             >
-              <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+              <div className="space-y-4">
                 <Card>
-                  <CardContent className="space-y-4 p-5">
+                  <CardHeader>
+                    <CardTitle className="text-base">1. Escolha a marca</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 p-5 pt-0">
                     <div className="space-y-2">
                       <Label>Marca</Label>
                       <Select
@@ -597,50 +598,25 @@ Produção e vídeo final
               title="Qual estrutura combina melhor com este conteúdo?"
               description="O tipo de Reel define a lógica narrativa. Isso evita roteiro solto e melhora gancho, retenção e CTA."
             >
-              {selectedObjective && (
-                <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
-                  <p className="font-medium">Tipos recomendados para {selectedObjective.title}</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {selectedObjective.suggestedTypes.map((typeId) => (
-                      <Badge key={typeId} variant="secondary">
-                        {REEL2_TYPES.find((type) => type.id === typeId)?.title ?? typeId}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className="space-y-5">
+                <ReelTypeGroup
+                  title={selectedObjective ? `Recomendados para ${selectedObjective.title}` : "Recomendados para começar"}
+                  description="Estes tipos combinam melhor com o objetivo escolhido e ficam visíveis primeiro, mesmo quando antes estariam em ‘ver mais’."
+                  types={getRecommendedTypes(selectedObjective)}
+                  selectedType={draft.reel_type}
+                  recommendedIds={selectedObjective?.suggestedTypes ?? []}
+                  onSelect={(typeId) => patchHookSource({ reel_type: typeId })}
+                />
 
-              <div className="grid gap-3 lg:grid-cols-2">
-                {REEL2_TYPES.filter((type) => !type.advanced).map((type) => (
-                  <ReelTypeCard
-                    key={type.id}
-                    type={type}
-                    active={draft.reel_type === type.id}
-                    recommended={Boolean(selectedObjective?.suggestedTypes.includes(type.id))}
-                    onClick={() => patchHookSource({ reel_type: type.id })}
-                  />
-                ))}
+                <ReelTypeGroup
+                  title="Outros tipos de Reel"
+                  description="Use quando a ideia pedir outro caminho narrativo. Eles continuam disponíveis, mas não disputam a primeira decisão."
+                  types={getOtherTypes(selectedObjective)}
+                  selectedType={draft.reel_type}
+                  recommendedIds={selectedObjective?.suggestedTypes ?? []}
+                  onSelect={(typeId) => patchHookSource({ reel_type: typeId })}
+                />
               </div>
-
-              <Collapsible open={draft.advanced_open} onOpenChange={(open) => patch({ advanced_open: open })}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <ChevronDown className={cn("h-4 w-4 transition", draft.advanced_open && "rotate-180")} />
-                    Ver mais tipos de Reel
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-3 grid gap-3 lg:grid-cols-2">
-                  {REEL2_TYPES.filter((type) => type.advanced).map((type) => (
-                    <ReelTypeCard
-                      key={type.id}
-                      type={type}
-                      active={draft.reel_type === type.id}
-                      recommended={Boolean(selectedObjective?.suggestedTypes.includes(type.id))}
-                      onClick={() => patchHookSource({ reel_type: type.id })}
-                    />
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
             </StepShell>
           )}
 
@@ -734,7 +710,7 @@ Produção e vídeo final
                 <div className="max-w-2xl">
                   <p className="font-medium">Prepare 3 opções de gancho conectadas à promessa</p>
                   <p className="text-sm text-muted-foreground">
-                    Os ganchos devem abrir caminho para a promessa atual, usando ideia central, objetivo, tipo de Reel e observações.
+                    Os ganchos devem nascer da marca, objetivo, tipo de Reel, promessa e contexto do tema. Se eles parecerem genéricos, volte na promessa ou enriqueça o contexto.
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
                     Base atual: <span className="font-medium text-foreground">{topicContext.summary || draft.promise || getEntryMainIdea(draft) || "promessa ainda não definida"}</span>
@@ -889,6 +865,16 @@ Com o JSON importado e o pacote revisado, o Cria Aí cria um projeto com roteiro
   );
 }
 
+const STEP_TIME_LABELS = ["1 min", "1 min", "1 min", "2 min", "4 min", "3 min", "6–10 min"] as const;
+
+function estimateReel2Time(step: StepIndex) {
+  if (step <= 1) return "15–20 min";
+  if (step <= 3) return "10–15 min";
+  if (step === 4) return "8–12 min";
+  if (step === 5) return "6–10 min";
+  return "3–5 min";
+}
+
 function Reel2JourneyProgress({
   step,
   progress,
@@ -908,7 +894,10 @@ function Reel2JourneyProgress({
               Avance por etapas curtas: ideia, marca, objetivo, promessa, gancho e pacote final.
             </p>
           </div>
-          <Badge variant="outline">{progress}% concluído</Badge>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline">{progress}% concluído</Badge>
+            <Badge className="bg-amber-500 text-black hover:bg-amber-500">Tempo estimado: {estimateReel2Time(step)}</Badge>
+          </div>
         </div>
         <Progress value={progress} />
         <div className="grid gap-2 sm:grid-cols-4 lg:grid-cols-7">
@@ -938,6 +927,7 @@ function Reel2JourneyProgress({
                   {done ? <Check className="h-3.5 w-3.5" /> : index + 1}
                 </span>
                 <span className="font-medium">{label}</span>
+                <span className="text-[10px] opacity-75">{STEP_TIME_LABELS[index]}</span>
               </button>
             );
           })}
@@ -1391,6 +1381,55 @@ function ChoiceCard({ active, title, description, icon: Icon, onClick }: { activ
   );
 }
 
+function getRecommendedTypes(objective?: (typeof REEL2_OBJECTIVES)[number]) {
+  const ids = objective?.suggestedTypes ?? (["educativo", "alerta", "passo_a_passo"] as Reel2Type[]);
+  const selected = ids
+    .map((id) => REEL2_TYPES.find((type) => type.id === id))
+    .filter((type): type is (typeof REEL2_TYPES)[number] => Boolean(type));
+  return selected.length ? selected : REEL2_TYPES.filter((type) => !type.advanced).slice(0, 3);
+}
+
+function getOtherTypes(objective?: (typeof REEL2_OBJECTIVES)[number]) {
+  const recommended = new Set((objective?.suggestedTypes ?? []).map(String));
+  return REEL2_TYPES.filter((type) => !recommended.has(type.id));
+}
+
+function ReelTypeGroup({
+  title,
+  description,
+  types,
+  selectedType,
+  recommendedIds,
+  onSelect,
+}: {
+  title: string;
+  description: string;
+  types: Array<(typeof REEL2_TYPES)[number]>;
+  selectedType: Reel2Type | "";
+  recommendedIds: Reel2Type[];
+  onSelect: (typeId: Reel2Type) => void;
+}) {
+  return (
+    <section className="space-y-3">
+      <div>
+        <h3 className="font-semibold">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {types.map((type) => (
+          <ReelTypeCard
+            key={type.id}
+            type={type}
+            active={selectedType === type.id}
+            recommended={recommendedIds.includes(type.id)}
+            onClick={() => onSelect(type.id)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ReelTypeCard({ type, active, recommended, onClick }: { type: (typeof REEL2_TYPES)[number]; active: boolean; recommended: boolean; onClick: () => void }) {
   return (
     <button
@@ -1449,6 +1488,18 @@ function HookCard({ hook, active, onSelect, onChange }: { hook: Reel2HookDraft; 
 }
 
 
+function ProcessStep({ number, title, text }: { number: string; title: string; text: string }) {
+  return (
+    <div className="rounded-xl border bg-background/80 p-3">
+      <div className="flex items-center gap-2">
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-violet-500 text-[11px] font-bold text-white">{number}</span>
+        <span className="font-semibold text-foreground">{title}</span>
+      </div>
+      <p className="mt-2 text-muted-foreground">{text}</p>
+    </div>
+  );
+}
+
 function TopicContextPanel({
   draft,
   brand,
@@ -1487,6 +1538,13 @@ function TopicContextPanel({
         <Badge variant={context.confidence === "alto" ? "default" : "outline"}>
           Contexto {context.confidence}
         </Badge>
+      </div>
+
+      <div className="mt-4 grid gap-2 text-xs md:grid-cols-4">
+        <ProcessStep number="1" title="Identifique" text="Confirme o assunto principal do Reel." />
+        <ProcessStep number="2" title="Associe" text="Adicione palavras que ajudam o gancho." />
+        <ProcessStep number="3" title="Proteja" text="Liste o que evitar ou não inventar." />
+        <ProcessStep number="4" title="Enriqueça" text="Use JSON externo se faltar contexto." />
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -1741,7 +1799,7 @@ function buildLocalHookOptions(draft: Reel2Draft, brand?: Tables<"brands"> | nul
   return [direct, curious, alert];
 }
 
-type HookPattern = "dog_signals" | "canine_walk" | "travel_destination" | "travel_decision" | "travel_generic" | "atelier" | "accounting" | "generic";
+type HookPattern = "dog_signals" | "canine_walk" | "behavior_generic" | "travel_destination" | "travel_decision" | "travel_generic" | "atelier" | "accounting" | "generic";
 type HookMode = Reel2HookDraft["mode"];
 type HookContext = {
   brandText: string;
@@ -1814,6 +1872,9 @@ function inferHookPattern(context: HookContext): HookPattern {
     && /(cachorro|canino|pet|tutor|adestra|comportamento)/.test(source)) {
     return "canine_walk";
   }
+  if (/(comportamento|reforco|reforço|tutor|pular|latir|contato visual|atenção|atencao|rotina|repetir|indesejado)/.test(promiseSource)) {
+    return "behavior_generic";
+  }
   if ((context.entityType === "destino" || context.entityType === "local")
     && /(o_que_fazer|responder_duvida|orientar|alerta|passo_a_passo)/.test(context.intent)
     && /(viagem|turismo|travel|destino|férias|hotel|roteiro|passagem)/.test(source)) {
@@ -1825,7 +1886,7 @@ function inferHookPattern(context: HookContext): HookPattern {
   }
   if (/(viagem|turismo|travel|destino|férias|hotel|roteiro|passagem)/.test(source)) return "travel_generic";
   if (/(atelier|costura|bolsa|artesanal|moda|acessório|acessorio)/.test(source)) return "atelier";
-  if (/(contabilidade|contador|fiscal|imposto|empresa|mei|cnpj|nota fiscal)/.test(source)) return "accounting";
+  if (/(contabilidade|contador|fiscal|imposto|mei|cnpj|nota fiscal|obrigacao|obrigação|tribut)/.test(source)) return "accounting";
   return "generic";
 }
 
@@ -1938,6 +1999,50 @@ const HOOK_TEMPLATE_LIBRARY: Record<HookPattern, Record<HookMode, HookTemplate[]
         screen: "Corrigir só na rua pode confundir",
         scene: "Apresentador faz gesto de pausa antes de mostrar o ponto de análise.",
         why: "Conecta a consequência ao motivo de continuar assistindo.",
+      },
+    ],
+  },
+  behavior_generic: {
+    direct: [
+      {
+        spoken: "Esse comportamento pode estar sendo reforçado sem você perceber.",
+        screen: "Você pode estar reforçando isso",
+        scene: "Mostrar uma situação cotidiana simples ligada ao comportamento citado, com apresentador explicando de forma acolhedora e sem culpa.",
+        why: "Conecta a promessa a uma situação real e evita trocar o assunto por exemplos de outro nicho.",
+      },
+      {
+        spoken: "Antes de tentar corrigir {topic}, observe o que acontece logo depois.",
+        screen: "Observe o que vem depois",
+        scene: "Apresentador mostra uma sequência curta: comportamento, resposta do tutor e repetição do comportamento.",
+        why: "Leva o público para a lógica de reforço e rotina, alinhando gancho, promessa e tipo educativo.",
+      },
+    ],
+    curious: [
+      {
+        spoken: "O detalhe que muita gente não percebe é o que o comportamento ganha depois.",
+        screen: "O que ele ganha depois?",
+        scene: "Congelar uma cena cotidiana e destacar a resposta que vem logo após o comportamento.",
+        why: "Cria curiosidade diretamente conectada à ideia de reforço involuntário.",
+      },
+      {
+        spoken: "Às vezes o problema não é o comportamento em si, é a resposta que vem depois.",
+        screen: "A resposta ensina também",
+        scene: "Usar cortes rápidos mostrando tutor oferecendo atenção, toque ou contato visual sem perceber.",
+        why: "Promete uma mudança de percepção sem usar frases genéricas ou técnicas demais.",
+      },
+    ],
+    alert: [
+      {
+        spoken: "Cuidado: tentar interromper pode acabar ensinando o comportamento a se repetir.",
+        screen: "Interromper também pode reforçar",
+        scene: "Apresentador faz gesto de pausa e mostra uma alternativa de resposta mais clara.",
+        why: "Cria alerta prático e conversa com objetivos educativos sem dramatizar.",
+      },
+      {
+        spoken: "Não corrija no automático antes de entender o que você está reforçando.",
+        screen: "Não corrija no automático",
+        scene: "Mostrar checklist simples: comportamento, resposta do tutor, consequência.",
+        why: "Mantém o foco na promessa e evita cair em ganchos de contabilidade, viagem ou venda.",
       },
     ],
   },
