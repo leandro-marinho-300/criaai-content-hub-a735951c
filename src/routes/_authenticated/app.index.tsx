@@ -23,6 +23,14 @@ import {
   ArrowRight,
   CalendarCheck,
   ShieldCheck,
+  Clock3,
+  Rocket,
+  CheckCircle,
+  PenLine,
+  Eye,
+  Compass,
+  Star,
+  FolderOpen,
 } from "lucide-react";
 import { listScheduleItems, getScheduleItemTitle } from "@/lib/scheduleQueries";
 import { effectiveDate, effectiveTime, formatDateBR, STATUS_LABELS, computeIsOverdue, CHANNEL_LABELS, type ScheduleStatus, type ChannelKind } from "@/lib/calendar";
@@ -79,214 +87,280 @@ function Dashboard() {
     },
   });
 
+  const recent = stats?.recent ?? [];
+  const activeProjects = (stats?.drafts ?? 0) + (stats?.approved ?? 0);
+
   const tiles = [
-    { label: "Marcas", value: stats?.brands ?? 0, icon: Briefcase },
-    { label: "Rascunhos", value: stats?.drafts ?? 0, icon: FileText },
-    { label: "Aprovados", value: stats?.approved ?? 0, icon: CheckCircle2 },
-    { label: "Publicados", value: stats?.published ?? 0, icon: Send },
-    { label: "Favoritos", value: stats?.favorites ?? 0, icon: Heart },
+    { label: "Marcas ativas", value: stats?.brands ?? 0, icon: Briefcase, tone: "violet" as const },
+    { label: "Em produção", value: activeProjects, icon: Clock3, tone: "yellow" as const },
+    { label: "Aprovados", value: stats?.approved ?? 0, icon: CheckCircle2, tone: "orange" as const },
+    { label: "Publicados", value: stats?.published ?? 0, icon: Send, tone: "violet" as const },
   ];
 
-  const shortcuts = [
-    { label: "Post", icon: ImageIcon, format: "post" },
-    { label: "Carrossel", icon: Layers, format: "carrossel" },
-    { label: "Stories", icon: Smartphone, format: "story" },
-    { label: "Reel", icon: Film, format: "reel" },
-    { label: "WhatsApp", icon: MessageCircle, format: "status_whatsapp" },
+  const createPaths = [
+    {
+      title: "Criar Reel 2.0",
+      desc: "Comece pelo formato carro-chefe: promessa, gancho, roteiro, capa e aprovação.",
+      to: "/app/create/reel",
+      icon: Film,
+      badge: "Carro-chefe",
+      tone: "orange" as const,
+    },
+    {
+      title: "Criar conteúdo",
+      desc: "Post, carrossel, story, status ou pacote multiformato com briefing guiado.",
+      to: "/app/create",
+      icon: PenLine,
+      badge: "Guiado",
+      tone: "violet" as const,
+    },
+    {
+      title: "Estou sem ideias",
+      desc: "Receba caminhos editoriais e temas a partir do contexto da marca.",
+      to: "/app/ideas",
+      icon: Lightbulb,
+      badge: "Ideias",
+      tone: "yellow" as const,
+    },
+    {
+      title: "Seguir tendência",
+      desc: "Pesquise sinais externos e transforme em conteúdo sem IA interna.",
+      to: "/app/trends",
+      icon: Compass,
+      badge: "Pesquisa",
+      tone: "violet" as const,
+    },
   ];
 
-  const steps = [
-    {
-      icon: Briefcase,
-      title: "1. Escolha uma marca",
-      desc: "A identidade, o público e o tom de voz são carregados automaticamente.",
-    },
-    {
-      icon: ClipboardList,
-      title: "2. Preencha o briefing",
-      desc: "Informe o tema, a mensagem e a ação esperada. O Cria Aí gera copy, legenda e estrutura.",
-    },
-    {
-      icon: CalendarCheck,
-      title: "3. Anexe as artes e planeje",
-      desc: "Suba os layouts, gere o PDF para aprovação do cliente e agende a publicação no calendário.",
-    },
+  const flow = [
+    { title: "Criar", desc: "Escolha caminho, marca e formato.", icon: Sparkles },
+    { title: "Desenvolver", desc: "Construa roteiro, texto e pacote.", icon: Wand2 },
+    { title: "Aprovar", desc: "Envie uma prévia clara ao cliente.", icon: ShieldCheck },
+    { title: "Agendar", desc: "Organize data, canal e status.", icon: CalendarCheck },
+    { title: "Publicar", desc: "Finalize, reaproveite e acompanhe.", icon: Rocket },
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
-      <section className="relative overflow-hidden rounded-2xl border border-border/60 bg-card p-6 sm:p-8">
-        <div className="gradient-brand absolute inset-0 opacity-10" />
-        <div className="relative grid gap-6 sm:grid-cols-[1fr_auto] sm:items-end">
-          <div className="space-y-3">
-            <Badge variant="secondary" className="rounded-full">Estúdio</Badge>
-            <h1 className="text-2xl font-bold leading-tight sm:text-3xl">
-              Está sem criatividade hoje?
-            </h1>
-            <p className="max-w-xl text-sm text-muted-foreground">
-              O Cria Aí organiza o briefing, cria os textos, monta as peças e gera os prompts para os layouts.
-              Você anexa as artes finais, exporta o PDF para o cliente e planeja a publicação no calendário.
-            </p>
+    <div className="mx-auto max-w-7xl space-y-8">
+      <section className="relative overflow-hidden rounded-[2rem] border border-border/60 bg-card p-6 shadow-sm sm:p-8 lg:p-10">
+        <div className="bg-studio-glow absolute inset-0 opacity-90" />
+        <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
+          <div className="space-y-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-creative-violet bg-creative-violet-soft px-3 py-1 text-xs font-medium text-creative-violet">
+              <Sparkles className="h-3.5 w-3.5" />
+              Cria Aí 2.0 · Estúdio criativo guiado
+            </div>
+            <div className="space-y-3">
+              <h1 className="max-w-3xl text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
+                O que vamos criar hoje?
+              </h1>
+              <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+                Comece pela intenção, escolha o caminho certo e siga uma jornada clara: conteúdo, criação,
+                aprovação, agendamento e publicação. Menos painel técnico, mais produção com método.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="lg" className="gap-2 rounded-full">
+                <Link to="/app/create/reel">
+                  <Film className="h-4 w-4" />
+                  Criar Reel 2.0
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="gap-2 rounded-full bg-background/70">
+                <Link to="/app/create">
+                  <Plus className="h-4 w-4" />
+                  Criar outro conteúdo
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" size="lg" className="gap-2 rounded-full">
+                <Link to="/app/ideas">
+                  <Lightbulb className="h-4 w-4" />
+                  Buscar ideias
+                </Link>
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <HelpDialog autoOpen />
-            <Button asChild variant="outline" size="lg" className="gap-2">
-              <Link to="/app/ideas">
-                <Lightbulb className="h-4 w-4" />
-                Estou sem ideias
-              </Link>
-            </Button>
-            <Button asChild size="lg" className="gap-2">
-              <Link to="/app/create">
-                <Plus className="h-4 w-4" />
-                Criar conteúdo
-              </Link>
-            </Button>
+
+          <Card className="border-creative-yellow bg-creative-yellow-soft shadow-sm">
+            <CardContent className="space-y-4 p-5">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--creative-yellow)] text-creative-yellow shadow-sm">
+                <Clock3 className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Criação mais leve para o dia a dia</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Use o modo guiado para chegar a um pacote pronto sem precisar lembrar todos os campos técnicos.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-xl bg-background/70 p-3">
+                  <p className="font-semibold">Reel 2.0</p>
+                  <p className="text-muted-foreground">10–15 min</p>
+                </div>
+                <div className="rounded-xl bg-background/70 p-3">
+                  <p className="font-semibold">Post simples</p>
+                  <p className="text-muted-foreground">4–7 min</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {tiles.map((tile) => (
+          <HomeMetricCard key={tile.label} {...tile} />
+        ))}
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <Badge variant="outline" className="mb-2 rounded-full">Comece por aqui</Badge>
+            <h2 className="text-xl font-semibold">Caminhos principais de criação</h2>
+            <p className="text-sm text-muted-foreground">Escolha o que você quer fazer agora. O app mostra os detalhes depois.</p>
           </div>
+          <Button asChild variant="ghost" size="sm" className="gap-1">
+            <Link to="/app/templates">
+              Ver presets
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-4">
+          {createPaths.map((path) => (
+            <HomeActionCard key={path.title} {...path} />
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-border/60 bg-card/80 p-5 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <Badge variant="secondary" className="mb-2 rounded-full">Fluxo de uso</Badge>
+            <h2 className="text-xl font-semibold">Da ideia à publicação</h2>
+            <p className="text-sm text-muted-foreground">A jornada do Cria Aí 2.0 passa por cinco momentos simples.</p>
+          </div>
+          <HelpDialog />
+        </div>
+        <div className="grid gap-3 md:grid-cols-5">
+          {flow.map((item, index) => (
+            <CreationFlowStep key={item.title} index={index + 1} {...item} />
+          ))}
         </div>
       </section>
 
       <QuickIdeaBlock />
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Como criar seu conteúdo</h2>
-          <HelpDialog />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {steps.map((s) => (
-            <Card key={s.title} className="border-border/60">
-              <CardContent className="space-y-2 p-5">
-                <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
-                  <s.icon className="h-5 w-5" />
-                </div>
-                <p className="font-semibold">{s.title}</p>
-                <p className="text-sm text-muted-foreground">{s.desc}</p>
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-lg font-semibold"><FolderOpen className="h-4 w-4" />Continuar produção</h2>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/app/library">Ver biblioteca</Link>
+            </Button>
+          </div>
+          {recent.length ? (
+            <div className="grid gap-3">
+              {recent.slice(0, 4).map((project) => (
+                <ProjectResumeCard key={project.id} project={project} />
+              ))}
+            </div>
+          ) : (
+            <Card className="border-dashed bg-card/70">
+              <CardContent className="grid place-items-center gap-2 p-8 text-center">
+                <p className="text-sm text-muted-foreground">Você ainda não criou conteúdos.</p>
+                <Button asChild size="sm"><Link to="/app/create">Criar o primeiro</Link></Button>
               </CardContent>
             </Card>
-          ))}
+          )}
         </div>
-        <Card className="border-accent/30 bg-accent/5">
-          <CardContent className="flex items-start gap-3 p-4 text-sm">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-            <p>
-              O Cria Aí entrega o pacote de produção: copy, legenda, hashtags, estrutura das peças e prompts
-              para os layouts. A geração da imagem final acontece fora do app — você pode usar IAs externas
-              como apoio e importar a arte de volta para gerar o PDF e agendar a publicação.
-            </p>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-        {tiles.map((t) => (
-          <Card key={t.label} className="border-border/60">
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-muted">
-                <t.icon className="h-5 w-5 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-2xl font-bold leading-none">{t.value}</p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">{t.label}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
-
-      <ClientApprovalsSection />
-
-
-
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Atalhos rápidos</h2>
+        <div className="space-y-4">
+          <ClientApprovalsSection />
+          <UpcomingPublicationsSection />
         </div>
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-          {shortcuts.map((s) => (
-            <Link
-              key={s.label}
-              to="/app/content/new"
-              search={{ format: s.format }}
-              className="group min-w-0 rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-primary/40 hover:shadow-lg"
-            >
-              <div className="grid h-10 w-10 place-items-center rounded-lg bg-accent/10 text-accent transition-colors group-hover:bg-primary/15 group-hover:text-primary">
-                <s.icon className="h-5 w-5" />
-              </div>
-              <p className="mt-3 truncate font-medium">{s.label}</p>
-              <p className="truncate text-xs text-muted-foreground">Criar conteúdo</p>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Exemplo — Divulgação de produto</h2>
-        <Card className="border-border/60">
-          <CardContent className="grid gap-4 p-5 sm:grid-cols-2">
-            <div className="space-y-2 text-sm">
-              <Badge variant="outline" className="gap-1"><Wand2 className="h-3 w-3" />Exemplo demonstrativo</Badge>
-              <ExampleRow label="Marca" value="Le Marinho Atelier" />
-              <ExampleRow label="Tema" value="Bolsa Eleganza Caramelo à pronta entrega" />
-              <ExampleRow label="Objetivo" value="Divulgar produto" />
-              <ExampleRow label="Formatos" value="Post para Feed, Story e WhatsApp" />
-              <ExampleRow label="Mensagem" value="Elegância, espaço e praticidade em uma única peça." />
-              <ExampleRow label="CTA" value="Chame no WhatsApp e garanta a sua." />
-            </div>
-            <div className="rounded-lg border border-dashed bg-muted/30 p-4 text-sm">
-              <p className="font-semibold">Resultado esperado</p>
-              <p className="mt-1 text-muted-foreground">
-                O Cria Aí transforma a ideia em um pacote de produção: textos, legenda, hashtags, estrutura
-                das peças e prompts para criação dos layouts. Depois, você anexa as artes, gera o PDF de
-                aprovação e planeja a publicação no calendário. A imagem final é criada fora do aplicativo.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <UpcomingPublicationsSection />
-
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Conteúdos recentes</h2>
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/app/library">Ver biblioteca</Link>
-          </Button>
-        </div>
-        {stats?.recent?.length ? (
-          <div className="grid gap-3">
-            {stats.recent.map((p) => {
-              const display = getProjectDisplayTitle(p);
-              return (
-                <Link
-                  key={p.id}
-                  to="/app/content/$projectId/result"
-                  params={{ projectId: p.id }}
-                  title={display}
-                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-primary/40"
-                >
-                  <div className="min-w-0">
-                    <p className="line-clamp-2 break-words font-medium">{display}</p>
-                    <p className="truncate text-xs text-muted-foreground">{p.brands?.name ?? "Sem marca"}</p>
-                  </div>
-                  <Badge variant="outline" className="shrink-0 capitalize">{statusLabel(p.status)}</Badge>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <Card className="border-dashed">
-            <CardContent className="grid place-items-center gap-2 p-10 text-center">
-              <p className="text-sm text-muted-foreground">Você ainda não criou conteúdos.</p>
-              <Button asChild size="sm">
-                <Link to="/app/content/new">Criar o primeiro</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
       </section>
     </div>
+  );
+}
+
+type HomeTone = "orange" | "yellow" | "violet";
+
+function toneClasses(tone: HomeTone) {
+  const map = {
+    orange: "border-primary/35 bg-primary/10 text-primary",
+    yellow: "border-creative-yellow bg-creative-yellow-soft text-creative-yellow",
+    violet: "border-creative-violet bg-creative-violet-soft text-creative-violet",
+  };
+  return map[tone];
+}
+
+function HomeMetricCard({ label, value, icon: Icon, tone }: { label: string; value: number; icon: typeof Briefcase; tone: HomeTone }) {
+  return (
+    <Card className="border-border/60 bg-card/85 shadow-sm">
+      <CardContent className="flex items-center gap-3 p-4">
+        <div className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-2xl border", toneClasses(tone))}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-2xl font-bold leading-none">{value}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{label}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function HomeActionCard({ title, desc, to, icon: Icon, badge, tone }: { title: string; desc: string; to: string; icon: typeof Briefcase; badge: string; tone: HomeTone }) {
+  return (
+    <Link
+      to={to as any}
+      className="group rounded-3xl border border-border/60 bg-card/85 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-lg"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className={cn("grid h-11 w-11 place-items-center rounded-2xl border", toneClasses(tone))}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <Badge variant="outline" className="rounded-full text-[11px]">{badge}</Badge>
+      </div>
+      <p className="mt-4 font-semibold">{title}</p>
+      <p className="mt-1 text-sm leading-5 text-muted-foreground">{desc}</p>
+      <div className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary">
+        Começar
+        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+      </div>
+    </Link>
+  );
+}
+
+function CreationFlowStep({ index, title, desc, icon: Icon }: { index: number; title: string; desc: string; icon: typeof Briefcase }) {
+  return (
+    <div className="relative rounded-2xl border border-border/60 bg-background/55 p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{index}</span>
+        <Icon className="h-4 w-4 text-primary" />
+      </div>
+      <p className="font-semibold">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{desc}</p>
+    </div>
+  );
+}
+
+function ProjectResumeCard({ project }: { project: { id: string; internal_title: string | null; display_title: string | null; theme: string | null; main_message: string | null; status: string; updated_at: string; brand_id: string | null; brands: { name: string } | null } }) {
+  const display = getProjectDisplayTitle(project);
+  return (
+    <Link
+      to="/app/content/$projectId/result"
+      params={{ projectId: project.id }}
+      title={display}
+      className="grid min-w-0 gap-3 rounded-2xl border border-border/60 bg-card/85 p-4 transition-colors hover:border-primary/45 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+    >
+      <div className="min-w-0">
+        <p className="line-clamp-2 break-words font-medium">{display}</p>
+        <p className="mt-1 truncate text-xs text-muted-foreground">{project.brands?.name ?? "Sem marca"}</p>
+      </div>
+      <Badge variant="outline" className="w-fit shrink-0 capitalize">{statusLabel(project.status)}</Badge>
+    </Link>
   );
 }
 

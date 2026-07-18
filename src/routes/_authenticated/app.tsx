@@ -15,10 +15,11 @@ function AppLayout() {
       <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-border/60 bg-background/80 px-3 backdrop-blur">
+          <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-border/60 bg-background/75 px-3 backdrop-blur-xl">
             <SidebarTrigger />
             <div className="ml-1 min-w-0">
-              <p className="truncate text-sm text-muted-foreground">Cria Aí — Estúdio de Conteúdo</p>
+              <p className="truncate text-sm font-medium">Cria Aí 2.0</p>
+              <p className="hidden truncate text-xs text-muted-foreground sm:block">Estúdio criativo guiado</p>
             </div>
           </header>
           <main className="min-w-0 max-w-full flex-1 p-4 sm:p-6 lg:p-8">

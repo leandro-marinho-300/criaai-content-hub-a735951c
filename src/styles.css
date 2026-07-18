@@ -5,8 +5,9 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Cria Aí — Design System
- * Dark-first studio. Graphite backgrounds, white text, orange highlight, subtle purple accent.
+ * Cria Aí 2.0 — Design System
+ * Light theme: claro, didático, com laranja para ação e amarelo para ideias.
+ * Dark theme: estúdio imersivo com violeta mais presente, laranja para ação e amarelo para insights.
  * All tokens in oklch.
  */
 
@@ -93,6 +94,14 @@
   --sidebar-accent-foreground: oklch(0.2 0.02 270);
   --sidebar-border: oklch(0.9 0.01 270);
   --sidebar-ring: oklch(0.69 0.19 45);
+  --creative-orange: oklch(0.69 0.19 45);
+  --creative-orange-soft: oklch(0.94 0.075 55);
+  --creative-yellow: oklch(0.88 0.16 92);
+  --creative-yellow-soft: oklch(0.96 0.055 92);
+  --creative-yellow-foreground: oklch(0.28 0.07 70);
+  --creative-violet: oklch(0.52 0.17 295);
+  --creative-violet-soft: oklch(0.94 0.025 300);
+  --studio-surface: oklch(0.99 0.006 85);
 }
 
 /* Dark theme — default visual mood: graphite/near-black */
@@ -131,6 +140,14 @@
   --sidebar-accent-foreground: oklch(0.97 0.005 80);
   --sidebar-border: oklch(1 0 0 / 9%);
   --sidebar-ring: oklch(0.72 0.18 45);
+  --creative-orange: oklch(0.72 0.18 45);
+  --creative-orange-soft: oklch(0.28 0.07 45);
+  --creative-yellow: oklch(0.86 0.14 92);
+  --creative-yellow-soft: oklch(0.28 0.055 92);
+  --creative-yellow-foreground: oklch(0.94 0.05 92);
+  --creative-violet: oklch(0.64 0.2 295);
+  --creative-violet-soft: oklch(0.24 0.055 295);
+  --studio-surface: oklch(0.17 0.018 285);
 }
 
 @layer base {
@@ -142,6 +159,9 @@
   }
   body {
     background-color: var(--color-background);
+    background-image:
+      radial-gradient(circle at top left, color-mix(in oklch, var(--creative-yellow-soft) 56%, transparent), transparent 34rem),
+      radial-gradient(circle at top right, color-mix(in oklch, var(--creative-violet-soft) 50%, transparent), transparent 38rem);
     color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
   }
@@ -160,4 +180,35 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+@utility bg-creative-yellow-soft {
+  background-color: var(--creative-yellow-soft);
+}
+
+@utility text-creative-yellow {
+  color: var(--creative-yellow-foreground);
+}
+
+@utility bg-creative-violet-soft {
+  background-color: var(--creative-violet-soft);
+}
+
+@utility text-creative-violet {
+  color: var(--creative-violet);
+}
+
+@utility border-creative-violet {
+  border-color: color-mix(in oklch, var(--creative-violet) 38%, transparent);
+}
+
+@utility border-creative-yellow {
+  border-color: color-mix(in oklch, var(--creative-yellow) 55%, transparent);
+}
+
+@utility bg-studio-glow {
+  background-image:
+    radial-gradient(circle at 12% 18%, color-mix(in oklch, var(--creative-yellow-soft) 72%, transparent), transparent 28rem),
+    radial-gradient(circle at 84% 8%, color-mix(in oklch, var(--creative-violet-soft) 78%, transparent), transparent 32rem),
+    linear-gradient(180deg, color-mix(in oklch, var(--color-card) 74%, transparent), color-mix(in oklch, var(--color-background) 92%, transparent));
 }

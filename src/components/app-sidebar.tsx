@@ -66,14 +66,14 @@ export function AppSidebar() {
             <Sparkles className="h-4 w-4 text-white" />
           </div>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-            <p className="truncate font-display text-sm font-bold leading-tight">Cria Aí</p>
-            <p className="truncate text-xs text-muted-foreground">Estúdio de Conteúdo</p>
+            <p className="truncate font-display text-sm font-bold leading-tight">Cria Aí 2.0</p>
+            <p className="truncate text-xs text-muted-foreground">Estúdio criativo guiado</p>
           </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navegação</SidebarGroupLabel>
+          <SidebarGroupLabel>Jornada</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -96,14 +96,14 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <div className="flex flex-col gap-1 p-1 group-data-[collapsible=icon]:hidden">
-          <Button variant="ghost" size="sm" className="justify-start gap-2" onClick={toggleTheme}>
+          <Button variant="ghost" size="sm" className="justify-start gap-2 rounded-xl" onClick={toggleTheme}>
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             {theme === "dark" ? "Modo claro" : "Modo escuro"}
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="justify-start gap-2 text-destructive hover:text-destructive"
+            className="justify-start gap-2 rounded-xl text-destructive hover:text-destructive"
             onClick={onLogout}
           >
             <LogOut className="h-4 w-4" />
