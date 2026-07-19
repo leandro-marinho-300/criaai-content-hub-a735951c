@@ -218,8 +218,16 @@ function Dashboard() {
       tone: "orange" as const,
     },
     {
+      title: "Criar Post 2.0",
+      desc: "Fluxo próprio para conteúdo, legenda, direção visual e prompt de layout para o GPT.",
+      to: "/app/create/post",
+      icon: ImageIcon,
+      badge: "Novo",
+      tone: "violet" as const,
+    },
+    {
       title: "Criar conteúdo",
-      desc: "Post, carrossel, story, status ou pacote multiformato com briefing guiado.",
+      desc: "Carrossel, story, status ou pacote multiformato com briefing guiado.",
       to: "/app/create",
       icon: PenLine,
       badge: "Guiado",
@@ -789,7 +797,10 @@ function UpcomingPublicationsSection({ variant = "default" }: { variant?: "defau
       {metrics.noDate > 0 && variant === "hero" && (
         <div className="rounded-2xl border border-creative-violet/25 bg-creative-violet-soft/60 p-3 text-sm">
           <span className="font-semibold text-creative-violet">{metrics.noDate} sem data</span>
-          <span className="text-muted-foreground"> · organize quando esses conteúdos devem sair.</span>
+          <span className="text-muted-foreground">
+            {" "}
+            · organize quando esses conteúdos devem sair.
+          </span>
         </div>
       )}
       {visibleUpcoming.length ? (
