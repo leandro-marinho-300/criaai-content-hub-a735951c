@@ -35,7 +35,7 @@ import type { IdeaObjective } from "@/lib/ideaTaxonomy";
 
 type Mode = "hub" | "tema" | "adaptar" | "campanha";
 
-export const Route = createFileRoute("/_authenticated/app/create")({
+export const Route = createFileRoute("/_authenticated/app/create/")({
   head: () => ({ meta: [{ title: "Criar conteúdo — Cria Aí" }] }),
   validateSearch: (s: Record<string, unknown>) => ({
     mode: typeof s.mode === "string" ? (s.mode as Mode) : undefined,
