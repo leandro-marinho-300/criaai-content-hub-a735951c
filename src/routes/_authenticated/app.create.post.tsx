@@ -40,7 +40,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { getAllPresets, type ContentPreset } from "@/lib/contentPresets";
@@ -51,6 +50,7 @@ import {
   applyPost2Concept,
   buildPost2ConceptOptions,
   buildPost2LayoutPrompt,
+  buildPost2NoIdeaSuggestions,
   clearPost2Draft,
   createPost2Draft,
   exportPost2Json,
@@ -59,6 +59,7 @@ import {
   loadPost2Draft,
   savePost2Draft,
   type Post2ConceptOption,
+  type Post2IdeaSuggestion,
   type Post2Draft,
   type Post2EditorialType,
   type Post2EntryMode,
@@ -71,26 +72,8 @@ export const Route = createFileRoute("/_authenticated/app/create/post")({
   component: CreatePost2,
 });
 
-const STEP_LABELS = [
-  "Entrada",
-  "Marca",
-  "Objetivo",
-  "Tipo",
-  "Direção",
-  "Peça",
-  "Produção",
-] as const;
+const STEP_LABELS = ["Entrada", "Marca", "Objetivo", "Tipo", "Direção", "Peça", "Resumo"] as const;
 type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-
-type IdeaSuggestion = {
-  label: string;
-  theme: string;
-  understanding: string;
-  situation: string;
-  current_belief: string;
-  desired_shift: string;
-  cta: string;
-};
 
 function CreatePost2() {
   const navigate = useNavigate();
@@ -98,6 +81,7 @@ function CreatePost2() {
   const { user } = useAuth();
   const [step, setStep] = useState<StepIndex>(0);
   const [draft, setDraft] = useState<Post2Draft>(() => createPost2Draft());
+  const [pieceGenerationRound, setPieceGenerationRound] = useState(0);
 
   const { data: brands } = useQuery({
     queryKey: ["brands-post2"],
@@ -129,7 +113,7 @@ function CreatePost2() {
   );
   const jsonOutput = useMemo(() => exportPost2Json(draft, selectedBrand), [draft, selectedBrand]);
   const noIdeaSuggestions = useMemo(
-    () => buildNoIdeaSuggestions(selectedBrand, draft.objective, draft.editorial_type),
+    () => buildPost2NoIdeaSuggestions(selectedBrand, draft.objective, draft.editorial_type),
     [selectedBrand, draft.objective, draft.editorial_type],
   );
 
@@ -158,7 +142,7 @@ function CreatePost2() {
   const goNext = () => {
     if (!canContinue) return toast.error("Complete esta etapa antes de continuar.");
     if (step === 4) {
-      const concepts = buildPost2ConceptOptions(draft, selectedBrand);
+      const concepts = buildPost2ConceptOptions(draft, selectedBrand, pieceGenerationRound);
       setDraft((current) => ({ ...current, concept_options: concepts, selected_concept_index: 0 }));
       setStep(5);
       return;
@@ -379,7 +363,22 @@ function CreatePost2() {
           suggestions={noIdeaSuggestions}
         />
       )}
-      {step === 5 && <PieceStep draft={draft} patch={patch} brand={selectedBrand} />}
+      {step === 5 && (
+        <PieceStep
+          draft={draft}
+          patch={patch}
+          brand={selectedBrand}
+          onRegenerate={() => {
+            const nextRound = pieceGenerationRound + 1;
+            setPieceGenerationRound(nextRound);
+            patch({
+              concept_options: buildPost2ConceptOptions(draft, selectedBrand, nextRound),
+              selected_concept_index: 0,
+            });
+            toast.success("Novas execuções criativas foram preparadas.");
+          }}
+        />
+      )}
       {step === 6 && (
         <ProductionStep
           draft={draft}
@@ -407,16 +406,25 @@ function CreatePost2() {
             <ArrowRight className="ml-1 h-4 w-4" />
           </Button>
         ) : (
-          <Button
-            variant="outline"
-            onClick={() => {
-              savePost2Draft(draft);
-              toast.success("Rascunho salvo.");
-            }}
-          >
-            <Save className="mr-1 h-4 w-4" />
-            Salvar rascunho
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                savePost2Draft(draft);
+                toast.success("Rascunho salvo.");
+              }}
+            >
+              <Save className="mr-1 h-4 w-4" />
+              Salvar rascunho
+            </Button>
+            <Button
+              onClick={() => saveForProduction.mutate()}
+              disabled={saveForProduction.isPending}
+            >
+              {saveForProduction.isPending ? "Criando projeto..." : "Criar projeto e anexar arte"}
+              <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
         )}
       </div>
     </div>
@@ -689,122 +697,161 @@ function DirectionStep({
   draft: Post2Draft;
   patch: (p: Partial<Post2Draft>) => void;
   brand: Tables<"brands"> | null;
-  suggestions: IdeaSuggestion[];
+  suggestions: Post2IdeaSuggestion[];
 }) {
   return (
     <Step
-      title="O que a pessoa precisa entender ou sentir?"
-      description="Defina a transformação da mensagem. Para quem escolheu “Estou sem ideias”, comece por um subtópico real da marca."
+      title="Defina a ideia central e a promessa da peça"
+      description="Como no Reel 2.0, esta etapa transforma o ponto de partida em uma ideia específica, uma promessa clara e observações para orientar a criação."
     >
       {draft.entry_mode === "no_ideas" && (
         <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardHeader>
-            <CardTitle className="text-base">Sugestões para {brand?.name || "a marca"}</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Escolha um subtópico para preencher a direção inicial do Post.
-            </p>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-3">
-            {suggestions.map((s) => (
-              <button
-                key={s.label}
-                type="button"
-                onClick={() =>
-                  patch({
-                    theme: s.theme,
-                    understanding: s.understanding,
-                    situation: s.situation,
-                    current_belief: s.current_belief,
-                    desired_shift: s.desired_shift,
-                    desired_reaction: s.cta,
-                    call_to_action: s.cta,
-                  })
-                }
-                className={cn(
-                  "rounded-2xl border bg-background p-4 text-left hover:border-orange-500/50",
-                  draft.theme === s.theme && "border-orange-500 ring-2 ring-orange-500/15",
-                )}
-              >
-                <p className="text-xs font-semibold uppercase tracking-wide text-orange-500">
-                  {s.label}
+          <CardContent className="space-y-3 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold">Sugestões para começar sem ideia pronta</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Escolha um tema concreto de {brand?.name || "sua marca"}. Cada opção já traz a
+                  promessa e o cuidado editorial, sem repetir a ficha institucional inteira.
                 </p>
-                <p className="mt-2 font-semibold leading-snug">{s.theme}</p>
-                <p className="mt-2 text-xs text-muted-foreground">{s.understanding}</p>
-              </button>
-            ))}
+              </div>
+              <Badge variant="outline">Estou sem ideias</Badge>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {suggestions.map((suggestion) => {
+                const active = draft.theme === suggestion.idea;
+                return (
+                  <button
+                    key={`${suggestion.label}-${suggestion.idea}`}
+                    type="button"
+                    onClick={() =>
+                      patch({
+                        theme: suggestion.idea,
+                        understanding: suggestion.promise,
+                        situation: suggestion.situation,
+                        current_belief: suggestion.current_belief,
+                        desired_shift: suggestion.desired_shift,
+                        desired_reaction: suggestion.cta,
+                        call_to_action: suggestion.cta,
+                        restrictions: [draft.restrictions, suggestion.notes]
+                          .filter(Boolean)
+                          .join("\n"),
+                        concept_options: [],
+                        selected_concept_index: null,
+                      })
+                    }
+                    className={cn(
+                      "rounded-2xl border bg-background p-4 text-left transition hover:-translate-y-0.5 hover:border-orange-500/60 hover:shadow-sm",
+                      active && "border-orange-500 ring-2 ring-orange-500/15",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-orange-500">
+                        {suggestion.label}
+                      </p>
+                      {active && <Check className="h-4 w-4 shrink-0 text-orange-500" />}
+                    </div>
+                    <p className="mt-2 font-semibold leading-snug">{suggestion.idea}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{suggestion.promise}</p>
+                    <div className="mt-3 rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">Por que faz sentido: </span>
+                      {suggestion.why}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       )}
-      <Card>
-        <CardContent className="grid gap-4 p-5 md:grid-cols-2">
-          <Field label="Tema específico" required>
-            <Input
-              value={draft.theme}
-              onChange={(e) => patch({ theme: e.target.value })}
-              placeholder={`Tema relacionado a ${brand?.segment || "esta marca"}`}
-            />
-          </Field>
-          <Field label="Público">
-            <Input
-              value={draft.audience}
-              onChange={(e) => patch({ audience: e.target.value })}
-              placeholder={brand?.audience || "Público do conteúdo"}
-            />
-          </Field>
-          <Field label="Qual situação real queremos apresentar?">
-            <Textarea
-              rows={3}
-              value={draft.situation}
-              onChange={(e) => patch({ situation: e.target.value })}
-            />
-          </Field>
-          <Field label="O que a pessoa pensa hoje?">
-            <Textarea
-              rows={3}
-              value={draft.current_belief}
-              onChange={(e) => patch({ current_belief: e.target.value })}
-            />
-          </Field>
-          <Field label="O que ela precisa compreender?" required>
-            <Textarea
-              rows={3}
-              value={draft.understanding}
-              onChange={(e) => patch({ understanding: e.target.value })}
-            />
-          </Field>
-          <Field label="Qual mudança de percepção queremos provocar?">
-            <Textarea
-              rows={3}
-              value={draft.desired_shift}
-              onChange={(e) => patch({ desired_shift: e.target.value })}
-            />
-          </Field>
-          <Field label="Qual ação esperamos depois do Post?">
-            <Textarea
-              rows={3}
-              value={draft.desired_reaction}
-              onChange={(e) =>
-                patch({ desired_reaction: e.target.value, call_to_action: e.target.value })
-              }
-            />
-          </Field>
-          <Field label="Informações obrigatórias">
-            <Textarea
-              rows={3}
-              value={draft.mandatory_information}
-              onChange={(e) => patch({ mandatory_information: e.target.value })}
-            />
-          </Field>
-          <Field label="Cuidados e restrições" className="md:col-span-2">
-            <Textarea
-              rows={3}
-              value={draft.restrictions}
-              onChange={(e) => patch({ restrictions: e.target.value })}
-              placeholder="O que o GPT não pode inventar ou representar?"
-            />
-          </Field>
-        </CardContent>
-      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <Card>
+          <CardContent className="space-y-4 p-5">
+            <Field label="Ideia central do Post" required>
+              <Input
+                value={draft.theme}
+                onChange={(event) =>
+                  patch({
+                    theme: event.target.value,
+                    concept_options: [],
+                    selected_concept_index: null,
+                  })
+                }
+                placeholder={`Ex.: uma dúvida real de ${brand?.audience || "seu público"}`}
+              />
+            </Field>
+            <Field label="Promessa da peça" required>
+              <Textarea
+                rows={4}
+                value={draft.understanding}
+                onChange={(event) =>
+                  patch({
+                    understanding: event.target.value,
+                    concept_options: [],
+                    selected_concept_index: null,
+                  })
+                }
+                placeholder="O que a pessoa vai entender ao ver este Post?"
+              />
+            </Field>
+            <Field label="Observações extras para o Post">
+              <Textarea
+                rows={4}
+                value={draft.situation}
+                onChange={(event) => patch({ situation: event.target.value })}
+                placeholder="Situação real, contexto, exemplo ou ponto que precisa aparecer."
+              />
+            </Field>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="CTA da publicação">
+                <Textarea
+                  rows={3}
+                  value={draft.call_to_action}
+                  onChange={(event) =>
+                    patch({
+                      call_to_action: event.target.value,
+                      desired_reaction: event.target.value,
+                    })
+                  }
+                  placeholder="Ex.: Quer entender como funciona? Fale com a gente."
+                />
+              </Field>
+              <Field label="Informações obrigatórias">
+                <Textarea
+                  rows={3}
+                  value={draft.mandatory_information}
+                  onChange={(event) => patch({ mandatory_information: event.target.value })}
+                  placeholder="Fatos, condições ou mensagens que precisam aparecer."
+                />
+              </Field>
+            </div>
+            <Field label="Cuidados e restrições">
+              <Textarea
+                rows={3}
+                value={draft.restrictions}
+                onChange={(event) => patch({ restrictions: event.target.value })}
+                placeholder="O que o GPT não pode inventar, prometer ou representar?"
+              />
+            </Field>
+          </CardContent>
+        </Card>
+
+        <Card className="border-violet-500/20 bg-violet-500/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Target className="h-4 w-4 text-violet-500" /> Uma boa promessa de Post
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>É específica e cabe em uma única peça.</p>
+            <p>Mostra o que a pessoa vai entender, não apenas o assunto da marca.</p>
+            <p>Não repete a descrição institucional inteira.</p>
+            <p>Não vira instrução visual nem texto técnico dentro da arte.</p>
+            <p>Combina com o objetivo e com o caminho criativo escolhidos.</p>
+          </CardContent>
+        </Card>
+      </div>
     </Step>
   );
 }
@@ -813,28 +860,32 @@ function PieceStep({
   draft,
   patch,
   brand,
+  onRegenerate,
 }: {
   draft: Post2Draft;
   patch: (p: Partial<Post2Draft>) => void;
   brand: Tables<"brands"> | null;
+  onRegenerate: () => void;
 }) {
-  const regenerate = () =>
-    patch({ concept_options: buildPost2ConceptOptions(draft, brand), selected_concept_index: 0 });
   return (
     <Step
-      title="Escolha a direção completa da peça"
-      description="Como os ganchos do Reel 2.0, cada opção nasce da ideia, objetivo, marca e caminho criativo — mas aqui ela define a peça inteira."
+      title="Escolha a execução criativa da peça"
+      description="Como os ganchos do Reel 2.0, as três opções nascem da mesma ideia e promessa. Aqui, porém, cada uma define título, apoio, CTA e composição visual completos."
     >
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" onClick={regenerate}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Notice
+          title="Mesma ideia, três execuções diferentes"
+          text="Compare pergunta direta, situação real e mudança de olhar. A opção escolhida será usada no texto da arte e no prompt do GPT."
+        />
+        <Button variant="outline" size="sm" onClick={onRegenerate}>
           <RefreshCw className="mr-1 h-4 w-4" />
-          Gerar novas direções
+          Ver outra ordem de execuções
         </Button>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         {draft.concept_options.map((option, index) => (
           <ConceptCard
-            key={`${option.label}-${index}`}
+            key={`${option.label}-${option.title}-${index}`}
             option={option}
             active={draft.selected_concept_index === index}
             onClick={() => patch({ selected_concept_index: index })}
@@ -843,8 +894,8 @@ function PieceStep({
       </div>
       {draft.selected_concept_index !== null && (
         <Notice
-          title="Direção escolhida"
-          text="Na próxima etapa, o Cria Aí transformará essa direção em conteúdo final da arte, legenda, prompt para o GPT e fluxo de produção."
+          title="Execução escolhida"
+          text="Na próxima etapa, revise o conteúdo final, copie o pedido para o GPT e crie o projeto para anexar a arte, aprovar e agendar."
         />
       )}
     </Step>
@@ -869,237 +920,197 @@ function ProductionStep({
   saving: boolean;
 }) {
   const title = draft.custom_title || getSelectedPost2Title(draft);
+  const selectedConcept = draft.concept_options[draft.selected_concept_index ?? 0];
+  const objectiveLabel =
+    POST2_OBJECTIVES.find((item) => item.id === draft.objective)?.label || "Não definido";
+  const typeLabel =
+    POST2_EDITORIAL_TYPES.find((item) => item.id === draft.editorial_type)?.label || "Não definido";
+  const entryLabel =
+    POST2_ENTRY_OPTIONS.find((item) => item.id === draft.entry_mode)?.label || "Não definida";
+
   return (
     <Step
-      title="Pacote do Post 2.0"
-      description="Visão única da peça: conteúdo, criação no GPT, arte final, aprovação, agendamento e publicação."
+      title="Revise o pacote antes de criar o projeto"
+      description="Confira conteúdo, peça, publicação e pedido externo. Depois, crie o projeto para anexar a arte gerada no GPT e seguir para aprovação, agenda e publicação."
     >
-      <Journey />
-      <Tabs defaultValue="conteudo">
-        <TabsList className="flex w-full flex-wrap gap-1">
-          <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>
-          <TabsTrigger value="visual">Peça visual</TabsTrigger>
-          <TabsTrigger value="legenda">Publicação</TabsTrigger>
-          <TabsTrigger value="gpt">Prompt GPT</TabsTrigger>
-          <TabsTrigger value="producao">Produção</TabsTrigger>
-        </TabsList>
-        <TabsContent value="conteudo" className="mt-4">
-          <Card>
-            <CardContent className="grid gap-4 p-5 md:grid-cols-2">
-              <Info label="Marca" value={brand?.name || "—"} />
-              <Info
-                label="Objetivo"
-                value={POST2_OBJECTIVES.find((o) => o.id === draft.objective)?.label || "—"}
-              />
-              <Info
-                label="Caminho criativo"
-                value={
-                  POST2_EDITORIAL_TYPES.find((o) => o.id === draft.editorial_type)?.label || "—"
-                }
-              />
-              <Info label="Formato" value={`Feed ${draft.ratio}`} />
-              <div className="md:col-span-2">
-                <Info
-                  label="Conceito"
-                  value={
-                    draft.concept_options[draft.selected_concept_index ?? 0]?.concept ||
-                    draft.understanding
+      <PostJourney />
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Pacote revisado</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 text-sm md:grid-cols-2">
+            <Info label="Marca" value={brand?.name || "Não selecionada"} />
+            <Info label="Entrada" value={entryLabel} />
+            <Info label="Objetivo" value={objectiveLabel} />
+            <Info label="Caminho criativo" value={typeLabel} />
+            <Info label="Formato" value={`Feed ${draft.ratio}`} />
+            <Info label="Execução escolhida" value={selectedConcept?.label || "Não definida"} />
+            <div className="md:col-span-2">
+              <Info label="Ideia central" value={draft.theme || "Não definida"} />
+            </div>
+            <div className="md:col-span-2">
+              <Info label="Promessa da peça" value={draft.understanding || "Não definida"} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-violet-500/30 bg-violet-500/5">
+          <CardContent className="space-y-3 p-5">
+            <div className="flex items-center gap-2 font-semibold">
+              <ArrowRight className="h-4 w-4 text-violet-500" /> Próximo passo
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Gere a arte no GPT com o pedido abaixo. Depois, crie o projeto para abrir o painel de
+              anexo, aprovação e calendário.
+            </p>
+            <CopyAction text={layoutPrompt}>Copiar pedido para o GPT</CopyAction>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => window.open("https://chatgpt.com", "_blank", "noopener,noreferrer")}
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              Abrir ChatGPT
+            </Button>
+            <Button onClick={onSave} disabled={saving} className="w-full">
+              <Save className="mr-2 h-4 w-4" />
+              {saving ? "Criando projeto..." : "Criar projeto e anexar arte"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ImageIcon className="h-4 w-4 text-orange-500" /> Conteúdo aprovado da arte
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-5 lg:grid-cols-[260px_1fr]">
+            <div
+              className={cn(
+                "mx-auto flex aspect-[4/5] w-full max-w-[250px] flex-col justify-between rounded-2xl border bg-gradient-to-br from-muted to-background p-5",
+                draft.ratio === "1:1" && "aspect-square",
+              )}
+            >
+              <div>
+                {draft.badge_text && <Badge>{draft.badge_text}</Badge>}
+                <h3 className="mt-5 text-2xl font-bold leading-tight">{title}</h3>
+                <p className="mt-3 text-sm text-muted-foreground">{draft.support_text}</p>
+              </div>
+              {draft.art_cta && (
+                <p className="text-sm font-semibold text-orange-500">{draft.art_cta}</p>
+              )}
+            </div>
+            <div className="space-y-4">
+              <Field label="Título principal">
+                <Input
+                  value={title}
+                  onChange={(event) =>
+                    patch({ custom_title: event.target.value, selected_title_index: null })
                   }
                 />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="visual" className="mt-4">
-          <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Prévia estrutural</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div
-                  className={cn(
-                    "mx-auto flex aspect-[4/5] max-w-[260px] flex-col justify-between rounded-2xl border bg-gradient-to-br from-muted to-background p-5",
-                    draft.ratio === "1:1" && "aspect-square",
-                  )}
-                >
-                  <div>
-                    {draft.badge_text && <Badge>{draft.badge_text}</Badge>}
-                    <h3 className="mt-5 text-2xl font-bold leading-tight">{title}</h3>
-                    <p className="mt-3 text-sm text-muted-foreground">{draft.support_text}</p>
-                  </div>
-                  <p className="text-sm font-semibold text-orange-500">{draft.art_cta}</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="space-y-4 p-5">
-                <Field label="Título principal">
-                  <Input
-                    value={title}
-                    onChange={(e) =>
-                      patch({ custom_title: e.target.value, selected_title_index: null })
-                    }
-                  />
-                </Field>
-                <Field label="Texto de apoio">
-                  <Textarea
-                    rows={3}
-                    value={draft.support_text}
-                    onChange={(e) => patch({ support_text: e.target.value })}
-                  />
-                </Field>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Field label="Selo opcional">
-                    <Input
-                      value={draft.badge_text}
-                      onChange={(e) => patch({ badge_text: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="CTA na arte">
-                    <Input
-                      value={draft.art_cta}
-                      onChange={(e) => patch({ art_cta: e.target.value })}
-                    />
-                  </Field>
-                </div>
-                <Field label="Direção visual">
-                  <Textarea
-                    rows={6}
-                    value={draft.visual_direction}
-                    onChange={(e) => patch({ visual_direction: e.target.value })}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-        <TabsContent value="legenda" className="mt-4">
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <Field label="Legenda">
+              </Field>
+              <Field label="Texto de apoio">
                 <Textarea
-                  rows={10}
-                  value={draft.caption}
-                  onChange={(e) => patch({ caption: e.target.value })}
+                  rows={3}
+                  value={draft.support_text}
+                  onChange={(event) => patch({ support_text: event.target.value })}
                 />
               </Field>
-              <Field label="Hashtags — máximo 5">
-                <Input
-                  value={draft.hashtags}
-                  onChange={(e) => patch({ hashtags: e.target.value })}
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Selo opcional">
+                  <Input
+                    value={draft.badge_text}
+                    onChange={(event) => patch({ badge_text: event.target.value })}
+                  />
+                </Field>
+                <Field label="CTA curto na arte">
+                  <Input
+                    value={draft.art_cta}
+                    onChange={(event) => patch({ art_cta: event.target.value })}
+                  />
+                </Field>
+              </div>
+              <Field label="Direção visual">
+                <Textarea
+                  rows={6}
+                  value={draft.visual_direction}
+                  onChange={(event) => patch({ visual_direction: event.target.value })}
                 />
               </Field>
-              <CopyAction text={`${draft.caption}\n\n${draft.hashtags}`}>Copiar legenda</CopyAction>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="gpt" className="mt-4">
-          <Card className="border-violet-500/30">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Sparkles className="h-4 w-4 text-violet-500" />
-                Prompt para gerar a arte no GPT
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea readOnly rows={18} value={layoutPrompt} className="font-mono text-xs" />
-              <div className="flex flex-wrap gap-2">
-                <CopyAction text={layoutPrompt}>Copiar prompt e gerar arte</CopyAction>
-                <CopyAction text={jsonOutput} variant="outline">
-                  <FileJson2 className="mr-1 h-4 w-4" />
-                  Copiar JSON
-                </CopyAction>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="producao" className="mt-4">
-          <Card className="border-orange-500/30">
-            <CardHeader>
-              <CardTitle className="text-base">Arte final, aprovação e calendário</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-3">
-                <Stage
-                  icon={Upload}
-                  title="1. Anexar arte"
-                  text="Gere a imagem no GPT e anexe o arquivo final ao projeto."
-                />
-                <Stage
-                  icon={Send}
-                  title="2. Aprovação"
-                  text="Envie a peça e a legenda para aprovação e ajustes."
-                />
-                <Stage
-                  icon={CalendarDays}
-                  title="3. Calendário"
-                  text="Depois da aprovação, escolha data, horário e publicação."
-                />
-              </div>
-              <Button onClick={onSave} disabled={saving} className="w-full sm:w-auto">
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? "Salvando..." : "Salvar e continuar para produção"}
-              </Button>
               <p className="text-xs text-muted-foreground">
-                O próximo painel usa o fluxo já existente de anexo, aprovação e calendário. Nenhuma
-                imagem fica salva apenas no navegador.
+                A direção visual orienta o GPT, mas nunca deve aparecer como texto dentro da arte.
               </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MessageSquareText className="h-4 w-4 text-orange-500" /> Publicação
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Field label="Legenda da publicação">
+              <Textarea
+                rows={12}
+                value={draft.caption}
+                onChange={(event) => patch({ caption: event.target.value })}
+              />
+            </Field>
+            <Field label="Hashtags — máximo 5">
+              <Input
+                value={draft.hashtags}
+                onChange={(event) => patch({ hashtags: event.target.value })}
+              />
+            </Field>
+            <CopyAction
+              text={`${draft.caption}
+
+${draft.hashtags}`}
+            >
+              Copiar publicação
+            </CopyAction>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-violet-500/30 bg-violet-500/5">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Sparkles className="h-5 w-5 text-violet-500" /> Pedido externo Post 2.0
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Copie este pedido, cole no ChatGPT e gere uma única arte. O texto estratégico foi
+            separado do conteúdo publicável para impedir que instruções internas apareçam no layout.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <CopyAction text={layoutPrompt}>Copiar pedido</CopyAction>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => window.open("https://chatgpt.com", "_blank", "noopener,noreferrer")}
+            >
+              Abrir ChatGPT
+            </Button>
+            <CopyAction text={jsonOutput} variant="outline">
+              <FileJson2 className="mr-1 h-4 w-4" />
+              Copiar JSON
+            </CopyAction>
+          </div>
+          <Textarea value={layoutPrompt} readOnly rows={16} className="font-mono text-xs" />
+        </CardContent>
+      </Card>
     </Step>
   );
-}
-
-function buildNoIdeaSuggestions(
-  brand: Tables<"brands"> | null,
-  objective: Post2Objective | "",
-  editorialType: Post2EditorialType | "",
-): IdeaSuggestion[] {
-  const brandName = brand?.name || "a marca";
-  const segment = brand?.segment || "o segmento da marca";
-  const audience = brand?.audience || "o público da marca";
-  const description = brand?.description || "a proposta da marca";
-  const products = Array.isArray(brand?.products_services)
-    ? brand?.products_services.join(", ")
-    : "";
-  const focus = products || description || segment;
-  const objectiveLabel =
-    POST2_OBJECTIVES.find((item) => item.id === objective)?.label.toLowerCase() || "comunicar";
-  const typeLabel =
-    POST2_EDITORIAL_TYPES.find((item) => item.id === editorialType)?.label.toLowerCase() ||
-    "orientação";
-  return [
-    {
-      label: "Dúvida real",
-      theme: `Uma dúvida frequente sobre ${focus}`,
-      understanding: `Ajudar ${audience} a compreender um ponto importante sobre ${focus}, com clareza e sem inventar condições.`,
-      situation: `Uma pessoa interessada em ${focus}, mas ainda insegura para decidir.`,
-      current_belief: `Ela acredita que precisa entender tudo sozinha antes de procurar ${brandName}.`,
-      desired_shift: `Perceber ${brandName} como apoio confiável para ${objectiveLabel}.`,
-      cta: "Qual é a sua principal dúvida sobre esse assunto?",
-    },
-    {
-      label: "Situação cotidiana",
-      theme: `Uma situação que ${audience} vive antes de buscar ${focus}`,
-      understanding: `Mostrar uma situação reconhecível e conectar o problema a uma orientação útil da marca.`,
-      situation: `Um momento cotidiano em que a pessoa percebe uma necessidade relacionada a ${segment}.`,
-      current_belief: `Ela trata essa situação como normal ou adia a decisão.`,
-      desired_shift: `Perceber que existe uma forma mais clara e segura de agir.`,
-      cta: "Isso também acontece com você?",
-    },
-    {
-      label: "Novo olhar",
-      theme: `Um novo olhar sobre ${focus}`,
-      understanding: `Usar ${typeLabel} para corrigir uma percepção comum e apresentar o valor real da marca.`,
-      situation: `O público compara opções sem considerar o que realmente importa para a decisão.`,
-      current_belief: `A escolha depende apenas de preço ou de uma resposta rápida.`,
-      desired_shift: `Entender os critérios e benefícios que tornam a escolha mais consciente.`,
-      cta: `Converse com ${brandName} para entender o próximo passo.`,
-    },
-  ];
 }
 
 function Step({
@@ -1195,40 +1206,69 @@ function Notice({ title, text }: { title: string; text: string }) {
     </div>
   );
 }
-function Journey() {
+function PostJourney() {
+  const steps = [
+    {
+      title: "1. Conteúdo",
+      text: "Ideia, promessa e execução criativa definidas.",
+      done: true,
+      current: false,
+    },
+    {
+      title: "2. Criação",
+      text: "Pedido externo pronto para gerar a arte no GPT.",
+      done: true,
+      current: false,
+    },
+    {
+      title: "3. Arte final",
+      text: "Gerar a imagem e anexar ao projeto.",
+      done: false,
+      current: true,
+    },
+    {
+      title: "4. Aprovação",
+      text: "Enviar arte e publicação para revisão.",
+      done: false,
+      current: false,
+    },
+    {
+      title: "5. Agenda e publicação",
+      text: "Agendar depois da aprovação e publicar.",
+      done: false,
+      current: false,
+    },
+  ];
   return (
-    <div className="grid gap-2 md:grid-cols-4">
-      <StatusPill label="Conteúdo" ok />
-      <StatusPill label="Prompt GPT" ok />
-      <StatusPill label="Arte final" ok={false} />
-      <StatusPill label="Aprovação e calendário" ok={false} />
-    </div>
+    <Card className="border-orange-500/25 bg-orange-500/5">
+      <CardHeader>
+        <CardTitle className="text-lg">Jornada depois da criação</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-2 md:grid-cols-5">
+        {steps.map((item) => (
+          <div
+            key={item.title}
+            className={cn(
+              "rounded-xl border bg-background p-3 text-sm",
+              item.done && "border-emerald-500/30 bg-emerald-500/5",
+              item.current && "border-orange-500/50 bg-orange-500/5",
+            )}
+          >
+            <p className="font-semibold">{item.title}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{item.text}</p>
+            <Badge
+              variant={item.done ? "default" : item.current ? "secondary" : "outline"}
+              className="mt-3 text-[10px]"
+            >
+              {item.done ? "Pronto" : item.current ? "Agora" : "Depois"}
+            </Badge>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
-function StatusPill({ label, ok }: { label: string; ok: boolean }) {
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-2 rounded-xl border p-3 text-sm",
-        ok ? "border-emerald-500/30 bg-emerald-500/5" : "bg-muted/20",
-      )}
-    >
-      <span
-        className={cn("h-2.5 w-2.5 rounded-full", ok ? "bg-emerald-500" : "bg-muted-foreground/35")}
-      />
-      <span>{label}</span>
-    </div>
-  );
-}
-function Stage({ icon: Icon, title, text }: { icon: typeof Upload; title: string; text: string }) {
-  return (
-    <div className="rounded-xl border bg-background p-4">
-      <Icon className="h-5 w-5 text-orange-500" />
-      <p className="mt-3 font-semibold">{title}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{text}</p>
-    </div>
-  );
-}
+
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div>
