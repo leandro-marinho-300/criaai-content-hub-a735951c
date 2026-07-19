@@ -10,6 +10,8 @@ import {
   FileJson2,
   Image as ImageIcon,
   LayoutTemplate,
+  Lightbulb,
+  BookOpenCheck,
   MessageSquareText,
   Palette,
   RefreshCw,
@@ -36,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { getAllPresets, type ContentPreset } from "@/lib/contentPresets";
 import {
   POST2_EDITORIAL_TYPES,
   POST2_ENTRY_OPTIONS,
@@ -89,6 +92,14 @@ function CreatePost2() {
     },
   });
 
+  const presets = useMemo(
+    () =>
+      getAllPresets().filter(
+        (preset) => preset.formats.includes("post") || preset.idea_formats.includes("post"),
+      ),
+    [],
+  );
+
   const selectedBrand = useMemo(
     () => brands?.find((brand) => brand.id === draft.brand_id) ?? null,
     [brands, draft.brand_id],
@@ -107,7 +118,12 @@ function CreatePost2() {
   const progress = Math.round(((step + 1) / STEP_LABELS.length) * 100);
 
   const canContinue = useMemo(() => {
-    if (step === 0) return Boolean(draft.entry_mode);
+    if (step === 0) {
+      if (!draft.entry_mode) return false;
+      if (draft.entry_mode === "preset") return Boolean(draft.preset_id);
+      if (draft.entry_mode === "reference") return draft.reference_content.trim().length >= 3;
+      return true;
+    }
     if (step === 1) return Boolean(draft.brand_id);
     if (step === 2) return Boolean(draft.objective);
     if (step === 3) return Boolean(draft.editorial_type);
@@ -135,14 +151,30 @@ function CreatePost2() {
   };
 
   const chooseEntry = (mode: Post2EntryMode) => {
-    if (mode === "continue") {
-      const loaded = loadPost2Draft();
-      setDraft({ ...loaded, entry_mode: "continue" });
-      setStep(loaded.brand_id ? 1 : 0);
-      toast.success("Rascunho do Post 2.0 carregado.");
-      return;
-    }
     patch({ entry_mode: mode });
+  };
+
+  const continueDraft = () => {
+    const loaded = loadPost2Draft();
+    setDraft(loaded);
+    setStep(loaded.brand_id ? 1 : 0);
+    toast.success("Rascunho do Post 2.0 carregado.");
+  };
+
+  const applyPreset = (presetId: string) => {
+    const preset = presets.find((item) => item.id === presetId);
+    if (!preset) return;
+    patch({
+      preset_id: presetId,
+      call_to_action: draft.call_to_action || preset.cta,
+      mandatory_information: draft.mandatory_information || preset.mandatory_information,
+      restrictions: draft.restrictions || preset.restrictions,
+      visual_direction: draft.visual_direction || preset.visual_instructions,
+      imported_context: [preset.description, preset.desired_style, preset.notes]
+        .filter(Boolean)
+        .join("\n\n"),
+    });
+    toast.success("Preset aplicado como ponto de partida.");
   };
 
   const reset = () => {
@@ -215,8 +247,14 @@ function CreatePost2() {
         <EntryStep
           value={draft.entry_mode}
           onSelect={chooseEntry}
-          importedContext={draft.imported_context}
-          onContextChange={(value) => patch({ imported_context: value })}
+          presets={presets}
+          presetId={draft.preset_id}
+          onPresetChange={applyPreset}
+          referenceContent={draft.reference_content}
+          onReferenceContentChange={(value) => patch({ reference_content: value })}
+          referenceNotes={draft.reference_notes}
+          onReferenceNotesChange={(value) => patch({ reference_notes: value })}
+          onContinueDraft={continueDraft}
         />
       )}
       {step === 1 && (
@@ -287,58 +325,135 @@ function CreatePost2() {
 function EntryStep({
   value,
   onSelect,
-  importedContext,
-  onContextChange,
+  presets,
+  presetId,
+  onPresetChange,
+  referenceContent,
+  onReferenceContentChange,
+  referenceNotes,
+  onReferenceNotesChange,
+  onContinueDraft,
 }: {
   value: Post2EntryMode | "";
   onSelect: (value: Post2EntryMode) => void;
-  importedContext: string;
-  onContextChange: (value: string) => void;
+  presets: ContentPreset[];
+  presetId: string;
+  onPresetChange: (value: string) => void;
+  referenceContent: string;
+  onReferenceContentChange: (value: string) => void;
+  referenceNotes: string;
+  onReferenceNotesChange: (value: string) => void;
+  onContinueDraft: () => void;
 }) {
+  const iconMap: Record<Post2EntryMode, typeof Sparkles> = {
+    idea: Lightbulb,
+    no_ideas: Sparkles,
+    preset: Wand2,
+    reference: BookOpenCheck,
+  };
+
   return (
     <section className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">Como quer começar?</h2>
+        <h2 className="text-xl font-semibold">Como você quer começar?</h2>
         <p className="text-sm text-muted-foreground">
-          O ponto de partida não muda a estrutura do Post 2.0.
+          Escolha o ponto de partida. Depois, todos os caminhos seguem para o mesmo Post 2.0.
         </p>
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        {POST2_ENTRY_OPTIONS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onSelect(item.id)}
-            className={cn(
-              "rounded-2xl border p-5 text-left transition",
-              value === item.id
-                ? "border-primary bg-primary/5 shadow-sm"
-                : "hover:border-primary/40",
-            )}
-          >
-            <Sparkles className="mb-3 h-5 w-5 text-primary" />
-            <p className="font-semibold">{item.label}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
-            {value === item.id && <Check className="mt-3 h-4 w-4 text-primary" />}
-          </button>
-        ))}
+      <div className="grid gap-3 md:grid-cols-2">
+        {POST2_ENTRY_OPTIONS.map((item) => {
+          const Icon = iconMap[item.id];
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onSelect(item.id)}
+              className={cn(
+                "rounded-2xl border p-5 text-left transition",
+                value === item.id
+                  ? "border-primary bg-primary/5 shadow-sm"
+                  : "hover:border-primary/40",
+              )}
+            >
+              <Icon className="mb-3 h-5 w-5 text-primary" />
+              <p className="font-semibold">{item.label}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
+              {value === item.id && <Check className="mt-3 h-4 w-4 text-primary" />}
+            </button>
+          );
+        })}
       </div>
-      {value === "import_context" && (
-        <Card>
-          <CardContent className="space-y-2 p-5">
-            <Label>Contexto importado</Label>
-            <Textarea
-              rows={8}
-              value={importedContext}
-              onChange={(event) => onContextChange(event.target.value)}
-              placeholder="Cole aqui informações já levantadas sobre o tema, a marca ou a publicação."
-            />
-            <p className="text-xs text-muted-foreground">
-              O contexto será mantido como apoio e não será tratado como texto obrigatório da arte.
+
+      {value === "no_ideas" && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="p-5">
+            <p className="font-semibold">As ideias serão sugeridas depois da escolha da marca.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              O Post 2.0 usará segmento, público e objetivo para evitar sugestões genéricas.
             </p>
           </CardContent>
         </Card>
       )}
+
+      {value === "preset" && (
+        <Card>
+          <CardContent className="space-y-3 p-5">
+            <Label>Preset de conteúdo</Label>
+            <Select value={presetId} onValueChange={onPresetChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um preset compatível com Post" />
+              </SelectTrigger>
+              <SelectContent>
+                {presets.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id}>
+                    {preset.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              O preset aplica estrutura, tom e restrições. O tema específico continuará sendo
+              definido por você.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {value === "reference" && (
+        <Card>
+          <CardContent className="grid gap-4 p-5 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Referência</Label>
+              <Textarea
+                rows={7}
+                value={referenceContent}
+                onChange={(event) => onReferenceContentChange(event.target.value)}
+                placeholder="Cole um link, texto, descrição ou informações da referência."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>O que você gostou na referência?</Label>
+              <Textarea
+                rows={7}
+                value={referenceNotes}
+                onChange={(event) => onReferenceNotesChange(event.target.value)}
+                placeholder="Ex.: hierarquia, abertura, pouco texto, composição, ritmo visual..."
+              />
+            </div>
+            <p className="text-xs text-muted-foreground md:col-span-2">
+              A referência será usada somente para aprender organização, hierarquia e abordagem. Não
+              copiar textos, imagens, identidade visual ou composição autoral.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex justify-center">
+        <Button type="button" variant="ghost" onClick={onContinueDraft}>
+          <Save className="mr-2 h-4 w-4" />
+          Continuar último rascunho
+        </Button>
+      </div>
     </section>
   );
 }

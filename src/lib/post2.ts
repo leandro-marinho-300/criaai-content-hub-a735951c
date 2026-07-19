@@ -2,7 +2,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 export const POST2_DRAFT_KEY = "cria-post2-draft-v1";
 
-export type Post2EntryMode = "theme" | "import_context" | "continue";
+export type Post2EntryMode = "idea" | "no_ideas" | "preset" | "reference";
 export type Post2Objective = "educate" | "inform" | "identify" | "promote" | "sell" | "contact";
 export type Post2EditorialType =
   | "direct_guidance"
@@ -28,6 +28,9 @@ export interface Post2Draft {
   call_to_action: string;
   restrictions: string;
   imported_context: string;
+  preset_id: string;
+  reference_content: string;
+  reference_notes: string;
   title_options: string[];
   selected_title_index: number | null;
   custom_title: string;
@@ -47,19 +50,25 @@ export const POST2_ENTRY_OPTIONS: Array<{
   description: string;
 }> = [
   {
-    id: "theme",
-    label: "Tenho um tema",
-    description: "Comece por um assunto específico e construa o post passo a passo.",
+    id: "idea",
+    label: "Tenho uma ideia",
+    description: "Comece por uma ideia, tema ou mensagem que já deseja transformar em Post.",
   },
   {
-    id: "import_context",
-    label: "Importar contexto",
-    description: "Cole um contexto já preparado para aproveitar as informações importantes.",
+    id: "no_ideas",
+    label: "Estou sem ideias",
+    description: "Receba sugestões considerando a marca, o público e o objetivo do conteúdo.",
   },
   {
-    id: "continue",
-    label: "Continuar rascunho",
-    description: "Retome o último Post 2.0 salvo neste navegador.",
+    id: "preset",
+    label: "Usar Preset",
+    description:
+      "Comece com uma estrutura editorial já configurada, sem transformar o preset em tema.",
+  },
+  {
+    id: "reference",
+    label: "Usar referência",
+    description: "Use uma peça ou conteúdo apenas para aprender estrutura, hierarquia e abordagem.",
   },
 ];
 
@@ -154,6 +163,9 @@ export function createPost2Draft(): Post2Draft {
     call_to_action: "",
     restrictions: "",
     imported_context: "",
+    preset_id: "",
+    reference_content: "",
+    reference_notes: "",
     title_options: [],
     selected_title_index: null,
     custom_title: "",
