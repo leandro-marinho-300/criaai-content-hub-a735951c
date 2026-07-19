@@ -8,8 +8,10 @@ type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
 
+const startFetch = createStartHandler(defaultStreamHandler);
+
 const serverEntry: ServerEntry = {
-  fetch: createStartHandler(defaultStreamHandler),
+  fetch: (request) => startFetch(request),
 };
 
 // h3 swallows in-handler throws into a normal 500 Response with body
