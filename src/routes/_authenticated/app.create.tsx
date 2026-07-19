@@ -74,6 +74,7 @@ function CreateHub() {
   return <Hub onPick={(m) => {
     if (m === "ideias") navigate({ to: "/app/ideas" });
     else if (m === "reel") navigate({ to: "/app/create/reel" });
+    else if (m === "tema") navigate({ to: "/app/central" });
     else setMode(m);
   }} />;
 }
