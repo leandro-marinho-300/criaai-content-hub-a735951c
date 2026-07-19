@@ -53,6 +53,7 @@ import {
   exportPost2Json,
   generatePost2Result,
   generatePost2Titles,
+  generatePost2IdeaSuggestions,
   getSelectedPost2Title,
   loadPost2Draft,
   savePost2Draft,
@@ -108,6 +109,13 @@ function CreatePost2() {
     [draft, selectedBrand],
   );
   const jsonOutput = useMemo(() => exportPost2Json(draft, selectedBrand), [draft, selectedBrand]);
+  const ideaSuggestions = useMemo(
+    () =>
+      draft.entry_mode === "no_ideas" && draft.objective
+        ? generatePost2IdeaSuggestions(draft, selectedBrand)
+        : [],
+    [draft, selectedBrand],
+  );
 
   useEffect(() => savePost2Draft(draft), [draft]);
 
@@ -369,7 +377,13 @@ function CreatePost2() {
           brandId={draft.brand_id}
           onChange={(brandId) => {
             const brand = brands?.find((item) => item.id === brandId);
-            patch({ brand_id: brandId, audience: draft.audience || brand?.audience || "" });
+            patch({
+              brand_id: brandId,
+              audience: brand?.audience || "",
+              ...(draft.entry_mode === "no_ideas"
+                ? { theme: "", understanding: "", call_to_action: "", editorial_type: "" }
+                : {}),
+            });
           }}
           selectedBrand={selectedBrand}
           ratio={draft.ratio}
@@ -377,15 +391,35 @@ function CreatePost2() {
         />
       )}
       {step === 2 && (
-        <ObjectiveStep value={draft.objective} onChange={(objective) => patch({ objective })} />
+        <ObjectiveStep
+          value={draft.objective}
+          onChange={(objective) =>
+            patch({
+              objective,
+              ...(draft.entry_mode === "no_ideas"
+                ? { theme: "", understanding: "", call_to_action: "", editorial_type: "" }
+                : {}),
+            })
+          }
+        />
       )}
       {step === 3 && (
         <EditorialTypeStep
           value={draft.editorial_type}
           onChange={(editorial_type) => patch({ editorial_type })}
+          ideaSuggestions={ideaSuggestions}
+          selectedIdeaTitle={draft.entry_mode === "no_ideas" ? draft.theme : ""}
+          onSelectIdea={(idea) =>
+            patch({
+              theme: idea.title,
+              understanding: idea.understanding,
+              call_to_action: idea.cta,
+              editorial_type: idea.editorial_type,
+            })
+          }
         />
       )}
-      {step === 4 && <MessageStep draft={draft} patch={patch} />}
+      {step === 4 && <MessageStep draft={draft} brand={selectedBrand} patch={patch} />}
       {step === 5 && (
         <ResultStep
           draft={draft}
@@ -394,6 +428,8 @@ function CreatePost2() {
           jsonOutput={jsonOutput}
           patch={patch}
           onRegenerate={() => patch(generatePost2Result(draft, selectedBrand))}
+          onSaveForProduction={() => saveForProduction.mutate()}
+          savingForProduction={saveForProduction.isPending}
         />
       )}
 
@@ -685,9 +721,15 @@ function ObjectiveStep({
 function EditorialTypeStep({
   value,
   onChange,
+  ideaSuggestions,
+  selectedIdeaTitle,
+  onSelectIdea,
 }: {
   value: Post2EditorialType | "";
   onChange: (value: Post2EditorialType) => void;
+  ideaSuggestions: ReturnType<typeof generatePost2IdeaSuggestions>;
+  selectedIdeaTitle: string;
+  onSelectIdea: (idea: ReturnType<typeof generatePost2IdeaSuggestions>[number]) => void;
 }) {
   return (
     <section className="space-y-5">
@@ -697,6 +739,39 @@ function EditorialTypeStep({
           Isto define como o assunto será apresentado, não o layout.
         </p>
       </div>
+      {ideaSuggestions.length > 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="text-base">Ideias para a marca selecionada</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Escolha uma ideia criada a partir da marca, do público e do objetivo. Você poderá
+              editar tudo na etapa seguinte.
+            </p>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-3">
+            {ideaSuggestions.map((idea) => (
+              <button
+                key={idea.id}
+                type="button"
+                onClick={() => onSelectIdea(idea)}
+                className={cn(
+                  "rounded-xl border p-4 text-left transition",
+                  selectedIdeaTitle === idea.title
+                    ? "border-primary bg-background shadow-sm"
+                    : "bg-background/60 hover:border-primary/50",
+                )}
+              >
+                <Sparkles className="mb-2 h-4 w-4 text-primary" />
+                <p className="font-semibold">{idea.title}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{idea.understanding}</p>
+                {selectedIdeaTitle === idea.title && (
+                  <Check className="mt-3 h-4 w-4 text-primary" />
+                )}
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
       <div className="grid gap-3 md:grid-cols-2">
         {POST2_EDITORIAL_TYPES.map((item) => (
           <button
@@ -720,9 +795,11 @@ function EditorialTypeStep({
 
 function MessageStep({
   draft,
+  brand,
   patch,
 }: {
   draft: Post2Draft;
+  brand: Tables<"brands"> | null;
   patch: (partial: Partial<Post2Draft>) => void;
 }) {
   return (
@@ -739,14 +816,18 @@ function MessageStep({
             <Input
               value={draft.theme}
               onChange={(event) => patch({ theme: event.target.value })}
-              placeholder="Ex.: Por que seu cachorro não respeita o não"
+              placeholder={
+                brand?.segment
+                  ? `Ex.: Uma dúvida importante sobre ${brand.segment}`
+                  : "Ex.: Tema específico deste post"
+              }
             />
           </Field>
           <Field label="Público">
             <Input
               value={draft.audience}
               onChange={(event) => patch({ audience: event.target.value })}
-              placeholder="Ex.: Tutores de cães"
+              placeholder={brand?.audience || "Ex.: Público principal da marca"}
             />
           </Field>
           <Field label="O que a pessoa precisa entender" required className="md:col-span-2">
@@ -754,7 +835,7 @@ function MessageStep({
               rows={3}
               value={draft.understanding}
               onChange={(event) => patch({ understanding: event.target.value })}
-              placeholder="Ex.: Interromper um comportamento não ensina ao cachorro qual resposta é esperada."
+              placeholder="Ex.: A principal conclusão que o público deve levar deste conteúdo."
             />
           </Field>
           <Field label="Informações obrigatórias">
@@ -770,7 +851,7 @@ function MessageStep({
               rows={4}
               value={draft.call_to_action}
               onChange={(event) => patch({ call_to_action: event.target.value })}
-              placeholder="Ex.: Qual comportamento você mais tenta interromper dizendo não?"
+              placeholder="Ex.: Convide o público a comentar, salvar, compartilhar ou entrar em contato."
             />
           </Field>
           <Field label="Cuidados e restrições" className="md:col-span-2">
@@ -778,7 +859,10 @@ function MessageStep({
               rows={3}
               value={draft.restrictions}
               onChange={(event) => patch({ restrictions: event.target.value })}
-              placeholder="Ex.: Não culpabilizar o tutor; não tratar o cachorro como desobediente por intenção."
+              placeholder={
+                brand?.forbidden_inventions ||
+                "Ex.: Não inventar dados, promessas, preços ou informações não confirmadas."
+              }
             />
           </Field>
         </CardContent>

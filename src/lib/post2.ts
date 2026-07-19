@@ -72,6 +72,176 @@ export const POST2_ENTRY_OPTIONS: Array<{
   },
 ];
 
+export interface Post2IdeaSuggestion {
+  id: string;
+  title: string;
+  understanding: string;
+  cta: string;
+  editorial_type: Post2EditorialType;
+}
+
+export function generatePost2IdeaSuggestions(
+  draft: Post2Draft,
+  brand?: Tables<"brands"> | null,
+): Post2IdeaSuggestion[] {
+  const name = brand?.name?.trim() || "a marca";
+  const segment = brand?.segment?.trim() || "seu segmento";
+  const audience = draft.audience.trim() || brand?.audience?.trim() || "o público da marca";
+  const needs =
+    brand?.audience_needs?.trim() ||
+    brand?.audience_difficulties?.trim() ||
+    "suas principais necessidades";
+  const services =
+    brand?.products_services?.trim() ||
+    brand?.priority_services?.join(", ") ||
+    "o que a marca oferece";
+  const differentiators = brand?.differentiators?.trim() || "a forma de trabalhar da marca";
+
+  const objective = draft.objective || "inform";
+  const byObjective: Record<Post2Objective, Post2IdeaSuggestion[]> = {
+    educate: [
+      {
+        id: "educate-1",
+        title: `Um erro comum de ${audience} ao lidar com ${segment}`,
+        understanding: `Explicar um erro frequente de forma prática e mostrar uma orientação mais clara, conectada às necessidades reais de ${audience}.`,
+        cta: "Qual parte dessa situação mais gera dúvida para você?",
+        editorial_type: "error_alert",
+      },
+      {
+        id: "educate-2",
+        title: `O que ${audience} precisa entender antes de escolher ${services}`,
+        understanding: `Ensinar os critérios essenciais para tomar uma decisão mais segura, sem promessas ou informações não confirmadas.`,
+        cta: "Salve este post para consultar antes de decidir.",
+        editorial_type: "direct_guidance",
+      },
+      {
+        id: "educate-3",
+        title: `Mito ou verdade sobre ${segment}`,
+        understanding: `Corrigir uma crença comum do público com linguagem simples, respeitosa e alinhada ao posicionamento de ${name}.`,
+        cta: "Você já tinha ouvido essa afirmação?",
+        editorial_type: "belief_break",
+      },
+    ],
+    inform: [
+      {
+        id: "inform-1",
+        title: `O que mudou ou merece atenção em ${segment}`,
+        understanding: `Apresentar uma informação relevante para ${audience}, destacando somente fatos confirmados e seus impactos práticos.`,
+        cta: "Compartilhe com alguém que precisa saber disso.",
+        editorial_type: "direct_guidance",
+      },
+      {
+        id: "inform-2",
+        title: `3 pontos para entender melhor ${services}`,
+        understanding: `Organizar os principais pontos de forma curta e útil, ajudando o público a compreender o assunto sem excesso de informação.`,
+        cta: "Qual desses pontos você quer ver explicado em outro post?",
+        editorial_type: "direct_guidance",
+      },
+      {
+        id: "inform-3",
+        title: `Uma dúvida frequente de ${audience}`,
+        understanding: `Responder uma dúvida recorrente de forma objetiva e alinhada às informações oficiais da marca.`,
+        cta: "Deixe sua dúvida nos comentários.",
+        editorial_type: "question_identification",
+      },
+    ],
+    identify: [
+      {
+        id: "identify-1",
+        title: `Você também enfrenta isso em ${segment}?`,
+        understanding: `Mostrar uma situação real vivida por ${audience} e acolher a dificuldade sem julgamento.`,
+        cta: "Isso acontece com você também?",
+        editorial_type: "question_identification",
+      },
+      {
+        id: "identify-2",
+        title: `Quando ${needs} começa a pesar na rotina`,
+        understanding: `Criar identificação com uma dor concreta e mostrar que ela pode ser compreendida e organizada.`,
+        cta: "Qual é a maior dificuldade hoje?",
+        editorial_type: "question_identification",
+      },
+      {
+        id: "identify-3",
+        title: `Você não precisa resolver tudo sozinho`,
+        understanding: `Acolher o público e apresentar ${name} como apoio possível, sem transformar o conteúdo em promessa comercial exagerada.`,
+        cta: "Converse com a gente para entender o próximo passo.",
+        editorial_type: "benefit_opportunity",
+      },
+    ],
+    promote: [
+      {
+        id: "promote-1",
+        title: `Conheça melhor ${services}`,
+        understanding: `Apresentar de forma clara o que a marca oferece, para quem é indicado e qual necessidade atende.`,
+        cta: "Fale com a gente para saber mais.",
+        editorial_type: "institutional",
+      },
+      {
+        id: "promote-2",
+        title: `Como ${name} pode apoiar ${audience}`,
+        understanding: `Relacionar os serviços da marca às necessidades do público sem inventar resultados ou garantias.`,
+        cta: "Envie uma mensagem para entender como funciona.",
+        editorial_type: "benefit_opportunity",
+      },
+      {
+        id: "promote-3",
+        title: `O diferencial de ${name} em ${segment}`,
+        understanding: `Evidenciar ${differentiators} com linguagem concreta, evitando afirmações genéricas ou não comprovadas.`,
+        cta: "Conheça nosso jeito de trabalhar.",
+        editorial_type: "institutional",
+      },
+    ],
+    sell: [
+      {
+        id: "sell-1",
+        title: `Uma solução para ${needs}`,
+        understanding: `Apresentar ${services} como uma possibilidade concreta para uma necessidade do público, sem prometer resultado garantido.`,
+        cta: "Solicite mais informações.",
+        editorial_type: "commercial_offer",
+      },
+      {
+        id: "sell-2",
+        title: `Por que considerar ${name} para ${segment}`,
+        understanding: `Mostrar valor, diferenciais e adequação ao público com argumentos verificáveis e linguagem responsável.`,
+        cta: "Converse com a equipe.",
+        editorial_type: "benefit_opportunity",
+      },
+      {
+        id: "sell-3",
+        title: `Seu próximo passo em ${segment}`,
+        understanding: `Conduzir o público a uma ação comercial simples, deixando claro o que será oferecido e o que precisa ser confirmado.`,
+        cta: "Entre em contato para começar.",
+        editorial_type: "commercial_offer",
+      },
+    ],
+    contact: [
+      {
+        id: "contact-1",
+        title: `Tem dúvidas sobre ${services}?`,
+        understanding: `Abrir uma conversa com ${audience}, usando uma dúvida real como ponto de partida.`,
+        cta: "Envie sua dúvida por mensagem.",
+        editorial_type: "question_identification",
+      },
+      {
+        id: "contact-2",
+        title: `Vamos entender o que você precisa?`,
+        understanding: `Convidar o público a explicar sua necessidade para receber orientação inicial, sem antecipar proposta ou promessa.`,
+        cta: "Chame a gente para conversar.",
+        editorial_type: "commercial_offer",
+      },
+      {
+        id: "contact-3",
+        title: `Descubra qual caminho faz sentido para você`,
+        understanding: `Estimular contato para avaliar contexto, objetivo e possibilidades com atendimento personalizado.`,
+        cta: "Fale com a equipe e conte seu objetivo.",
+        editorial_type: "benefit_opportunity",
+      },
+    ],
+  };
+
+  return byObjective[objective];
+}
+
 export const POST2_OBJECTIVES: Array<{ id: Post2Objective; label: string; description: string }> = [
   {
     id: "educate",
