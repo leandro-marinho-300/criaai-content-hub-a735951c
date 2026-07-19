@@ -1,6 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -16,12 +16,16 @@ import {
   Palette,
   RefreshCw,
   Save,
+  Upload,
+  CalendarDays,
+  Send,
   Sparkles,
   Target,
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import type { Tables } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,6 +72,9 @@ const STEP_LABELS = ["Entrada", "Marca", "Objetivo", "Tipo", "Mensagem", "Result
 type StepIndex = 0 | 1 | 2 | 3 | 4 | 5;
 
 function CreatePost2() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { user } = useAuth();
   const [step, setStep] = useState<StepIndex>(0);
   const [draft, setDraft] = useState<Post2Draft>(() => createPost2Draft());
 
@@ -179,6 +186,109 @@ function CreatePost2() {
     setStep(0);
     toast.success("Novo Post 2.0 iniciado.");
   };
+
+  const saveForProduction = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Sessão expirada. Entre novamente.");
+      if (!selectedBrand) throw new Error("Selecione uma marca antes de salvar o Post.");
+
+      const finalTitle = draft.custom_title || getSelectedPost2Title(draft);
+      const hashtags = draft.hashtags
+        .split(/\s+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 5);
+      const payload = {
+        user_id: user.id,
+        brand_id: selectedBrand.id,
+        internal_title: `Post 2.0 — ${finalTitle}`.slice(0, 160),
+        display_title: finalTitle.slice(0, 120),
+        theme: draft.theme,
+        objective: draft.objective || "informar",
+        specific_audience: draft.audience || selectedBrand.audience || null,
+        main_message: draft.understanding,
+        mandatory_information: draft.mandatory_information || null,
+        call_to_action: draft.call_to_action || draft.art_cta || null,
+        desired_style: draft.visual_direction || null,
+        restrictions: draft.restrictions || selectedBrand.forbidden_inventions || null,
+        notes: [
+          "Origem: Criar Post 2.0.",
+          `Formato: ${draft.ratio}.`,
+          `Tipo editorial: ${draft.editorial_type || "não definido"}.`,
+          `Prompt visual criado externamente para uso no GPT.`,
+        ].join("\n"),
+        selected_formats: ["post"],
+        selected_outputs: ["textos_artes", "legenda_completa", "hashtags", "prompt_visual"],
+        generation_mode: "safe" as const,
+        status: "draft" as const,
+        content_source: "external_chatgpt",
+        content_development_status: "script_imported" as const,
+        campaign_content_json: {
+          source: "post_2_0",
+          post2: draft,
+          caption: { text: draft.caption, hashtags },
+          layout_prompt: layoutPrompt,
+          created_at: new Date().toISOString(),
+        },
+        imported_at: new Date().toISOString(),
+      };
+
+      const { data: project, error } = await supabase
+        .from("content_projects")
+        .insert(payload)
+        .select("*")
+        .single();
+      if (error) throw error;
+
+      const piece = {
+        index: 1,
+        formatKey: "post",
+        role: "arte",
+        name: `Post 2.0 — ${finalTitle}`,
+        formatLabel: draft.ratio === "4:5" ? "Post para Feed 4:5" : "Post para Feed 1:1",
+        objective: draft.objective || "informar",
+        communicationAngle: "direct",
+        mainPromise: draft.understanding,
+        mainProblem: "",
+        mainBenefit: draft.understanding,
+        mainText: finalTitle,
+        supportText: draft.support_text,
+        bullets: draft.badge_text ? [draft.badge_text] : [],
+        cta: draft.art_cta || draft.call_to_action,
+        caption: draft.caption,
+        hashtags,
+        productionNotes: [draft.visual_direction, `Proporção: ${draft.ratio}`].filter(Boolean),
+        readyPrompt: layoutPrompt,
+        qualityStatus: "approved",
+        headlineOptions: draft.title_options,
+        supportTextOptions: [],
+        outputKind: "publishable_asset",
+        sourceScope: "publication",
+        contentStage: "publication_copy",
+        copySource: "external_chatgpt",
+      };
+
+      const { error: outputError } = await supabase.from("content_outputs").insert({
+        project_id: project.id,
+        user_id: user.id,
+        output_type: "piece",
+        title: piece.name,
+        original_content: JSON.stringify(piece),
+        display_order: 0,
+      });
+      if (outputError) throw outputError;
+      return project.id as string;
+    },
+    onSuccess: (projectId) => {
+      clearPost2Draft();
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      qc.invalidateQueries({ queryKey: ["library"] });
+      toast.success("Post salvo. Agora anexe a arte e siga para aprovação.");
+      navigate({ to: "/app/content/$projectId/result", params: { projectId } });
+    },
+    onError: (error: Error) =>
+      toast.error("Não foi possível salvar o Post", { description: error.message }),
+  });
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-16">
@@ -684,6 +794,8 @@ function ResultStep({
   jsonOutput,
   patch,
   onRegenerate,
+  onSaveForProduction,
+  savingForProduction,
 }: {
   draft: Post2Draft;
   brand: Tables<"brands"> | null;
@@ -691,6 +803,8 @@ function ResultStep({
   jsonOutput: string;
   patch: (partial: Partial<Post2Draft>) => void;
   onRegenerate: () => void;
+  onSaveForProduction: () => void;
+  savingForProduction: boolean;
 }) {
   return (
     <section className="space-y-5">
@@ -866,6 +980,56 @@ function ResultStep({
           </CardContent>
         </Card>
       </div>
+      <Card className="border-primary/30 bg-primary/[0.03]">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Upload className="h-4 w-4 text-primary" />
+            Arte final, aprovação e calendário
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Salve este Post como projeto para anexar a arte gerada no GPT. Depois, o mesmo fluxo do
+            Reel ficará disponível: revisão da peça, envio para aprovação e agendamento no
+            calendário.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border bg-background p-4">
+              <Upload className="mb-2 h-5 w-5 text-primary" />
+              <p className="font-semibold">1. Anexar a arte</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                PNG, JPG, JPEG ou WebP, com preview e substituição.
+              </p>
+            </div>
+            <div className="rounded-xl border bg-background p-4">
+              <Send className="mb-2 h-5 w-5 text-primary" />
+              <p className="font-semibold">2. Enviar para aprovação</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Arte, legenda e hashtags no link público de aprovação.
+              </p>
+            </div>
+            <div className="rounded-xl border bg-background p-4">
+              <CalendarDays className="mb-2 h-5 w-5 text-primary" />
+              <p className="font-semibold">3. Agendar</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Adicionar ao calendário e acompanhar a publicação.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="lg"
+            onClick={onSaveForProduction}
+            disabled={savingForProduction}
+          >
+            <Save className="mr-2 h-4 w-4" />
+            {savingForProduction ? "Salvando projeto..." : "Salvar e continuar para produção"}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            O rascunho local só será limpo após o projeto ser salvo com sucesso.
+          </p>
+        </CardContent>
+      </Card>
     </section>
   );
 }
