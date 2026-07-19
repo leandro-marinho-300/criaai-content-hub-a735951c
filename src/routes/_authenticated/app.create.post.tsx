@@ -64,16 +64,8 @@ export const Route = createFileRoute("/_authenticated/app/create/post")({
   component: CreatePost2,
 });
 
-const STEP_LABELS = [
-  "Entrada",
-  "Marca",
-  "Objetivo",
-  "Tipo",
-  "Mensagem",
-  "Título",
-  "Resultado",
-] as const;
-type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+const STEP_LABELS = ["Entrada", "Marca", "Objetivo", "Tipo", "Mensagem", "Resultado"] as const;
+type StepIndex = 0 | 1 | 2 | 3 | 4 | 5;
 
 function CreatePost2() {
   const [step, setStep] = useState<StepIndex>(0);
@@ -104,7 +96,6 @@ function CreatePost2() {
     () => brands?.find((brand) => brand.id === draft.brand_id) ?? null,
     [brands, draft.brand_id],
   );
-  const title = getSelectedPost2Title(draft);
   const layoutPrompt = useMemo(
     () => buildPost2LayoutPrompt(draft, selectedBrand),
     [draft, selectedBrand],
@@ -128,9 +119,8 @@ function CreatePost2() {
     if (step === 2) return Boolean(draft.objective);
     if (step === 3) return Boolean(draft.editorial_type);
     if (step === 4) return draft.theme.trim().length >= 3 && draft.understanding.trim().length >= 3;
-    if (step === 5) return Boolean(title.trim());
     return true;
-  }, [draft, step, title]);
+  }, [draft, step]);
 
   const goNext = () => {
     if (!canContinue) {
@@ -138,16 +128,22 @@ function CreatePost2() {
       return;
     }
     if (step === 4) {
-      patch({
+      const titledDraft: Post2Draft = {
+        ...draft,
         title_options: generatePost2Titles(draft, selectedBrand),
         selected_title_index: 0,
         custom_title: "",
+        updated_at: new Date().toISOString(),
+      };
+      setDraft({
+        ...titledDraft,
+        ...generatePost2Result(titledDraft, selectedBrand),
+        updated_at: new Date().toISOString(),
       });
+      setStep(5);
+      return;
     }
-    if (step === 5) {
-      patch(generatePost2Result(draft, selectedBrand));
-    }
-    setStep((current) => Math.min(6, current + 1) as StepIndex);
+    setStep((current) => Math.min(5, current + 1) as StepIndex);
   };
 
   const chooseEntry = (mode: Post2EntryMode) => {
@@ -222,7 +218,7 @@ function CreatePost2() {
           </div>
           <Progress value={progress} />
         </div>
-        <div className="hidden grid-cols-7 gap-2 md:grid">
+        <div className="hidden grid-cols-6 gap-2 md:grid">
           {STEP_LABELS.map((label, index) => (
             <button
               key={label}
@@ -280,8 +276,7 @@ function CreatePost2() {
         />
       )}
       {step === 4 && <MessageStep draft={draft} patch={patch} />}
-      {step === 5 && <TitleStep draft={draft} brand={selectedBrand} patch={patch} />}
-      {step === 6 && (
+      {step === 5 && (
         <ResultStep
           draft={draft}
           brand={selectedBrand}
@@ -301,7 +296,7 @@ function CreatePost2() {
           <ArrowLeft className="mr-1 h-4 w-4" />
           Voltar
         </Button>
-        {step < 6 ? (
+        {step < 5 ? (
           <Button onClick={goNext} disabled={!canContinue}>
             Continuar
             <ArrowRight className="ml-1 h-4 w-4" />
@@ -682,69 +677,6 @@ function MessageStep({
   );
 }
 
-function TitleStep({
-  draft,
-  brand,
-  patch,
-}: {
-  draft: Post2Draft;
-  brand: Tables<"brands"> | null;
-  patch: (partial: Partial<Post2Draft>) => void;
-}) {
-  const regenerate = () =>
-    patch({
-      title_options: generatePost2Titles(draft, brand),
-      selected_title_index: 0,
-      custom_title: "",
-    });
-  return (
-    <section className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold">Escolha o título da arte</h2>
-          <p className="text-sm text-muted-foreground">
-            Você pode escolher uma opção ou escrever a sua.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={regenerate}>
-          <RefreshCw className="mr-1 h-4 w-4" />
-          Gerar novas opções
-        </Button>
-      </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        {draft.title_options.map((option, index) => (
-          <button
-            type="button"
-            key={`${option}-${index}`}
-            onClick={() => patch({ selected_title_index: index, custom_title: "" })}
-            className={cn(
-              "rounded-2xl border p-5 text-left",
-              draft.selected_title_index === index && !draft.custom_title
-                ? "border-primary bg-primary/5"
-                : "hover:border-primary/40",
-            )}
-          >
-            <BadgeCheck className="mb-3 h-5 w-5 text-primary" />
-            <p className="font-semibold leading-snug">{option}</p>
-          </button>
-        ))}
-      </div>
-      <Card>
-        <CardContent className="space-y-2 p-5">
-          <Label>Título personalizado</Label>
-          <Input
-            value={draft.custom_title}
-            onChange={(event) =>
-              patch({ custom_title: event.target.value, selected_title_index: null })
-            }
-            placeholder="Escreva ou ajuste o título final"
-          />
-        </CardContent>
-      </Card>
-    </section>
-  );
-}
-
 function ResultStep({
   draft,
   brand,
@@ -774,6 +706,65 @@ function ResultStep({
           Atualizar resultado
         </Button>
       </div>
+      <Card className="border-primary/20">
+        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BadgeCheck className="h-4 w-4 text-primary" />
+              Título da arte
+            </CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Escolha uma das opções ou ajuste o título final sem sair do resultado.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              patch({
+                title_options: generatePost2Titles(draft, brand),
+                selected_title_index: 0,
+                custom_title: "",
+              })
+            }
+          >
+            <RefreshCw className="mr-1 h-4 w-4" />
+            Gerar novas opções
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            {draft.title_options.map((option, index) => (
+              <button
+                type="button"
+                key={`${option}-${index}`}
+                onClick={() => patch({ selected_title_index: index, custom_title: "" })}
+                className={cn(
+                  "rounded-xl border p-4 text-left transition",
+                  draft.selected_title_index === index && !draft.custom_title
+                    ? "border-primary bg-primary/5"
+                    : "hover:border-primary/40",
+                )}
+              >
+                <p className="font-semibold leading-snug">{option}</p>
+              </button>
+            ))}
+          </div>
+          <Field label="Título personalizado">
+            <Input
+              value={draft.custom_title}
+              onChange={(event) =>
+                patch({ custom_title: event.target.value, selected_title_index: null })
+              }
+              placeholder="Escreva ou ajuste o título final"
+            />
+          </Field>
+          <p className="text-xs text-muted-foreground">
+            Ao trocar o título, use “Atualizar resultado” para recalcular legenda e direção visual.
+          </p>
+        </CardContent>
+      </Card>
       <div className="grid gap-5 xl:grid-cols-2">
         <Card>
           <CardHeader>
