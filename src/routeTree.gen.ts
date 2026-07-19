@@ -9,43 +9,34 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApprovalTokenRouteImport } from './routes/approval.$token'
+import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
-import { Route as AuthenticatedAppCalendarRouteImport } from './routes/_authenticated/app.calendar'
-import { Route as AuthenticatedAppCentralRouteImport } from './routes/_authenticated/app.central'
-import { Route as AuthenticatedAppCreateRouteImport } from './routes/_authenticated/app.create'
-import { Route as AuthenticatedAppIdeasRouteImport } from './routes/_authenticated/app.ideas'
-import { Route as AuthenticatedAppLibraryRouteImport } from './routes/_authenticated/app.library'
-import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
-import { Route as AuthenticatedAppTemplatesRouteImport } from './routes/_authenticated/app.templates'
 import { Route as AuthenticatedAppTrendsRouteImport } from './routes/_authenticated/app.trends'
+import { Route as AuthenticatedAppTemplatesRouteImport } from './routes/_authenticated/app.templates'
+import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
+import { Route as AuthenticatedAppLibraryRouteImport } from './routes/_authenticated/app.library'
+import { Route as AuthenticatedAppIdeasRouteImport } from './routes/_authenticated/app.ideas'
+import { Route as AuthenticatedAppCreateRouteImport } from './routes/_authenticated/app.create'
+import { Route as AuthenticatedAppCentralRouteImport } from './routes/_authenticated/app.central'
+import { Route as AuthenticatedAppCalendarRouteImport } from './routes/_authenticated/app.calendar'
 import { Route as AuthenticatedAppBrandsIndexRouteImport } from './routes/_authenticated/app.brands.index'
-import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
-import { Route as AuthenticatedAppContentNewRouteImport } from './routes/_authenticated/app.content.new'
-import { Route as AuthenticatedAppCreateReelRouteImport } from './routes/_authenticated/app.create.reel'
 import { Route as ApiPublicApprovalTokenRouteImport } from './routes/api/public/approval.$token'
-import { Route as AuthenticatedAppBrandsBrandIdEditRouteImport } from './routes/_authenticated/app.brands.$brandId.edit'
-import { Route as AuthenticatedAppContentProjectIdClientPdfRouteImport } from './routes/_authenticated/app.content.$projectId.client-pdf'
+import { Route as AuthenticatedAppCreateReelRouteImport } from './routes/_authenticated/app.create.reel'
+import { Route as AuthenticatedAppContentNewRouteImport } from './routes/_authenticated/app.content.new'
+import { Route as AuthenticatedAppBrandsNewRouteImport } from './routes/_authenticated/app.brands.new'
 import { Route as AuthenticatedAppContentProjectIdResultRouteImport } from './routes/_authenticated/app.content.$projectId.result'
+import { Route as AuthenticatedAppContentProjectIdClientPdfRouteImport } from './routes/_authenticated/app.content.$projectId.client-pdf'
+import { Route as AuthenticatedAppBrandsBrandIdEditRouteImport } from './routes/_authenticated/app.brands.$brandId.edit'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -53,9 +44,23 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApprovalTokenRoute = ApprovalTokenRouteImport.update({
+  id: '/approval/$token',
+  path: '/approval/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
@@ -63,14 +68,46 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   path: '/app',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const ApprovalTokenRoute = ApprovalTokenRouteImport.update({
-  id: '/approval/$token',
-  path: '/approval/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppTrendsRoute = AuthenticatedAppTrendsRouteImport.update({
+  id: '/trends',
+  path: '/trends',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppTemplatesRoute =
+  AuthenticatedAppTemplatesRouteImport.update({
+    id: '/templates',
+    path: '/templates',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppSettingsRoute =
+  AuthenticatedAppSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppLibraryRoute = AuthenticatedAppLibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppIdeasRoute = AuthenticatedAppIdeasRouteImport.update({
+  id: '/ideas',
+  path: '/ideas',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppCreateRoute = AuthenticatedAppCreateRouteImport.update({
+  id: '/create',
+  path: '/create',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppCentralRoute = AuthenticatedAppCentralRouteImport.update({
+  id: '/central',
+  path: '/central',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
 const AuthenticatedAppCalendarRoute =
@@ -79,47 +116,27 @@ const AuthenticatedAppCalendarRoute =
     path: '/calendar',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppCentralRoute = AuthenticatedAppCentralRouteImport.update({
-  id: '/central',
-  path: '/central',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppCreateRoute = AuthenticatedAppCreateRouteImport.update({
-  id: '/create',
-  path: '/create',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppIdeasRoute = AuthenticatedAppIdeasRouteImport.update({
-  id: '/ideas',
-  path: '/ideas',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppLibraryRoute = AuthenticatedAppLibraryRouteImport.update({
-  id: '/library',
-  path: '/library',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppSettingsRoute =
-  AuthenticatedAppSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppTemplatesRoute =
-  AuthenticatedAppTemplatesRouteImport.update({
-    id: '/templates',
-    path: '/templates',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppTrendsRoute = AuthenticatedAppTrendsRouteImport.update({
-  id: '/trends',
-  path: '/trends',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
 const AuthenticatedAppBrandsIndexRoute =
   AuthenticatedAppBrandsIndexRouteImport.update({
     id: '/brands/',
     path: '/brands/',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const ApiPublicApprovalTokenRoute = ApiPublicApprovalTokenRouteImport.update({
+  id: '/api/public/approval/$token',
+  path: '/api/public/approval/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAppCreateReelRoute =
+  AuthenticatedAppCreateReelRouteImport.update({
+    id: '/reel',
+    path: '/reel',
+    getParentRoute: () => AuthenticatedAppCreateRoute,
+  } as any)
+const AuthenticatedAppContentNewRoute =
+  AuthenticatedAppContentNewRouteImport.update({
+    id: '/content/new',
+    path: '/content/new',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppBrandsNewRoute =
@@ -128,27 +145,10 @@ const AuthenticatedAppBrandsNewRoute =
     path: '/brands/new',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppContentNewRoute =
-  AuthenticatedAppContentNewRouteImport.update({
-    id: '/content/new',
-    path: '/content/new',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppCreateReelRoute =
-  AuthenticatedAppCreateReelRouteImport.update({
-    id: '/reel',
-    path: '/reel',
-    getParentRoute: () => AuthenticatedAppCreateRoute,
-  } as any)
-const ApiPublicApprovalTokenRoute = ApiPublicApprovalTokenRouteImport.update({
-  id: '/api/public/approval/$token',
-  path: '/api/public/approval/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedAppBrandsBrandIdEditRoute =
-  AuthenticatedAppBrandsBrandIdEditRouteImport.update({
-    id: '/brands/$brandId/edit',
-    path: '/brands/$brandId/edit',
+const AuthenticatedAppContentProjectIdResultRoute =
+  AuthenticatedAppContentProjectIdResultRouteImport.update({
+    id: '/content/$projectId/result',
+    path: '/content/$projectId/result',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppContentProjectIdClientPdfRoute =
@@ -157,10 +157,10 @@ const AuthenticatedAppContentProjectIdClientPdfRoute =
     path: '/content/$projectId/client-pdf',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppContentProjectIdResultRoute =
-  AuthenticatedAppContentProjectIdResultRouteImport.update({
-    id: '/content/$projectId/result',
-    path: '/content/$projectId/result',
+const AuthenticatedAppBrandsBrandIdEditRoute =
+  AuthenticatedAppBrandsBrandIdEditRouteImport.update({
+    id: '/brands/$brandId/edit',
+    path: '/brands/$brandId/edit',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 
@@ -330,25 +330,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -358,11 +344,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/approval/$token': {
+      id: '/approval/$token'
+      path: '/approval/$token'
+      fullPath: '/approval/$token'
+      preLoaderRoute: typeof ApprovalTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app': {
@@ -372,67 +379,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/approval/$token': {
-      id: '/approval/$token'
-      path: '/approval/$token'
-      fullPath: '/approval/$token'
-      preLoaderRoute: typeof ApprovalTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated/app/': {
       id: '/_authenticated/app/'
       path: '/'
       fullPath: '/app/'
       preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/calendar': {
-      id: '/_authenticated/app/calendar'
-      path: '/calendar'
-      fullPath: '/app/calendar'
-      preLoaderRoute: typeof AuthenticatedAppCalendarRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/central': {
-      id: '/_authenticated/app/central'
-      path: '/central'
-      fullPath: '/app/central'
-      preLoaderRoute: typeof AuthenticatedAppCentralRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/create': {
-      id: '/_authenticated/app/create'
-      path: '/create'
-      fullPath: '/app/create'
-      preLoaderRoute: typeof AuthenticatedAppCreateRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/ideas': {
-      id: '/_authenticated/app/ideas'
-      path: '/ideas'
-      fullPath: '/app/ideas'
-      preLoaderRoute: typeof AuthenticatedAppIdeasRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/library': {
-      id: '/_authenticated/app/library'
-      path: '/library'
-      fullPath: '/app/library'
-      preLoaderRoute: typeof AuthenticatedAppLibraryRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/settings': {
-      id: '/_authenticated/app/settings'
-      path: '/settings'
-      fullPath: '/app/settings'
-      preLoaderRoute: typeof AuthenticatedAppSettingsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/templates': {
-      id: '/_authenticated/app/templates'
-      path: '/templates'
-      fullPath: '/app/templates'
-      preLoaderRoute: typeof AuthenticatedAppTemplatesRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/trends': {
@@ -442,11 +393,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppTrendsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/templates': {
+      id: '/_authenticated/app/templates'
+      path: '/templates'
+      fullPath: '/app/templates'
+      preLoaderRoute: typeof AuthenticatedAppTemplatesRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/settings': {
+      id: '/_authenticated/app/settings'
+      path: '/settings'
+      fullPath: '/app/settings'
+      preLoaderRoute: typeof AuthenticatedAppSettingsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/library': {
+      id: '/_authenticated/app/library'
+      path: '/library'
+      fullPath: '/app/library'
+      preLoaderRoute: typeof AuthenticatedAppLibraryRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/ideas': {
+      id: '/_authenticated/app/ideas'
+      path: '/ideas'
+      fullPath: '/app/ideas'
+      preLoaderRoute: typeof AuthenticatedAppIdeasRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/create': {
+      id: '/_authenticated/app/create'
+      path: '/create'
+      fullPath: '/app/create'
+      preLoaderRoute: typeof AuthenticatedAppCreateRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/central': {
+      id: '/_authenticated/app/central'
+      path: '/central'
+      fullPath: '/app/central'
+      preLoaderRoute: typeof AuthenticatedAppCentralRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/calendar': {
+      id: '/_authenticated/app/calendar'
+      path: '/calendar'
+      fullPath: '/app/calendar'
+      preLoaderRoute: typeof AuthenticatedAppCalendarRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/brands/': {
       id: '/_authenticated/app/brands/'
       path: '/brands'
       fullPath: '/app/brands/'
       preLoaderRoute: typeof AuthenticatedAppBrandsIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/api/public/approval/$token': {
+      id: '/api/public/approval/$token'
+      path: '/api/public/approval/$token'
+      fullPath: '/api/public/approval/$token'
+      preLoaderRoute: typeof ApiPublicApprovalTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/app/create/reel': {
+      id: '/_authenticated/app/create/reel'
+      path: '/reel'
+      fullPath: '/app/create/reel'
+      preLoaderRoute: typeof AuthenticatedAppCreateReelRouteImport
+      parentRoute: typeof AuthenticatedAppCreateRoute
+    }
+    '/_authenticated/app/content/new': {
+      id: '/_authenticated/app/content/new'
+      path: '/content/new'
+      fullPath: '/app/content/new'
+      preLoaderRoute: typeof AuthenticatedAppContentNewRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/brands/new': {
@@ -456,32 +477,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppBrandsNewRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/content/new': {
-      id: '/_authenticated/app/content/new'
-      path: '/content/new'
-      fullPath: '/app/content/new'
-      preLoaderRoute: typeof AuthenticatedAppContentNewRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/create/reel': {
-      id: '/_authenticated/app/create/reel'
-      path: '/reel'
-      fullPath: '/app/create/reel'
-      preLoaderRoute: typeof AuthenticatedAppCreateReelRouteImport
-      parentRoute: typeof AuthenticatedAppCreateRoute
-    }
-    '/api/public/approval/$token': {
-      id: '/api/public/approval/$token'
-      path: '/api/public/approval/$token'
-      fullPath: '/api/public/approval/$token'
-      preLoaderRoute: typeof ApiPublicApprovalTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/app/brands/$brandId/edit': {
-      id: '/_authenticated/app/brands/$brandId/edit'
-      path: '/brands/$brandId/edit'
-      fullPath: '/app/brands/$brandId/edit'
-      preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdEditRouteImport
+    '/_authenticated/app/content/$projectId/result': {
+      id: '/_authenticated/app/content/$projectId/result'
+      path: '/content/$projectId/result'
+      fullPath: '/app/content/$projectId/result'
+      preLoaderRoute: typeof AuthenticatedAppContentProjectIdResultRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/content/$projectId/client-pdf': {
@@ -491,11 +491,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppContentProjectIdClientPdfRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/content/$projectId/result': {
-      id: '/_authenticated/app/content/$projectId/result'
-      path: '/content/$projectId/result'
-      fullPath: '/app/content/$projectId/result'
-      preLoaderRoute: typeof AuthenticatedAppContentProjectIdResultRouteImport
+    '/_authenticated/app/brands/$brandId/edit': {
+      id: '/_authenticated/app/brands/$brandId/edit'
+      path: '/brands/$brandId/edit'
+      fullPath: '/app/brands/$brandId/edit'
+      preLoaderRoute: typeof AuthenticatedAppBrandsBrandIdEditRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
   }
@@ -580,3 +580,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
