@@ -79,12 +79,11 @@ const AuthenticatedAppCalendarRoute =
     path: '/calendar',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppCentralRoute =
-  AuthenticatedAppCentralRouteImport.update({
-    id: '/central',
-    path: '/central',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
+const AuthenticatedAppCentralRoute = AuthenticatedAppCentralRouteImport.update({
+  id: '/central',
+  path: '/central',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppCreateRoute = AuthenticatedAppCreateRouteImport.update({
   id: '/create',
   path: '/create',
