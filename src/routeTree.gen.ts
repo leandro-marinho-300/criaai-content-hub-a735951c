@@ -18,6 +18,7 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as ApprovalTokenRouteImport } from './routes/approval.$token'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppCalendarRouteImport } from './routes/_authenticated/app.calendar'
+import { Route as AuthenticatedAppCentralRouteImport } from './routes/_authenticated/app.central'
 import { Route as AuthenticatedAppCreateRouteImport } from './routes/_authenticated/app.create'
 import { Route as AuthenticatedAppIdeasRouteImport } from './routes/_authenticated/app.ideas'
 import { Route as AuthenticatedAppLibraryRouteImport } from './routes/_authenticated/app.library'
@@ -76,6 +77,12 @@ const AuthenticatedAppCalendarRoute =
   AuthenticatedAppCalendarRouteImport.update({
     id: '/calendar',
     path: '/calendar',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppCentralRoute =
+  AuthenticatedAppCentralRouteImport.update({
+    id: '/central',
+    path: '/central',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppCreateRoute = AuthenticatedAppCreateRouteImport.update({
@@ -166,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/approval/$token': typeof ApprovalTokenRoute
   '/app/calendar': typeof AuthenticatedAppCalendarRoute
+  '/app/central': typeof AuthenticatedAppCentralRoute
   '/app/create': typeof AuthenticatedAppCreateRouteWithChildren
   '/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/app/library': typeof AuthenticatedAppLibraryRoute
@@ -189,6 +197,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/approval/$token': typeof ApprovalTokenRoute
   '/app/calendar': typeof AuthenticatedAppCalendarRoute
+  '/app/central': typeof AuthenticatedAppCentralRoute
   '/app/create': typeof AuthenticatedAppCreateRouteWithChildren
   '/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/app/library': typeof AuthenticatedAppLibraryRoute
@@ -215,6 +224,7 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/approval/$token': typeof ApprovalTokenRoute
   '/_authenticated/app/calendar': typeof AuthenticatedAppCalendarRoute
+  '/_authenticated/app/central': typeof AuthenticatedAppCentralRoute
   '/_authenticated/app/create': typeof AuthenticatedAppCreateRouteWithChildren
   '/_authenticated/app/ideas': typeof AuthenticatedAppIdeasRoute
   '/_authenticated/app/library': typeof AuthenticatedAppLibraryRoute
@@ -241,6 +251,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/approval/$token'
     | '/app/calendar'
+    | '/app/central'
     | '/app/create'
     | '/app/ideas'
     | '/app/library'
@@ -264,6 +275,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/approval/$token'
     | '/app/calendar'
+    | '/app/central'
     | '/app/create'
     | '/app/ideas'
     | '/app/library'
@@ -289,6 +301,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/approval/$token'
     | '/_authenticated/app/calendar'
+    | '/_authenticated/app/central'
     | '/_authenticated/app/create'
     | '/_authenticated/app/ideas'
     | '/_authenticated/app/library'
@@ -379,6 +392,13 @@ declare module '@tanstack/react-router' {
       path: '/calendar'
       fullPath: '/app/calendar'
       preLoaderRoute: typeof AuthenticatedAppCalendarRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/central': {
+      id: '/_authenticated/app/central'
+      path: '/central'
+      fullPath: '/app/central'
+      preLoaderRoute: typeof AuthenticatedAppCentralRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/create': {
@@ -498,6 +518,7 @@ const AuthenticatedAppCreateRouteWithChildren =
 
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppCalendarRoute: typeof AuthenticatedAppCalendarRoute
+  AuthenticatedAppCentralRoute: typeof AuthenticatedAppCentralRoute
   AuthenticatedAppCreateRoute: typeof AuthenticatedAppCreateRouteWithChildren
   AuthenticatedAppIdeasRoute: typeof AuthenticatedAppIdeasRoute
   AuthenticatedAppLibraryRoute: typeof AuthenticatedAppLibraryRoute
@@ -515,6 +536,7 @@ interface AuthenticatedAppRouteChildren {
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppCalendarRoute: AuthenticatedAppCalendarRoute,
+  AuthenticatedAppCentralRoute: AuthenticatedAppCentralRoute,
   AuthenticatedAppCreateRoute: AuthenticatedAppCreateRouteWithChildren,
   AuthenticatedAppIdeasRoute: AuthenticatedAppIdeasRoute,
   AuthenticatedAppLibraryRoute: AuthenticatedAppLibraryRoute,
