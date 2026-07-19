@@ -74,7 +74,12 @@ import {
   type Reel2ImportResult,
 } from "@/lib/reel2Script";
 import { reel2ToLegacyReelScript } from "@/lib/reel2Project";
-import { analyzeReel2TopicContext, buildReel2TopicContextPrompt, labelEntityType, labelIntent } from "@/lib/reel2TopicContext";
+import {
+  analyzeReel2TopicContext,
+  buildReel2TopicContextPrompt,
+  labelEntityType,
+  labelIntent,
+} from "@/lib/reel2TopicContext";
 
 export const Route = createFileRoute("/_authenticated/app/create/reel")({
   head: () => ({ meta: [{ title: "Criar Reel 2.0 — Cria Aí" }] }),
@@ -196,7 +201,9 @@ export function CreateReel2() {
         hooks_context_key: buildHookContextKey(draft, selectedBrand),
         hooks_need_regeneration: false,
       });
-      toast.success(nextRound === 1 ? "3 opções de gancho foram preparadas." : "Novas opções de gancho foram preparadas.");
+      toast.success(
+        nextRound === 1 ? "3 opções de gancho foram preparadas." : "Novas opções de gancho foram preparadas.",
+      );
       return nextRound;
     });
   };
@@ -273,7 +280,9 @@ export function CreateReel2() {
         ].join("\n"),
         call_to_action: script.publication.cta || null,
         desired_style: `${script.reel_type} · Reel 2.0 guiado com gancho, promessa, cenas, capa e publicação.`,
-        restrictions: selectedBrand.forbidden_inventions || "Não copiar referências externas. Usar referências apenas para aprender estrutura.",
+        restrictions:
+          selectedBrand.forbidden_inventions ||
+          "Não copiar referências externas. Usar referências apenas para aprender estrutura.",
         notes: [
           "Origem: Criar Reel 2.0 — projeto criado direto do módulo guiado.",
           `Promessa: ${script.promise}`,
@@ -316,13 +325,16 @@ export function CreateReel2() {
             objective: "roteiro completo do vídeo, importado do fluxo guiado Reel 2.0",
             mainText: script.central_idea,
             supportText: script.promise,
-            bullets: script.main_script.scenes.map((scene) => `${scene.start}-${scene.end}s · ${scene.function}: ${scene.speech}`).slice(0, 10),
+            bullets: script.main_script.scenes
+              .map((scene) => `${scene.start}-${scene.end}s · ${scene.function}: ${scene.speech}`)
+              .slice(0, 10),
             cta: script.publication.cta,
             contentStage: "script_complete",
             copySource: "external_chatgpt",
             qualityStatus: "approved",
             qualityIssues: undefined,
-            readyPrompt: "Roteiro Reel 2.0 já importado. Use o bloco de roteiro, versão reduzida, capa, publicação e storyboard nesta página.",
+            readyPrompt:
+              "Roteiro Reel 2.0 já importado. Use o bloco de roteiro, versão reduzida, capa, publicação e storyboard nesta página.",
           };
           title = updatedPiece.name;
           content = JSON.stringify(updatedPiece);
@@ -342,14 +354,26 @@ export function CreateReel2() {
             copySource: "external_chatgpt",
             qualityStatus: "approved",
             qualityIssues: undefined,
-            readyPrompt: [`Texto da publicação — Legenda do Reel 2.0.`, ``, script.publication.caption, script.publication.hashtags.join(" ")].filter(Boolean).join("\n"),
+            readyPrompt: [
+              `Texto da publicação — Legenda do Reel 2.0.`,
+              ``,
+              script.publication.caption,
+              script.publication.hashtags.join(" "),
+            ]
+              .filter(Boolean)
+              .join("\n"),
           };
           title = updatedPiece.name;
           content = JSON.stringify(updatedPiece);
         }
 
         if (piece && isReelCover) {
-          const coverMode = script.cover.needs_cover || script.cover.mode === "custom" ? "capa personalizada" : script.cover.mode === "frame" ? "frame do vídeo" : "a definir";
+          const coverMode =
+            script.cover.needs_cover || script.cover.mode === "custom"
+              ? "capa personalizada"
+              : script.cover.mode === "frame"
+                ? "frame do vídeo"
+                : "a definir";
           const updatedPiece = {
             ...piece,
             name: "Reel 2.0 — Capa / frame",
@@ -357,11 +381,16 @@ export function CreateReel2() {
             supportText: script.cover.subtitle || `Modo: ${coverMode}`,
             cta: "",
             productionNotes: [
-              script.cover.needs_cover || script.cover.mode === "custom" ? "Criar capa personalizada 9:16 respeitando área segura." : "Escolher frame do próprio vídeo; não criar capa nova se o modo for frame.",
+              script.cover.needs_cover || script.cover.mode === "custom"
+                ? "Criar capa personalizada 9:16 respeitando área segura."
+                : "Escolher frame do próprio vídeo; não criar capa nova se o modo for frame.",
               script.cover.safe_area_notes || "Manter título legível na área central superior.",
             ],
             copySource: "external_chatgpt",
-            readyPrompt: script.cover.needs_cover || script.cover.mode === "custom" ? script.cover.visual_prompt || piece.readyPrompt : `Usar frame do próprio vídeo como capa. Frame sugerido: ${script.selected_hook.scene_suggestion}. Título de apoio: ${script.cover.title || script.central_idea}.`,
+            readyPrompt:
+              script.cover.needs_cover || script.cover.mode === "custom"
+                ? script.cover.visual_prompt || piece.readyPrompt
+                : `Usar frame do próprio vídeo como capa. Frame sugerido: ${script.selected_hook.scene_suggestion}. Título de apoio: ${script.cover.title || script.central_idea}.`,
           };
           title = updatedPiece.name;
           content = JSON.stringify(updatedPiece);
@@ -379,7 +408,12 @@ export function CreateReel2() {
           imported_content: isReelScript
             ? (legacyScript as any)
             : isReelCaption
-              ? ({ caption: script.publication.caption, hashtags: script.publication.hashtags, cta: script.publication.cta, source_schema: "reel_2_0" } as any)
+              ? ({
+                  caption: script.publication.caption,
+                  hashtags: script.publication.hashtags,
+                  cta: script.publication.cta,
+                  source_schema: "reel_2_0",
+                } as any)
               : isReelCover
                 ? ({ cover: script.cover, source_schema: "reel_2_0" } as any)
                 : null,
@@ -434,11 +468,9 @@ export function CreateReel2() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="rounded-full bg-orange-500 text-white hover:bg-orange-500">
-Fase 6 · Cria Aí 2.0
-              </Badge>
+              <Badge className="rounded-full bg-orange-500 text-white hover:bg-orange-500">Fase 6 · Cria Aí 2.0</Badge>
               <Badge variant="secondary" className="rounded-full">
-Produção e vídeo final
+                Produção e vídeo final
               </Badge>
             </div>
             <div>
@@ -464,452 +496,525 @@ Produção e vídeo final
       <Reel2JourneyProgress step={step} progress={progress} onSelectStep={(nextStep) => setStep(nextStep)} />
 
       <main className="space-y-4">
-          {step === 0 && (
-            <StepShell
-              eyebrow="Entrada"
-              title="Como você quer começar este Reel?"
-              description="Escolha o ponto de partida. O resto do fluxo continua guiado, sem jogar todos os campos na tela de uma vez."
-            >
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {REEL2_ENTRY_OPTIONS.map((option) => {
-                  const Icon = entryIconMap[option.id];
-                  const active = draft.entry_mode === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => patch({ entry_mode: option.id })}
-                      className={cn(
-                        "group min-h-44 rounded-2xl border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg",
-                        active ? "border-orange-500 ring-2 ring-orange-500/20" : "border-border/70 hover:border-orange-500/50",
-                      )}
-                    >
-                      <div className="flex h-full flex-col gap-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <span className={cn(
+        {step === 0 && (
+          <StepShell
+            eyebrow="Entrada"
+            title="Como você quer começar este Reel?"
+            description="Escolha o ponto de partida. O resto do fluxo continua guiado, sem jogar todos os campos na tela de uma vez."
+          >
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {REEL2_ENTRY_OPTIONS.map((option) => {
+                const Icon = entryIconMap[option.id];
+                const active = draft.entry_mode === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => patch({ entry_mode: option.id })}
+                    className={cn(
+                      "group min-h-44 rounded-2xl border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg",
+                      active
+                        ? "border-orange-500 ring-2 ring-orange-500/20"
+                        : "border-border/70 hover:border-orange-500/50",
+                    )}
+                  >
+                    <div className="flex h-full flex-col gap-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <span
+                          className={cn(
                             "grid h-11 w-11 place-items-center rounded-2xl",
-                            active ? "bg-orange-500 text-white" : "bg-orange-500/10 text-orange-600 dark:text-orange-400",
-                          )}>
-                            <Icon className="h-5 w-5" />
-                          </span>
-                          {active && <BadgeCheck className="h-5 w-5 text-orange-500" />}
-                        </div>
-                        <div>
-                          <h3 className="font-semibold">{option.title}</h3>
-                          <p className="mt-1 text-sm text-muted-foreground">{option.description}</p>
-                        </div>
-                        <p className="mt-auto text-xs text-muted-foreground">{option.helper}</p>
+                            active
+                              ? "bg-orange-500 text-white"
+                              : "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+                          )}
+                        >
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        {active && <BadgeCheck className="h-5 w-5 text-orange-500" />}
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <EntryFields draft={draft} patch={patch} patchHookSource={patchHookSource} presets={presets} onUsePreset={onUsePreset} />
-            </StepShell>
-          )}
-
-          {step === 1 && (
-            <StepShell
-              eyebrow="Marca"
-              title="Para qual marca este Reel será criado?"
-              description="A marca define nicho, tom, público, restrições e CTAs. Essa etapa evita misturar linguagem de viagem, comportamento canino, atelier ou outros segmentos."
-            >
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">1. Escolha a marca</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 p-5 pt-0">
-                    <div className="space-y-2">
-                      <Label>Marca</Label>
-                      <Select
-                        value={draft.brand_id}
-                        onValueChange={(brandId) => {
-                          const brand = brands?.find((item) => item.id === brandId);
-                          setDraft((current) => {
-                            const brandChanged = Boolean(current.brand_id && current.brand_id !== brandId);
-                            const base = {
-                              ...current,
-                              brand_id: brandId,
-                              brand_snapshot: snapshotBrand(brand),
-                            };
-                            return brandChanged ? resetReel2GeneratedFields(base) : base;
-                          });
-                          toast.success("Marca aplicada. Exemplos e próximas sugestões foram ajustados para este nicho.");
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione a marca" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(brands ?? []).map((brand) => (
-                            <SelectItem key={brand.id} value={brand.id}>{brand.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div>
+                        <h3 className="font-semibold">{option.title}</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">{option.description}</p>
+                      </div>
+                      <p className="mt-auto text-xs text-muted-foreground">{option.helper}</p>
                     </div>
+                  </button>
+                );
+              })}
+            </div>
 
-                    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm">
-                      <p className="font-medium text-amber-700 dark:text-amber-300">Regra crítica do Reel 2.0</p>
-                      <p className="mt-1 text-muted-foreground">
-                        O gerador precisa respeitar o nicho da marca. Comportamento canino não deve receber títulos de pacote turístico; viagem pode falar de roteiro, orçamento e planejamento.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+            <EntryFields
+              draft={draft}
+              patch={patch}
+              patchHookSource={patchHookSource}
+              presets={presets}
+              onUsePreset={onUsePreset}
+            />
+          </StepShell>
+        )}
 
-                <BrandSnapshot brand={selectedBrand} />
-              </div>
-            </StepShell>
-          )}
-
-          {step === 2 && (
-            <StepShell
-              eyebrow="Objetivo"
-              title="O que este Reel precisa fazer?"
-              description="O objetivo define o que a pessoa deve sentir ou fazer depois de assistir."
-            >
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {REEL2_OBJECTIVES.map((objective) => {
-                  const active = draft.objective === objective.id;
-                  return (
-                    <ChoiceCard
-                      key={objective.id}
-                      active={active}
-                      title={objective.title}
-                      description={objective.description}
-                      icon={objectiveIcon(objective.id)}
-                      onClick={() => {
-                        const currentType = draft.reel_type;
-                        const suggested = objective.suggestedTypes[0];
-                        patchHookSource({ objective: objective.id, reel_type: currentType || suggested });
+        {step === 1 && (
+          <StepShell
+            eyebrow="Marca"
+            title="Para qual marca este Reel será criado?"
+            description="A marca define nicho, tom, público, restrições e CTAs. Essa etapa evita misturar linguagem de viagem, comportamento canino, atelier ou outros segmentos."
+          >
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">1. Escolha a marca</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 p-5 pt-0">
+                  <div className="space-y-2">
+                    <Label>Marca</Label>
+                    <Select
+                      value={draft.brand_id}
+                      onValueChange={(brandId) => {
+                        const brand = brands?.find((item) => item.id === brandId);
+                        setDraft((current) => {
+                          const brandChanged = Boolean(current.brand_id && current.brand_id !== brandId);
+                          const base = {
+                            ...current,
+                            brand_id: brandId,
+                            brand_snapshot: snapshotBrand(brand),
+                          };
+                          return brandChanged ? resetReel2GeneratedFields(base) : base;
+                        });
+                        toast.success("Marca aplicada. Exemplos e próximas sugestões foram ajustados para este nicho.");
                       }}
-                    />
-                  );
-                })}
-              </div>
-            </StepShell>
-          )}
-
-          {step === 3 && (
-            <StepShell
-              eyebrow="Tipo de Reel"
-              title="Qual estrutura combina melhor com este conteúdo?"
-              description="O tipo de Reel define a lógica narrativa. Isso evita roteiro solto e melhora gancho, retenção e CTA."
-            >
-              <div className="space-y-5">
-                <ReelTypeGroup
-                  title={selectedObjective ? `Recomendados para ${selectedObjective.title}` : "Recomendados para começar"}
-                  description="Estes tipos combinam melhor com o objetivo escolhido e ficam visíveis primeiro, mesmo quando antes estariam em ‘ver mais’."
-                  types={getRecommendedTypes(selectedObjective)}
-                  selectedType={draft.reel_type}
-                  recommendedIds={selectedObjective?.suggestedTypes ?? []}
-                  onSelect={(typeId) => patchHookSource({ reel_type: typeId })}
-                />
-
-                <ReelTypeGroup
-                  title="Outros tipos de Reel"
-                  description="Use quando a ideia pedir outro caminho narrativo. Eles continuam disponíveis, mas não disputam a primeira decisão."
-                  types={getOtherTypes(selectedObjective)}
-                  selectedType={draft.reel_type}
-                  recommendedIds={selectedObjective?.suggestedTypes ?? []}
-                  onSelect={(typeId) => patchHookSource({ reel_type: typeId })}
-                />
-              </div>
-            </StepShell>
-          )}
-
-          {step === 4 && (
-            <StepShell
-              eyebrow="Promessa"
-              title="O que a pessoa ganha assistindo até o final?"
-              description="A promessa é o motivo para continuar assistindo. Ela precisa ser específica, útil e coerente com o nicho."
-            >
-              {draft.entry_mode === "no_ideas" && (
-                <NoIdeasReelSuggestions
-                  brand={selectedBrand}
-                  objective={draft.objective}
-                  reelType={draft.reel_type}
-                  onSelect={(suggestion) =>
-                    patchHookSource({
-                      central_idea: suggestion.idea,
-                      promise: suggestion.promise,
-                      extra_notes: suggestion.notes,
-                      topic_entity: suggestion.topic,
-                      topic_entity_type: suggestion.topicType,
-                      topic_associations: suggestion.associations,
-                      topic_cautions: suggestion.cautions,
-                      topic_do_not_invent: suggestion.doNotInvent,
-                    })
-                  }
-                />
-              )}
-
-              <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-                <Card>
-                  <CardContent className="space-y-4 p-5">
-                    <div className="space-y-2">
-                      <Label>Ideia central do Reel</Label>
-                      <Input
-                        value={draft.central_idea}
-                        onChange={(event) => patchHookSource({ central_idea: event.target.value })}
-                        placeholder={brandExamples.ideaPlaceholder}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Promessa do vídeo</Label>
-                      <Textarea
-                        value={draft.promise}
-                        onChange={(event) => patchHookSource({ promise: event.target.value })}
-                        placeholder={brandExamples.promisePlaceholder}
-                        rows={4}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Observações extras para o Reel</Label>
-                      <Textarea
-                        value={draft.extra_notes}
-                        onChange={(event) => patchHookSource({ extra_notes: event.target.value })}
-                        placeholder={brandExamples.extraNotesPlaceholder}
-                        rows={4}
-                      />
-                    </div>
-
-                    <TopicContextPanel
-                      draft={draft}
-                      brand={selectedBrand}
-                      context={topicContext}
-                      patchHookSource={patchHookSource}
-                    />
-                  </CardContent>
-                </Card>
-
-                <GuidanceCard
-                  title="Promessa boa"
-                  icon={Target}
-                  items={[
-                    "É curta e específica.",
-                    "Mostra o ganho de assistir até o final.",
-                    "Não promete resultado impossível.",
-                    "Combina com o objetivo escolhido.",
-                    `Exemplo para esta marca: ${brandExamples.promisePlaceholder.replace(/^Ex\.:\s*/i, "")}`,
-                  ]}
-                />
-              </div>
-            </StepShell>
-          )}
-
-          {step === 5 && (
-            <StepShell
-              eyebrow="Gancho"
-              title="Construa os 3 primeiros segundos"
-              description="O gancho é a frase, cena ou texto inicial que faz a pessoa decidir continuar assistindo."
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/30 p-4">
-                <div className="max-w-2xl">
-                  <p className="font-medium">Prepare 3 opções de gancho conectadas à promessa</p>
-                  <p className="text-sm text-muted-foreground">
-                    Os ganchos devem nascer da marca, objetivo, tipo de Reel, promessa e contexto do tema. Se eles parecerem genéricos, volte na promessa ou enriqueça o contexto.
-                  </p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Base atual: <span className="font-medium text-foreground">{topicContext.summary || draft.promise || getEntryMainIdea(draft) || "promessa ainda não definida"}</span>
-                  </p>
-                </div>
-                <Button onClick={onGenerateHooks} className="gap-2">
-                  <Sparkles className="h-4 w-4" /> {draft.hook_options.length ? "Gerar novas opções com esta promessa" : "Gerar opções"}
-                </Button>
-              </div>
-
-              {draft.hooks_need_regeneration && (
-                <div className="flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                  <div>
-                    <p className="font-medium text-amber-800 dark:text-amber-200">A promessa, ideia ou observações mudaram.</p>
-                    <p className="text-muted-foreground">Gere novos ganchos para evitar que os primeiros segundos falem de outro assunto.</p>
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a marca" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(brands ?? []).map((brand) => (
+                          <SelectItem key={brand.id} value={brand.id}>
+                            {brand.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
-              )}
 
-              <div className="grid gap-4 xl:grid-cols-3">
-                {draft.hook_options.map((hook, index) => (
-                  <HookCard
-                    key={`${hook.mode}-${index}`}
-                    hook={hook}
-                    active={draft.selected_hook_index === index}
-                    onSelect={() => patch({ selected_hook_index: index })}
-                    onChange={(next) => {
-                      const hookOptions = draft.hook_options.map((item, itemIndex) => itemIndex === index ? next : item);
-                      patch({ hook_options: hookOptions });
+                  <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm">
+                    <p className="font-medium text-amber-700 dark:text-amber-300">Regra crítica do Reel 2.0</p>
+                    <p className="mt-1 text-muted-foreground">
+                      O gerador precisa respeitar o nicho da marca. Comportamento canino não deve receber títulos de
+                      pacote turístico; viagem pode falar de roteiro, orçamento e planejamento.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <BrandSnapshot brand={selectedBrand} />
+            </div>
+          </StepShell>
+        )}
+
+        {step === 2 && (
+          <StepShell
+            eyebrow="Objetivo"
+            title="O que este Reel precisa fazer?"
+            description="O objetivo define o que a pessoa deve sentir ou fazer depois de assistir."
+          >
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {REEL2_OBJECTIVES.map((objective) => {
+                const active = draft.objective === objective.id;
+                return (
+                  <ChoiceCard
+                    key={objective.id}
+                    active={active}
+                    title={objective.title}
+                    description={objective.description}
+                    icon={objectiveIcon(objective.id)}
+                    onClick={() => {
+                      const currentType = draft.reel_type;
+                      const suggested = objective.suggestedTypes[0];
+                      patchHookSource({ objective: objective.id, reel_type: currentType || suggested });
                     }}
                   />
-                ))}
+                );
+              })}
+            </div>
+          </StepShell>
+        )}
+
+        {step === 3 && (
+          <StepShell
+            eyebrow="Tipo de Reel"
+            title="Qual estrutura combina melhor com este conteúdo?"
+            description="O tipo de Reel define a lógica narrativa. Isso evita roteiro solto e melhora gancho, retenção e CTA."
+          >
+            <div className="space-y-5">
+              <ReelTypeGroup
+                title={selectedObjective ? `Recomendados para ${selectedObjective.title}` : "Recomendados para começar"}
+                description="Estes tipos combinam melhor com o objetivo escolhido e ficam visíveis primeiro, mesmo quando antes estariam em ‘ver mais’."
+                types={getRecommendedTypes(selectedObjective)}
+                selectedType={draft.reel_type}
+                recommendedIds={selectedObjective?.suggestedTypes ?? []}
+                onSelect={(typeId) => patchHookSource({ reel_type: typeId })}
+              />
+
+              <ReelTypeGroup
+                title="Outros tipos de Reel"
+                description="Use quando a ideia pedir outro caminho narrativo. Eles continuam disponíveis, mas não disputam a primeira decisão."
+                types={getOtherTypes(selectedObjective)}
+                selectedType={draft.reel_type}
+                recommendedIds={selectedObjective?.suggestedTypes ?? []}
+                onSelect={(typeId) => patchHookSource({ reel_type: typeId })}
+              />
+            </div>
+          </StepShell>
+        )}
+
+        {step === 4 && (
+          <StepShell
+            eyebrow="Promessa"
+            title="O que a pessoa ganha assistindo até o final?"
+            description="A promessa é o motivo para continuar assistindo. Ela precisa ser específica, útil e coerente com o nicho."
+          >
+            {draft.entry_mode === "no_ideas" && (
+              <NoIdeasReelSuggestions
+                brand={selectedBrand}
+                objective={draft.objective}
+                reelType={draft.reel_type}
+                onSelect={(suggestion) =>
+                  patchHookSource({
+                    central_idea: suggestion.idea,
+                    promise: suggestion.promise,
+                    extra_notes: suggestion.notes,
+                    topic_entity: suggestion.topic,
+                    topic_entity_type: suggestion.topicType,
+                    topic_associations: suggestion.associations,
+                    topic_cautions: suggestion.cautions,
+                    topic_do_not_invent: suggestion.doNotInvent,
+                  })
+                }
+              />
+            )}
+
+            <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+              <Card>
+                <CardContent className="space-y-4 p-5">
+                  <div className="space-y-2">
+                    <Label>Ideia central do Reel</Label>
+                    <Input
+                      value={draft.central_idea}
+                      onChange={(event) => patchHookSource({ central_idea: event.target.value })}
+                      placeholder={brandExamples.ideaPlaceholder}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Promessa do vídeo</Label>
+                    <Textarea
+                      value={draft.promise}
+                      onChange={(event) => patchHookSource({ promise: event.target.value })}
+                      placeholder={brandExamples.promisePlaceholder}
+                      rows={4}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Observações extras para o Reel</Label>
+                    <Textarea
+                      value={draft.extra_notes}
+                      onChange={(event) => patchHookSource({ extra_notes: event.target.value })}
+                      placeholder={brandExamples.extraNotesPlaceholder}
+                      rows={4}
+                    />
+                  </div>
+
+                  <TopicContextPanel
+                    draft={draft}
+                    brand={selectedBrand}
+                    context={topicContext}
+                    patchHookSource={patchHookSource}
+                  />
+                </CardContent>
+              </Card>
+
+              <GuidanceCard
+                title="Promessa boa"
+                icon={Target}
+                items={[
+                  "É curta e específica.",
+                  "Mostra o ganho de assistir até o final.",
+                  "Não promete resultado impossível.",
+                  "Combina com o objetivo escolhido.",
+                  `Exemplo para esta marca: ${brandExamples.promisePlaceholder.replace(/^Ex\.:\s*/i, "")}`,
+                ]}
+              />
+            </div>
+          </StepShell>
+        )}
+
+        {step === 5 && (
+          <StepShell
+            eyebrow="Gancho"
+            title="Construa os 3 primeiros segundos"
+            description="O gancho é a frase, cena ou texto inicial que faz a pessoa decidir continuar assistindo."
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/30 p-4">
+              <div className="max-w-2xl">
+                <p className="font-medium">Prepare 3 opções de gancho conectadas à promessa</p>
+                <p className="text-sm text-muted-foreground">
+                  Os ganchos devem nascer da marca, objetivo, tipo de Reel, promessa e contexto do tema. Se eles
+                  parecerem genéricos, volte na promessa ou enriqueça o contexto.
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Base atual:{" "}
+                  <span className="font-medium text-foreground">
+                    {topicContext.summary || draft.promise || getEntryMainIdea(draft) || "promessa ainda não definida"}
+                  </span>
+                </p>
               </div>
+              <Button onClick={onGenerateHooks} className="gap-2">
+                <Sparkles className="h-4 w-4" />{" "}
+                {draft.hook_options.length ? "Gerar novas opções com esta promessa" : "Gerar opções"}
+              </Button>
+            </div>
 
-              {!draft.hook_options.length && (
-                <Card className="border-dashed">
-                  <CardContent className="p-6 text-center text-sm text-muted-foreground">
-                    Clique em <strong>Gerar opções</strong> para montar a estrutura inicial de gancho direto, curioso e de alerta.
-                  </CardContent>
-                </Card>
-              )}
-            </StepShell>
-          )}
-
-          {step === 6 && (
-            <StepShell
-              eyebrow="Fechamento da jornada"
-              title="Revise o pacote antes de criar o projeto"
-              description="Confira se conteúdo, criação e publicação estão coerentes. Depois disso, o Reel entra no fluxo de produção, aprovação, agenda e publicação."
-            >
-              <div className="space-y-4">
-                <Card className="border-orange-500/25 bg-orange-500/5">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Jornada depois da criação</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-2 md:grid-cols-5">
-                    {[
-                      {
-                        title: "1. Conteúdo",
-                        text: "Ideia, promessa e gancho definidos.",
-                        done: Boolean(draft.promise && (draft.imported_script?.selected_hook?.spoken_hook || selectedHook?.spoken_hook)),
-                      },
-                      {
-                        title: "2. Criação",
-                        text: draft.imported_script
-                          ? "Roteiro, versão curta, capa/frame e publicação importados."
-                          : "Importe o JSON para montar o roteiro completo.",
-                        done: Boolean(draft.imported_script),
-                      },
-                      {
-                        title: "3. Aprovação",
-                        text: "O pacote será enviado ao cliente ou responsável.",
-                        done: false,
-                      },
-                      {
-                        title: "4. Agendamento",
-                        text: "Depois da aprovação, defina data e canal.",
-                        done: false,
-                      },
-                      {
-                        title: "5. Publicação",
-                        text: "Publique com vídeo final, capa/frame e legenda.",
-                        done: false,
-                      },
-                    ].map((item) => (
-                      <div key={item.title} className="rounded-xl border bg-background p-3 text-sm">
-                        <p className="font-semibold">{item.title}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{item.text}</p>
-                        <Badge variant={item.done ? "default" : "outline"} className="mt-3 text-[10px]">
-                          {item.done ? "Pronto" : "Depois"}
-                        </Badge>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Pacote revisado</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid gap-3 text-sm md:grid-cols-2">
-                      <SummaryRow label="Marca" value={selectedBrand?.name || "Não selecionada"} />
-                      <SummaryRow label="Entrada" value={REEL2_ENTRY_OPTIONS.find((item) => item.id === draft.entry_mode)?.title || "Não definida"} />
-                      <SummaryRow label="Objetivo" value={selectedObjective?.title || draft.imported_script?.objective || "Não definido"} />
-                      <SummaryRow label="Tipo" value={selectedType?.title || draft.imported_script?.reel_type || "Não definido"} />
-                      <div className="md:col-span-2">
-                        <SummaryRow label="Ideia central" value={draft.imported_script?.central_idea || getEntryMainIdea(draft) || "Não definida"} />
-                      </div>
-                      <div className="md:col-span-2">
-                        <SummaryRow label="Promessa" value={draft.imported_script?.promise || draft.promise || "Não definida"} />
-                      </div>
-                      <SummaryRow label="Gancho escolhido" value={draft.imported_script?.selected_hook?.spoken_hook || selectedHook?.spoken_hook || selectedHook?.on_screen_text || "Não escolhido"} />
-                      <SummaryRow label="Capa / frame" value={draft.imported_script?.cover?.needs_cover ? "Capa personalizada sugerida" : coverModeLabel(draft.cover_mode)} />
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-violet-500/30 bg-violet-500/5">
-                    <CardContent className="space-y-3 p-5">
-                      <div className="flex items-center gap-2 font-semibold">
-                        <RouteIcon className="h-4 w-4 text-violet-500" /> Próximo passo
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Com o JSON importado e o pacote revisado, crie o projeto para liberar resultado, produção final, storyboard e aprovação.
-                      </p>
-                      <Button onClick={() => createProjectFromReel2.mutate()} disabled={createProjectFromReel2.isPending || !draft.imported_script} className="w-full gap-2">
-                        Criar projeto com este Reel <ArrowRight className="h-4 w-4" />
-                      </Button>
-                      <Button asChild variant="outline" className="w-full">
-                        <Link to="/app/create">Voltar para Criar</Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
+            {draft.hooks_need_regeneration && (
+              <div className="flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div>
+                  <p className="font-medium text-amber-800 dark:text-amber-200">
+                    A promessa, ideia ou observações mudaram.
+                  </p>
+                  <p className="text-muted-foreground">
+                    Gere novos ganchos para evitar que os primeiros segundos falem de outro assunto.
+                  </p>
                 </div>
+              </div>
+            )}
+
+            <div className="grid gap-4 xl:grid-cols-3">
+              {draft.hook_options.map((hook, index) => (
+                <HookCard
+                  key={`${hook.mode}-${index}`}
+                  hook={hook}
+                  active={draft.selected_hook_index === index}
+                  onSelect={() => patch({ selected_hook_index: index })}
+                  onChange={(next) => {
+                    const hookOptions = draft.hook_options.map((item, itemIndex) =>
+                      itemIndex === index ? next : item,
+                    );
+                    patch({ hook_options: hookOptions });
+                  }}
+                />
+              ))}
+            </div>
+
+            {!draft.hook_options.length && (
+              <Card className="border-dashed">
+                <CardContent className="p-6 text-center text-sm text-muted-foreground">
+                  Clique em <strong>Gerar opções</strong> para montar a estrutura inicial de gancho direto, curioso e de
+                  alerta.
+                </CardContent>
+              </Card>
+            )}
+          </StepShell>
+        )}
+
+        {step === 6 && (
+          <StepShell
+            eyebrow="Fechamento da jornada"
+            title="Revise o pacote antes de criar o projeto"
+            description="Confira se conteúdo, criação e publicação estão coerentes. Depois disso, o Reel entra no fluxo de produção, aprovação, agenda e publicação."
+          >
+            <div className="space-y-4">
+              <Card className="border-orange-500/25 bg-orange-500/5">
+                <CardHeader>
+                  <CardTitle className="text-lg">Jornada depois da criação</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-2 md:grid-cols-5">
+                  {[
+                    {
+                      title: "1. Conteúdo",
+                      text: "Ideia, promessa e gancho definidos.",
+                      done: Boolean(
+                        draft.promise &&
+                        (draft.imported_script?.selected_hook?.spoken_hook || selectedHook?.spoken_hook),
+                      ),
+                    },
+                    {
+                      title: "2. Criação",
+                      text: draft.imported_script
+                        ? "Roteiro, versão curta, capa/frame e publicação importados."
+                        : "Importe o JSON para montar o roteiro completo.",
+                      done: Boolean(draft.imported_script),
+                    },
+                    {
+                      title: "3. Aprovação",
+                      text: "O pacote será enviado ao cliente ou responsável.",
+                      done: false,
+                    },
+                    {
+                      title: "4. Agendamento",
+                      text: "Depois da aprovação, defina data e canal.",
+                      done: false,
+                    },
+                    {
+                      title: "5. Publicação",
+                      text: "Publique com vídeo final, capa/frame e legenda.",
+                      done: false,
+                    },
+                  ].map((item) => (
+                    <div key={item.title} className="rounded-xl border bg-background p-3 text-sm">
+                      <p className="font-semibold">{item.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{item.text}</p>
+                      <Badge variant={item.done ? "default" : "outline"} className="mt-3 text-[10px]">
+                        {item.done ? "Pronto" : "Depois"}
+                      </Badge>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Pacote revisado</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 text-sm md:grid-cols-2">
+                    <SummaryRow label="Marca" value={selectedBrand?.name || "Não selecionada"} />
+                    <SummaryRow
+                      label="Entrada"
+                      value={REEL2_ENTRY_OPTIONS.find((item) => item.id === draft.entry_mode)?.title || "Não definida"}
+                    />
+                    <SummaryRow
+                      label="Objetivo"
+                      value={selectedObjective?.title || draft.imported_script?.objective || "Não definido"}
+                    />
+                    <SummaryRow
+                      label="Tipo"
+                      value={selectedType?.title || draft.imported_script?.reel_type || "Não definido"}
+                    />
+                    <div className="md:col-span-2">
+                      <SummaryRow
+                        label="Ideia central"
+                        value={draft.imported_script?.central_idea || getEntryMainIdea(draft) || "Não definida"}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <SummaryRow
+                        label="Promessa"
+                        value={draft.imported_script?.promise || draft.promise || "Não definida"}
+                      />
+                    </div>
+                    <SummaryRow
+                      label="Gancho escolhido"
+                      value={
+                        draft.imported_script?.selected_hook?.spoken_hook ||
+                        selectedHook?.spoken_hook ||
+                        selectedHook?.on_screen_text ||
+                        "Não escolhido"
+                      }
+                    />
+                    <SummaryRow
+                      label="Capa / frame"
+                      value={
+                        draft.imported_script?.cover?.needs_cover
+                          ? "Capa personalizada sugerida"
+                          : coverModeLabel(draft.cover_mode)
+                      }
+                    />
+                  </CardContent>
+                </Card>
 
                 <Card className="border-violet-500/30 bg-violet-500/5">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Braces className="h-5 w-5 text-violet-500" /> Pedido externo Reel 2.0
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      Copie este pedido, cole no ChatGPT e importe aqui o JSON devolvido. O app não usa IA interna nem API paga.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <CopyButton text={externalPrompt} label="Copiar pedido" />
-                      <Button type="button" variant="outline" onClick={() => window.open("https://chatgpt.com", "_blank", "noopener,noreferrer")}>
-                        Abrir ChatGPT
-                      </Button>
-                      <Button type="button" onClick={() => setImportOpen(true)}>
-                        <FileJson2 className="mr-2 h-4 w-4" /> Importar JSON
-                      </Button>
+                  <CardContent className="space-y-3 p-5">
+                    <div className="flex items-center gap-2 font-semibold">
+                      <RouteIcon className="h-4 w-4 text-violet-500" /> Próximo passo
                     </div>
-                    <Textarea value={externalPrompt} readOnly rows={8} className="font-mono text-xs" />
+                    <p className="text-sm text-muted-foreground">
+                      Com o JSON importado e o pacote revisado, crie o projeto para liberar resultado, produção final,
+                      storyboard e aprovação.
+                    </p>
+                    <Button
+                      onClick={() => createProjectFromReel2.mutate()}
+                      disabled={createProjectFromReel2.isPending || !draft.imported_script}
+                      className="w-full gap-2"
+                    >
+                      Criar projeto com este Reel <ArrowRight className="h-4 w-4" />
+                    </Button>
+                    <Button asChild variant="outline" className="w-full">
+                      <Link to="/app/create">Voltar para Criar</Link>
+                    </Button>
                   </CardContent>
                 </Card>
-
-                {draft.imported_script && (
-                  <>
-                    <Reel2ScriptStudio
-                      script={draft.imported_script}
-                      warnings={draft.imported_script_warnings || []}
-                      needsReview={Boolean(draft.imported_script_needs_review)}
-                      onChange={onUpdateImportedScript}
-                    />
-                    <Reel2PublishingPackage
-                      script={draft.imported_script}
-                      brand={selectedBrand}
-                      onChange={onUpdateImportedScript}
-                    />
-                  </>
-                )}
               </div>
-            </StepShell>
-          )}
 
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button variant="outline" onClick={goBack} disabled={step === 0}>
-              <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
-            </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => toast.success("Rascunho salvo no navegador.")}>
-                <Save className="mr-1 h-4 w-4" /> Salvar
-              </Button>
-              {step < 6 ? (
-                <Button onClick={goNext} disabled={!canContinue}>
-                  Continuar <ArrowRight className="ml-1 h-4 w-4" />
-                </Button>
-              ) : (
-                <Button onClick={() => createProjectFromReel2.mutate()} disabled={createProjectFromReel2.isPending || !draft.imported_script}>
-                  Criar projeto com este Reel <ArrowRight className="ml-1 h-4 w-4" />
-                </Button>
+              <Card className="border-violet-500/30 bg-violet-500/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Braces className="h-5 w-5 text-violet-500" /> Pedido externo Reel 2.0
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Copie este pedido, cole no ChatGPT e importe aqui o JSON devolvido. O app não usa IA interna nem API
+                    paga.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <CopyButton text={externalPrompt} label="Copiar pedido" />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => window.open("https://chatgpt.com", "_blank", "noopener,noreferrer")}
+                    >
+                      Abrir ChatGPT
+                    </Button>
+                    <Button type="button" onClick={() => setImportOpen(true)}>
+                      <FileJson2 className="mr-2 h-4 w-4" /> Importar JSON
+                    </Button>
+                  </div>
+                  <Textarea value={externalPrompt} readOnly rows={8} className="font-mono text-xs" />
+                </CardContent>
+              </Card>
+
+              {draft.imported_script && (
+                <>
+                  <Reel2ScriptStudio
+                    script={draft.imported_script}
+                    warnings={draft.imported_script_warnings || []}
+                    needsReview={Boolean(draft.imported_script_needs_review)}
+                    onChange={onUpdateImportedScript}
+                  />
+                  <Reel2PublishingPackage
+                    script={draft.imported_script}
+                    brand={selectedBrand}
+                    onChange={onUpdateImportedScript}
+                  />
+                </>
               )}
             </div>
+          </StepShell>
+        )}
+
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Button variant="outline" onClick={goBack} disabled={step === 0}>
+            <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => toast.success("Rascunho salvo no navegador.")}>
+              <Save className="mr-1 h-4 w-4" /> Salvar
+            </Button>
+            {step < 6 ? (
+              <Button onClick={goNext} disabled={!canContinue}>
+                Continuar <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                onClick={() => createProjectFromReel2.mutate()}
+                disabled={createProjectFromReel2.isPending || !draft.imported_script}
+              >
+                Criar projeto com este Reel <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            )}
           </div>
+        </div>
       </main>
-    <ImportReel2ScriptDialog open={importOpen} onOpenChange={setImportOpen} onImport={onImportScript} />
+      <ImportReel2ScriptDialog open={importOpen} onOpenChange={setImportOpen} onImport={onImportScript} />
     </div>
   );
 }
@@ -945,7 +1050,9 @@ function Reel2JourneyProgress({
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{progress}% concluído</Badge>
-            <Badge className="bg-amber-500 text-black hover:bg-amber-500">Tempo estimado: {estimateReel2Time(step)}</Badge>
+            <Badge className="bg-amber-500 text-black hover:bg-amber-500">
+              Tempo estimado: {estimateReel2Time(step)}
+            </Badge>
           </div>
         </div>
         <Progress value={progress} />
@@ -970,7 +1077,11 @@ function Reel2JourneyProgress({
                 <span
                   className={cn(
                     "grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold",
-                    active ? "bg-white/20 text-white" : done ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground",
+                    active
+                      ? "bg-white/20 text-white"
+                      : done
+                        ? "bg-emerald-500 text-white"
+                        : "bg-muted text-muted-foreground",
                   )}
                 >
                   {done ? <Check className="h-3.5 w-3.5" /> : index + 1}
@@ -1009,7 +1120,10 @@ function NoIdeasReelSuggestions({
   reelType: Reel2Type | "";
   onSelect: (suggestion: ReelIdeaSuggestion) => void;
 }) {
-  const suggestions = useMemo(() => buildNoIdeasReelSuggestions(brand, objective, reelType), [brand, objective, reelType]);
+  const suggestions = useMemo(
+    () => buildNoIdeasReelSuggestions(brand, objective, reelType),
+    [brand, objective, reelType],
+  );
   return (
     <Card className="border-amber-500/30 bg-amber-500/5">
       <CardContent className="space-y-3 p-4">
@@ -1030,7 +1144,9 @@ function NoIdeasReelSuggestions({
               onClick={() => onSelect(suggestion)}
               className="rounded-2xl border bg-background p-3 text-left transition hover:-translate-y-0.5 hover:border-orange-500/60 hover:shadow-sm"
             >
-              <p className="text-xs font-semibold uppercase tracking-wide text-orange-600 dark:text-orange-400">{suggestion.label}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-orange-600 dark:text-orange-400">
+                {suggestion.label}
+              </p>
               <p className="mt-1 text-sm font-semibold leading-snug">{suggestion.idea}</p>
               <p className="mt-2 line-clamp-3 text-xs text-muted-foreground">{suggestion.promise}</p>
             </button>
@@ -1046,15 +1162,19 @@ function buildNoIdeasReelSuggestions(
   objective?: Reel2Objective | "",
   reelType?: Reel2Type | "",
 ): ReelIdeaSuggestion[] {
-  const text = `${brand?.name ?? ""} ${brand?.segment ?? ""} ${brand?.description ?? ""} ${brand?.audience ?? ""}`.toLowerCase();
-  const baseDoNotInvent = "preços, datas, disponibilidade, atrações específicas, promessas ou resultados não confirmados";
+  const text =
+    `${brand?.name ?? ""} ${brand?.segment ?? ""} ${brand?.description ?? ""} ${brand?.audience ?? ""}`.toLowerCase();
+  const baseDoNotInvent =
+    "preços, datas, disponibilidade, atrações específicas, promessas ou resultados não confirmados";
   if (/viagem|turismo|travel|hotel|destino|férias|roteiro|passagem/.test(text)) {
     return [
       {
         label: "Destino pelo estilo",
         idea: "Como escolher o que fazer em um destino considerando o seu ritmo de viagem",
-        promise: "Você vai entender como organizar experiências de viagem de acordo com descanso, descoberta ou conexão, sem depender de um roteiro genérico.",
-        notes: "Não citar preços, disponibilidade ou atrações específicas sem confirmação. Convidar o público a comentar o destino que está considerando.",
+        promise:
+          "Você vai entender como organizar experiências de viagem de acordo com descanso, descoberta ou conexão, sem depender de um roteiro genérico.",
+        notes:
+          "Não citar preços, disponibilidade ou atrações específicas sem confirmação. Convidar o público a comentar o destino que está considerando.",
         topic: "roteiro de viagem por estilo",
         topicType: "destino",
         associations: "descanso, descoberta, conexão, planejamento, prioridade, experiência",
@@ -1064,7 +1184,8 @@ function buildNoIdeasReelSuggestions(
       {
         label: "Planejamento seguro",
         idea: "O que confirmar antes de escolher passeios e experiências em uma viagem",
-        promise: "Você vai saber quais pontos conferir para montar uma viagem com mais tranquilidade e menos decisões no impulso.",
+        promise:
+          "Você vai saber quais pontos conferir para montar uma viagem com mais tranquilidade e menos decisões no impulso.",
         notes: "Focar em orientação geral: acesso, funcionamento, reserva, perfil do grupo e ritmo da viagem.",
         topic: "planejamento de viagem",
         topicType: "servico",
@@ -1075,7 +1196,8 @@ function buildNoIdeasReelSuggestions(
       {
         label: "Comentário do público",
         idea: "Qual tipo de experiência combina mais com a sua próxima viagem?",
-        promise: "Você vai ver opções de abordagem para pensar a viagem pelo que deseja viver, e não apenas pelo destino mais famoso.",
+        promise:
+          "Você vai ver opções de abordagem para pensar a viagem pelo que deseja viver, e não apenas pelo destino mais famoso.",
         notes: "Usar CTA de comentário. Não pressionar venda; a marca pode aparecer como apoio no planejamento.",
         topic: "experiência de viagem",
         topicType: "outro",
@@ -1090,18 +1212,21 @@ function buildNoIdeasReelSuggestions(
       {
         label: "Sinais antes da reação",
         idea: "Seu cachorro avisa antes de reagir — mas você pode não perceber",
-        promise: "Você vai conhecer sinais discretos de desconforto que podem aparecer antes de uma reação mais intensa.",
+        promise:
+          "Você vai conhecer sinais discretos de desconforto que podem aparecer antes de uma reação mais intensa.",
         notes: "Orientar sem culpar o tutor. Não prometer correção imediata nem diagnóstico individual.",
         topic: "sinais de desconforto canino",
         topicType: "comportamento",
         associations: "desviar olhar, lamber focinho, bocejar, corpo rígido, distância, rosnado",
         cautions: "não diagnosticar; não prometer resultado; não incentivar punição",
-        doNotInvent: "diagnóstico, tempo de correção, garantia de comportamento, orientação médica ou veterinária específica",
+        doNotInvent:
+          "diagnóstico, tempo de correção, garantia de comportamento, orientação médica ou veterinária específica",
       },
       {
         label: "Erro cotidiano",
         idea: "O comportamento que o tutor reforça sem perceber",
-        promise: "Você vai entender como uma resposta comum do tutor pode ensinar o cachorro a repetir o comportamento indesejado.",
+        promise:
+          "Você vai entender como uma resposta comum do tutor pode ensinar o cachorro a repetir o comportamento indesejado.",
         notes: "Usar exemplo cotidiano e uma orientação prática, sem julgamento.",
         topic: "reforço involuntário",
         topicType: "comportamento",
@@ -1127,7 +1252,8 @@ function buildNoIdeasReelSuggestions(
       {
         label: "Detalhe artesanal",
         idea: "O detalhe que muda a percepção de uma peça artesanal",
-        promise: "Você vai entender como acabamento, material e proporção influenciam a experiência de uso de uma peça artesanal.",
+        promise:
+          "Você vai entender como acabamento, material e proporção influenciam a experiência de uso de uma peça artesanal.",
         notes: "Valorizar processo e escolha consciente sem exagerar promessa de durabilidade.",
         topic: "detalhes de peça artesanal",
         topicType: "produto",
@@ -1149,7 +1275,8 @@ function buildNoIdeasReelSuggestions(
       {
         label: "Escolha consciente",
         idea: "Como escolher uma bolsa que combina com sua rotina",
-        promise: "Você vai entender pontos simples para escolher uma peça que faça sentido para seu uso, estilo e necessidade.",
+        promise:
+          "Você vai entender pontos simples para escolher uma peça que faça sentido para seu uso, estilo e necessidade.",
         notes: "Foco em orientação e desejo, sem venda agressiva.",
         topic: "escolha de bolsa artesanal",
         topicType: "produto",
@@ -1196,7 +1323,6 @@ function buildNoIdeasReelSuggestions(
   ];
 }
 
-
 function ImportedScriptPreview({ script, warnings }: { script: Reel2ImportedScript; warnings: string[] }) {
   return (
     <Card className="border-emerald-500/30 bg-emerald-500/5">
@@ -1219,9 +1345,13 @@ function ImportedScriptPreview({ script, warnings }: { script: Reel2ImportedScri
           <div className="space-y-2">
             {script.main_script.scenes.slice(0, 4).map((scene, index) => (
               <div key={`${scene.start}-${scene.end}-${index}`} className="rounded-xl border bg-background p-3">
-                <p className="text-xs font-semibold text-muted-foreground">{scene.start}s–{scene.end}s · {scene.function}</p>
+                <p className="text-xs font-semibold text-muted-foreground">
+                  {scene.start}s–{scene.end}s · {scene.function}
+                </p>
                 <p className="mt-1 font-medium">{scene.speech}</p>
-                {scene.on_screen_text && <p className="mt-1 text-xs text-muted-foreground">Texto na tela: {scene.on_screen_text}</p>}
+                {scene.on_screen_text && (
+                  <p className="mt-1 text-xs text-muted-foreground">Texto na tela: {scene.on_screen_text}</p>
+                )}
               </div>
             ))}
           </div>
@@ -1230,7 +1360,9 @@ function ImportedScriptPreview({ script, warnings }: { script: Reel2ImportedScri
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
             <p className="font-semibold text-amber-700 dark:text-amber-300">Avisos da importação</p>
             <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
-              {warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+              {warnings.map((warning, index) => (
+                <li key={`${warning}-${index}`}>{warning}</li>
+              ))}
             </ul>
           </div>
         )}
@@ -1248,12 +1380,24 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StepShell({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: ReactNode }) {
+function StepShell({
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
   return (
     <section className="space-y-4">
       <Card>
         <CardHeader className="space-y-2">
-          <Badge variant="secondary" className="w-fit rounded-full">{eyebrow}</Badge>
+          <Badge variant="secondary" className="w-fit rounded-full">
+            {eyebrow}
+          </Badge>
           <div>
             <CardTitle className="text-xl sm:text-2xl">{title}</CardTitle>
             <p className="mt-2 text-sm text-muted-foreground">{description}</p>
@@ -1303,7 +1447,9 @@ function EntryFields({
                 </SelectTrigger>
                 <SelectContent>
                   {presets.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id}>{preset.name}</SelectItem>
+                    <SelectItem key={preset.id} value={preset.id}>
+                      {preset.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1319,18 +1465,28 @@ function EntryFields({
             <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-sm">
               <p className="font-medium text-violet-700 dark:text-violet-300">Regra ética</p>
               <p className="mt-1 text-muted-foreground">
-                Use referências para aprender estrutura, não para copiar falas, imagens, identidade visual ou conteúdo autoral.
+                Use referências para aprender estrutura, não para copiar falas, imagens, identidade visual ou conteúdo
+                autoral.
               </p>
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label>Link da referência</Label>
-                <Input value={draft.reference_link} onChange={(event) => patchHookSource({ reference_link: event.target.value })} placeholder="Cole o link do Reel" />
+                <Input
+                  value={draft.reference_link}
+                  onChange={(event) => patchHookSource({ reference_link: event.target.value })}
+                  placeholder="Cole o link do Reel"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Tipo de adaptação</Label>
-                <Select value={draft.remix_mode} onValueChange={(value) => patch({ remix_mode: value as Reel2Draft["remix_mode"] })}>
-                  <SelectTrigger><SelectValue placeholder="Escolha" /></SelectTrigger>
+                <Select
+                  value={draft.remix_mode}
+                  onValueChange={(value) => patch({ remix_mode: value as Reel2Draft["remix_mode"] })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Escolha" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="criador">Criador</SelectItem>
                     <SelectItem value="react">React</SelectItem>
@@ -1341,7 +1497,12 @@ function EntryFields({
             </div>
             <div className="space-y-2">
               <Label>Transcrição, descrição ou estrutura percebida</Label>
-              <Textarea value={draft.reference_transcript} onChange={(event) => patchHookSource({ reference_transcript: event.target.value })} rows={5} placeholder="Cole a transcrição ou descreva o que acontece no vídeo." />
+              <Textarea
+                value={draft.reference_transcript}
+                onChange={(event) => patchHookSource({ reference_transcript: event.target.value })}
+                rows={5}
+                placeholder="Cole a transcrição ou descreva o que acontece no vídeo."
+              />
             </div>
           </div>
         )}
@@ -1350,23 +1511,39 @@ function EntryFields({
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-2">
               <Label>Termo, áudio ou formato da trend</Label>
-              <Input value={draft.trend_term} onChange={(event) => patchHookSource({ trend_term: event.target.value })} placeholder="Ex.: áudio de comparação, mala inteligente, passeio sem puxar" />
+              <Input
+                value={draft.trend_term}
+                onChange={(event) => patchHookSource({ trend_term: event.target.value })}
+                placeholder="Ex.: áudio de comparação, mala inteligente, passeio sem puxar"
+              />
             </div>
             <div className="space-y-2">
               <Label>Fonte da tendência</Label>
-              <Input value={draft.trend_source} onChange={(event) => patchHookSource({ trend_source: event.target.value })} placeholder="Ex.: Instagram, TikTok, YouTube, Google Trends" />
+              <Input
+                value={draft.trend_source}
+                onChange={(event) => patchHookSource({ trend_source: event.target.value })}
+                placeholder="Ex.: Instagram, TikTok, YouTube, Google Trends"
+              />
             </div>
           </div>
         )}
 
         {(draft.entry_mode === "adapt_existing" || draft.entry_mode === "no_ideas") && (
           <div className="space-y-2">
-            <Label>{draft.entry_mode === "adapt_existing" ? "Conteúdo base" : "Observação sobre o que você quer evitar ou explorar"}</Label>
+            <Label>
+              {draft.entry_mode === "adapt_existing"
+                ? "Conteúdo base"
+                : "Observação sobre o que você quer evitar ou explorar"}
+            </Label>
             <Textarea
               value={draft.base_content}
               onChange={(event) => patchHookSource({ base_content: event.target.value })}
               rows={5}
-              placeholder={draft.entry_mode === "adapt_existing" ? "Cole o texto, post antigo ou material bruto." : "Ex.: evitar temas já usados sobre bagagem; buscar assuntos de planejamento familiar."}
+              placeholder={
+                draft.entry_mode === "adapt_existing"
+                  ? "Cole o texto, post antigo ou material bruto."
+                  : "Ex.: evitar temas já usados sobre bagagem; buscar assuntos de planejamento familiar."
+              }
             />
           </div>
         )}
@@ -1399,7 +1576,9 @@ function BrandSnapshot({ brand }: { brand?: Tables<"brands"> | null }) {
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CTAs</p>
           <div className="mt-1 flex flex-wrap gap-1">
             {(brand.calls_to_action?.length ? brand.calls_to_action : ["Não informado"]).slice(0, 4).map((cta) => (
-              <Badge key={cta} variant="outline" className="text-[10px]">{cta}</Badge>
+              <Badge key={cta} variant="outline" className="text-[10px]">
+                {cta}
+              </Badge>
             ))}
           </div>
         </div>
@@ -1408,7 +1587,19 @@ function BrandSnapshot({ brand }: { brand?: Tables<"brands"> | null }) {
   );
 }
 
-function ChoiceCard({ active, title, description, icon: Icon, onClick }: { active: boolean; title: string; description: string; icon: typeof Lightbulb; onClick: () => void }) {
+function ChoiceCard({
+  active,
+  title,
+  description,
+  icon: Icon,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  description: string;
+  icon: typeof Lightbulb;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
@@ -1419,7 +1610,12 @@ function ChoiceCard({ active, title, description, icon: Icon, onClick }: { activ
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <span className={cn("grid h-10 w-10 place-items-center rounded-xl", active ? "bg-orange-500 text-white" : "bg-muted text-muted-foreground")}>
+        <span
+          className={cn(
+            "grid h-10 w-10 place-items-center rounded-xl",
+            active ? "bg-orange-500 text-white" : "bg-muted text-muted-foreground",
+          )}
+        >
           <Icon className="h-4 w-4" />
         </span>
         {active && <Check className="h-5 w-5 text-orange-500" />}
@@ -1479,7 +1675,17 @@ function ReelTypeGroup({
   );
 }
 
-function ReelTypeCard({ type, active, recommended, onClick }: { type: (typeof REEL2_TYPES)[number]; active: boolean; recommended: boolean; onClick: () => void }) {
+function ReelTypeCard({
+  type,
+  active,
+  recommended,
+  onClick,
+}: {
+  type: (typeof REEL2_TYPES)[number];
+  active: boolean;
+  recommended: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
@@ -1500,13 +1706,24 @@ function ReelTypeCard({ type, active, recommended, onClick }: { type: (typeof RE
         {active && <Check className="h-5 w-5 text-violet-500" />}
       </div>
       <div className="mt-3 rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">Estrutura: </span>{type.structure}
+        <span className="font-medium text-foreground">Estrutura: </span>
+        {type.structure}
       </div>
     </button>
   );
 }
 
-function HookCard({ hook, active, onSelect, onChange }: { hook: Reel2HookDraft; active: boolean; onSelect: () => void; onChange: (hook: Reel2HookDraft) => void }) {
+function HookCard({
+  hook,
+  active,
+  onSelect,
+  onChange,
+}: {
+  hook: Reel2HookDraft;
+  active: boolean;
+  onSelect: () => void;
+  onChange: (hook: Reel2HookDraft) => void;
+}) {
   return (
     <Card className={cn("min-w-0", active ? "border-orange-500 ring-2 ring-orange-500/20" : "border-border/70")}>
       <CardContent className="space-y-3 p-4">
@@ -1518,30 +1735,44 @@ function HookCard({ hook, active, onSelect, onChange }: { hook: Reel2HookDraft; 
         </div>
         <div className="space-y-2">
           <Label>Fala inicial</Label>
-          <Textarea value={hook.spoken_hook} onChange={(event) => onChange({ ...hook, spoken_hook: event.target.value })} rows={3} />
+          <Textarea
+            value={hook.spoken_hook}
+            onChange={(event) => onChange({ ...hook, spoken_hook: event.target.value })}
+            rows={3}
+          />
         </div>
         <div className="space-y-2">
           <Label>Texto na tela</Label>
-          <Textarea value={hook.on_screen_text} onChange={(event) => onChange({ ...hook, on_screen_text: event.target.value })} rows={2} />
+          <Textarea
+            value={hook.on_screen_text}
+            onChange={(event) => onChange({ ...hook, on_screen_text: event.target.value })}
+            rows={2}
+          />
         </div>
         <div className="space-y-2">
           <Label>Cena sugerida</Label>
-          <Textarea value={hook.scene_suggestion} onChange={(event) => onChange({ ...hook, scene_suggestion: event.target.value })} rows={3} />
+          <Textarea
+            value={hook.scene_suggestion}
+            onChange={(event) => onChange({ ...hook, scene_suggestion: event.target.value })}
+            rows={3}
+          />
         </div>
         <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">Por que prende: </span>{hook.why_it_works}
+          <span className="font-medium text-foreground">Por que prende: </span>
+          {hook.why_it_works}
         </div>
       </CardContent>
     </Card>
   );
 }
 
-
 function ProcessStep({ number, title, text }: { number: string; title: string; text: string }) {
   return (
     <div className="rounded-xl border bg-background/80 p-3">
       <div className="flex items-center gap-2">
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-violet-500 text-[11px] font-bold text-white">{number}</span>
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-violet-500 text-[11px] font-bold text-white">
+          {number}
+        </span>
         <span className="font-semibold text-foreground">{title}</span>
       </div>
       <p className="mt-2 text-muted-foreground">{text}</p>
@@ -1581,12 +1812,11 @@ function TopicContextPanel({
         <div>
           <p className="font-semibold">Contexto do tema</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            O Cria Aí não precisa saber tudo. Ele identifica o assunto e pede contexto quando faltar informação para não inventar.
+            O Cria Aí não precisa saber tudo. Ele identifica o assunto e pede contexto quando faltar informação para não
+            inventar.
           </p>
         </div>
-        <Badge variant={context.confidence === "alto" ? "default" : "outline"}>
-          Contexto {context.confidence}
-        </Badge>
+        <Badge variant={context.confidence === "alto" ? "default" : "outline"}>Contexto {context.confidence}</Badge>
       </div>
 
       <div className="mt-4 grid gap-2 text-xs md:grid-cols-4">
@@ -1611,7 +1841,9 @@ function TopicContextPanel({
             value={draft.topic_entity_type || "desconhecido"}
             onValueChange={(value) => patchHookSource({ topic_entity_type: value })}
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="desconhecido">Não sei / detectar</SelectItem>
               <SelectItem value="destino">Destino</SelectItem>
@@ -1655,7 +1887,10 @@ function TopicContextPanel({
       </div>
 
       <div className="mt-4 rounded-xl bg-background/80 p-3 text-xs text-muted-foreground">
-        <p><span className="font-medium text-foreground">Leitura atual:</span> {context.topic} · {labelEntityType(context.entityType)} · {labelIntent(context.intent)}</p>
+        <p>
+          <span className="font-medium text-foreground">Leitura atual:</span> {context.topic} ·{" "}
+          {labelEntityType(context.entityType)} · {labelIntent(context.intent)}
+        </p>
         {context.safeMode && (
           <p className="mt-1 text-amber-700 dark:text-amber-300">
             Contexto baixo: os ganchos serão seguros e não devem citar detalhes específicos que não foram informados.
@@ -1665,7 +1900,14 @@ function TopicContextPanel({
 
       <div className="mt-3 flex flex-wrap gap-2">
         <CopyButton text={enrichmentPrompt} label="Copiar pedido para enriquecer" variant="outline" size="sm" />
-        <Button type="button" variant="outline" size="sm" onClick={() => window.open("https://chat.openai.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT</Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => window.open("https://chat.openai.com/", "_blank", "noopener,noreferrer")}
+        >
+          Abrir ChatGPT
+        </Button>
       </div>
 
       <div className="mt-4 rounded-xl border bg-background/80 p-3">
@@ -1681,7 +1923,7 @@ function TopicContextPanel({
         <Textarea
           value={contextJson}
           onChange={(event) => setContextJson(event.target.value)}
-          placeholder={'Cole aqui o JSON com topic_entity, topic_associations, topic_cautions e topic_do_not_invent.'}
+          placeholder={"Cole aqui o JSON com topic_entity, topic_associations, topic_cautions e topic_do_not_invent."}
           rows={5}
           className="font-mono text-xs"
         />
@@ -1689,7 +1931,13 @@ function TopicContextPanel({
           <Button type="button" size="sm" onClick={onApplyContextJson} disabled={!contextJson.trim()}>
             Aplicar JSON ao contexto
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setContextJson("")} disabled={!contextJson.trim()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setContextJson("")}
+            disabled={!contextJson.trim()}
+          >
             Limpar JSON
           </Button>
         </div>
@@ -1698,9 +1946,7 @@ function TopicContextPanel({
   );
 }
 
-type TopicContextImportResult =
-  | { ok: true; patch: Partial<Reel2Draft> }
-  | { ok: false; error: string };
+type TopicContextImportResult = { ok: true; patch: Partial<Reel2Draft> } | { ok: false; error: string };
 
 function parseTopicContextImport(raw: string, draft: Reel2Draft): TopicContextImportResult {
   if (!raw.trim()) return { ok: false, error: "Cole o JSON de contexto antes de aplicar." };
@@ -1795,7 +2041,9 @@ function mergeTextLists(current: string, ...lists: string[][]) {
 
 function normalizeTopicEntityType(value: string) {
   const normalized = normalizeComparable(value);
-  if (["destino", "local", "produto", "servico", "comportamento", "evento", "outro", "desconhecido"].includes(normalized)) {
+  if (
+    ["destino", "local", "produto", "servico", "comportamento", "evento", "outro", "desconhecido"].includes(normalized)
+  ) {
     return normalized;
   }
   if (normalized === "serviço") return "servico";
@@ -1848,7 +2096,16 @@ function buildLocalHookOptions(draft: Reel2Draft, brand?: Tables<"brands"> | nul
   return [direct, curious, alert];
 }
 
-type HookPattern = "dog_signals" | "canine_walk" | "behavior_generic" | "travel_destination" | "travel_decision" | "travel_generic" | "atelier" | "accounting" | "generic";
+type HookPattern =
+  | "dog_signals"
+  | "canine_walk"
+  | "behavior_generic"
+  | "travel_destination"
+  | "travel_decision"
+  | "travel_generic"
+  | "atelier"
+  | "accounting"
+  | "generic";
 type HookMode = Reel2HookDraft["mode"];
 type HookContext = {
   brandText: string;
@@ -1902,7 +2159,19 @@ function buildHookContext(draft: Reel2Draft, brand?: Tables<"brands"> | null): H
 
 function buildHookContextKey(draft: Reel2Draft, brand?: Tables<"brands"> | null) {
   const context = buildHookContext(draft, brand);
-  return normalizeComparable([context.idea, context.promise, context.extraNotes, context.objective, context.reelType, context.brandText, context.topic, context.associations.join(","), context.cautions.join(",")].join("|"));
+  return normalizeComparable(
+    [
+      context.idea,
+      context.promise,
+      context.extraNotes,
+      context.objective,
+      context.reelType,
+      context.brandText,
+      context.topic,
+      context.associations.join(","),
+      context.cautions.join(","),
+    ].join("|"),
+  );
 }
 
 function buildScriptHookContextKey(script: Reel2ImportedScript) {
@@ -1913,29 +2182,44 @@ function inferHookPattern(context: HookContext): HookPattern {
   const source = normalizeComparable(`${context.sourceText} ${context.brandText}`);
   const promiseSource = normalizeComparable(`${context.promise} ${context.idea} ${context.extraNotes}`);
 
-  if (/(rosn|desconfort|reacao|reage|reagir|sinais?|corpo|linguagem corporal|boceja|lambe|desvia|olhar)/.test(promiseSource)
-    && /(cachorro|canino|pet|tutor|adestra|comportamento)/.test(source)) {
+  if (
+    /(rosn|desconfort|reacao|reage|reagir|sinais?|corpo|linguagem corporal|boceja|lambe|desvia|olhar)/.test(
+      promiseSource,
+    ) &&
+    /(cachorro|canino|pet|tutor|adestra|comportamento)/.test(source)
+  ) {
     return "dog_signals";
   }
-  if (/(passeio|guia|coleira|puxa|rua|respeita|obedec)/.test(promiseSource)
-    && /(cachorro|canino|pet|tutor|adestra|comportamento)/.test(source)) {
+  if (
+    /(passeio|guia|coleira|puxa|rua|respeita|obedec)/.test(promiseSource) &&
+    /(cachorro|canino|pet|tutor|adestra|comportamento)/.test(source)
+  ) {
     return "canine_walk";
   }
-  if (/(comportamento|reforco|reforço|tutor|pular|latir|contato visual|atenção|atencao|rotina|repetir|indesejado)/.test(promiseSource)) {
+  if (
+    /(comportamento|reforco|reforço|tutor|pular|latir|contato visual|atenção|atencao|rotina|repetir|indesejado)/.test(
+      promiseSource,
+    )
+  ) {
     return "behavior_generic";
   }
-  if ((context.entityType === "destino" || context.entityType === "local")
-    && /(o_que_fazer|responder_duvida|orientar|alerta|passo_a_passo)/.test(context.intent)
-    && /(viagem|turismo|travel|destino|férias|hotel|roteiro|passagem)/.test(source)) {
+  if (
+    (context.entityType === "destino" || context.entityType === "local") &&
+    /(o_que_fazer|responder_duvida|orientar|alerta|passo_a_passo)/.test(context.intent) &&
+    /(viagem|turismo|travel|destino|férias|hotel|roteiro|passagem)/.test(source)
+  ) {
     return "travel_destination";
   }
-  if (/(destino|viagem|viajar|planejamento|prioridades|perguntas?|teste|ferias|férias|roteiro)/.test(promiseSource)
-    && /(viagem|turismo|travel|destino|férias|hotel|roteiro|passagem)/.test(source)) {
+  if (
+    /(destino|viagem|viajar|planejamento|prioridades|perguntas?|teste|ferias|férias|roteiro)/.test(promiseSource) &&
+    /(viagem|turismo|travel|destino|férias|hotel|roteiro|passagem)/.test(source)
+  ) {
     return "travel_decision";
   }
   if (/(viagem|turismo|travel|destino|férias|hotel|roteiro|passagem)/.test(source)) return "travel_generic";
   if (/(atelier|costura|bolsa|artesanal|moda|acessório|acessorio)/.test(source)) return "atelier";
-  if (/(contabilidade|contador|fiscal|imposto|mei|cnpj|nota fiscal|obrigacao|obrigação|tribut)/.test(source)) return "accounting";
+  if (/(contabilidade|contador|fiscal|imposto|mei|cnpj|nota fiscal|obrigacao|obrigação|tribut)/.test(source))
+    return "accounting";
   return "generic";
 }
 
@@ -1950,19 +2234,22 @@ const HOOK_TEMPLATE_LIBRARY: Record<HookPattern, Record<HookMode, HookTemplate[]
       {
         spoken: "Antes do seu cachorro rosnar, ele provavelmente já avisou de outras formas.",
         screen: "Antes do rosnado, vem o aviso",
-        scene: "Mostrar uma situação cotidiana calma com o cachorro desviando o olhar, lambendo o focinho ou mudando a postura antes da reação.",
+        scene:
+          "Mostrar uma situação cotidiana calma com o cachorro desviando o olhar, lambendo o focinho ou mudando a postura antes da reação.",
         why: "Conecta diretamente a promessa aos sinais discretos que aparecem antes da reação intensa.",
       },
       {
         spoken: "Seu cachorro quase nunca reage do nada. O corpo dele costuma avisar antes.",
         screen: "Ele não reage do nada",
-        scene: "Começar com close no tutor observando o cachorro e inserir pequenos marcadores visuais nos sinais corporais.",
+        scene:
+          "Começar com close no tutor observando o cachorro e inserir pequenos marcadores visuais nos sinais corporais.",
         why: "Quebra a crença de que a reação aparece sem aviso e abre caminho para explicar sinais prévios.",
       },
       {
         spoken: "Se você só percebe quando ele rosna, talvez esteja perdendo os sinais anteriores.",
         screen: "Você percebe antes do rosnado?",
-        scene: "Apresentador em plano médio, tom acolhedor, apontando para três sinais na tela sem dramatizar o cachorro.",
+        scene:
+          "Apresentador em plano médio, tom acolhedor, apontando para três sinais na tela sem dramatizar o cachorro.",
         why: "Cria identificação sem culpa e prepara a entrega dos sinais discretos prometidos.",
       },
     ],
@@ -1970,13 +2257,15 @@ const HOOK_TEMPLATE_LIBRARY: Record<HookPattern, Record<HookMode, HookTemplate[]
       {
         spoken: "O sinal mais importante pode acontecer antes do som aparecer.",
         screen: "O aviso vem antes do som",
-        scene: "Abrir com uma cena silenciosa do cachorro mostrando desconforto corporal antes de qualquer vocalização.",
+        scene:
+          "Abrir com uma cena silenciosa do cachorro mostrando desconforto corporal antes de qualquer vocalização.",
         why: "Abre uma lacuna de curiosidade ligada ao comportamento corporal antes da reação.",
       },
       {
         spoken: "Tem um momento antes da reação que muita gente não percebe.",
         screen: "Muita gente perde este momento",
-        scene: "Mostrar uma pausa rápida no vídeo, como se congelasse o instante antes da reação, destacando o corpo do cachorro.",
+        scene:
+          "Mostrar uma pausa rápida no vídeo, como se congelasse o instante antes da reação, destacando o corpo do cachorro.",
         why: "Promete uma descoberta observável e diretamente conectada à promessa.",
       },
       {
@@ -1990,7 +2279,8 @@ const HOOK_TEMPLATE_LIBRARY: Record<HookPattern, Record<HookMode, HookTemplate[]
       {
         spoken: "Cuidado: ignorar esses sinais pode deixar a reação mais intensa.",
         screen: "Não ignore os sinais antes",
-        scene: "Texto forte na tela, seguido de exemplos simples de sinais como desviar o corpo, lamber o focinho ou bocejar fora de contexto.",
+        scene:
+          "Texto forte na tela, seguido de exemplos simples de sinais como desviar o corpo, lamber o focinho ou bocejar fora de contexto.",
         why: "Cria urgência coerente com a promessa, sem exagerar nem culpar o tutor.",
       },
       {
@@ -2056,13 +2346,15 @@ const HOOK_TEMPLATE_LIBRARY: Record<HookPattern, Record<HookMode, HookTemplate[]
       {
         spoken: "Esse comportamento pode estar sendo reforçado sem você perceber.",
         screen: "Você pode estar reforçando isso",
-        scene: "Mostrar uma situação cotidiana simples ligada ao comportamento citado, com apresentador explicando de forma acolhedora e sem culpa.",
+        scene:
+          "Mostrar uma situação cotidiana simples ligada ao comportamento citado, com apresentador explicando de forma acolhedora e sem culpa.",
         why: "Conecta a promessa a uma situação real e evita trocar o assunto por exemplos de outro nicho.",
       },
       {
         spoken: "Antes de tentar corrigir {topic}, observe o que acontece logo depois.",
         screen: "Observe o que vem depois",
-        scene: "Apresentador mostra uma sequência curta: comportamento, resposta do tutor e repetição do comportamento.",
+        scene:
+          "Apresentador mostra uma sequência curta: comportamento, resposta do tutor e repetição do comportamento.",
         why: "Leva o público para a lógica de reforço e rotina, alinhando gancho, promessa e tipo educativo.",
       },
     ],
@@ -2100,7 +2392,8 @@ const HOOK_TEMPLATE_LIBRARY: Record<HookPattern, Record<HookMode, HookTemplate[]
       {
         spoken: "Antes de escolher um destino, faça este teste rápido.",
         screen: "Teste antes de escolher",
-        scene: "Apresentador olha para a câmera, levanta três dedos e mostra cartões de planejamento, experiência e tranquilidade.",
+        scene:
+          "Apresentador olha para a câmera, levanta três dedos e mostra cartões de planejamento, experiência e tranquilidade.",
         why: "Conecta promessa, decisão de viagem e utilidade prática nos primeiros segundos.",
       },
       {
@@ -2281,7 +2574,6 @@ const HOOK_TEMPLATE_LIBRARY: Record<HookPattern, Record<HookMode, HookTemplate[]
   },
 };
 
-
 function buildTravelDestinationHooks(context: HookContext, round = 1): Reel2HookDraft[] {
   const topic = context.topic || "esse destino";
   const mainAssociation = context.associations[0] || "";
@@ -2293,9 +2585,10 @@ function buildTravelDestinationHooks(context: HookContext, round = 1): Reel2Hook
         ? `${topic} é muito mais do que ${mainAssociation} — veja como pensar seu roteiro.`
         : `Vai para ${topic}? Veja como escolher o que fazer sem montar um roteiro genérico.`,
       directScreen: hasAssociations ? `${topic} além de ${mainAssociation}` : `O que fazer em ${topic}`,
-      curious: hasAssociations && secondAssociation
-        ? `Por que ${topic} combina com ${mainAssociation}, ${secondAssociation} e muitos estilos de viagem?`
-        : `${topic} pode render viagens bem diferentes — depende do que você procura.`,
+      curious:
+        hasAssociations && secondAssociation
+          ? `Por que ${topic} combina com ${mainAssociation}, ${secondAssociation} e muitos estilos de viagem?`
+          : `${topic} pode render viagens bem diferentes — depende do que você procura.`,
       curiousScreen: hasAssociations ? `Por que ${topic} atrai tanta gente?` : `${topic} do seu jeito`,
       alert: `Não escolha passeios em ${topic} só porque todo mundo recomenda.`,
       alertScreen: `Cuidado com roteiro genérico`,
@@ -2326,7 +2619,8 @@ function buildTravelDestinationHooks(context: HookContext, round = 1): Reel2Hook
       spoken_hook: selected.direct,
       on_screen_text: makeOnScreenText(selected.directScreen),
       scene_suggestion: `Abrir com o nome ${topic} em destaque e imagens de apoio gerais de viagem, sem citar detalhes não confirmados.`,
-      why_it_works: "Usa o destino específico como assunto principal e promete uma orientação prática sem inventar informações locais.",
+      why_it_works:
+        "Usa o destino específico como assunto principal e promete uma orientação prática sem inventar informações locais.",
     },
     {
       mode: "curious",
@@ -2340,7 +2634,8 @@ function buildTravelDestinationHooks(context: HookContext, round = 1): Reel2Hook
       spoken_hook: selected.alert,
       on_screen_text: makeOnScreenText(selected.alertScreen),
       scene_suggestion: `Usar texto de alerta leve com checklist visual. Não citar preços, empresas, datas ou passeios específicos sem confirmação.`,
-      why_it_works: "Traz cuidado e decisão consciente ligados ao destino informado, sem acusação ou informação não verificada.",
+      why_it_works:
+        "Traz cuidado e decisão consciente ligados ao destino informado, sem acusação ou informação não verificada.",
     },
   ];
 }
@@ -2368,7 +2663,10 @@ function inferHookTopic(idea: string, promise: string) {
 }
 
 function inferPromiseGain(promise: string, idea: string) {
-  const source = (promise || idea || "um ponto importante").replace(/^você vai\s+/i, "").replace(/\s+/g, " ").trim();
+  const source = (promise || idea || "um ponto importante")
+    .replace(/^você vai\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
   return shortIdea(source);
 }
 
