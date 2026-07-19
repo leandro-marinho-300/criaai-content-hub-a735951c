@@ -14,6 +14,15 @@ export type Post2EditorialType =
   | "commercial_offer";
 export type Post2Ratio = "4:5" | "1:1";
 
+export interface Post2ConceptOption {
+  label: string;
+  concept: string;
+  title: string;
+  support_text: string;
+  art_cta: string;
+  visual_direction: string;
+}
+
 export interface Post2Draft {
   version: 1;
   entry_mode: Post2EntryMode | "";
@@ -24,6 +33,10 @@ export interface Post2Draft {
   theme: string;
   audience: string;
   understanding: string;
+  situation: string;
+  current_belief: string;
+  desired_shift: string;
+  desired_reaction: string;
   mandatory_information: string;
   call_to_action: string;
   restrictions: string;
@@ -31,6 +44,8 @@ export interface Post2Draft {
   preset_id: string;
   reference_content: string;
   reference_notes: string;
+  concept_options: Post2ConceptOption[];
+  selected_concept_index: number | null;
   title_options: string[];
   selected_title_index: number | null;
   custom_title: string;
@@ -71,176 +86,6 @@ export const POST2_ENTRY_OPTIONS: Array<{
     description: "Use uma peça ou conteúdo apenas para aprender estrutura, hierarquia e abordagem.",
   },
 ];
-
-export interface Post2IdeaSuggestion {
-  id: string;
-  title: string;
-  understanding: string;
-  cta: string;
-  editorial_type: Post2EditorialType;
-}
-
-export function generatePost2IdeaSuggestions(
-  draft: Post2Draft,
-  brand?: Tables<"brands"> | null,
-): Post2IdeaSuggestion[] {
-  const name = brand?.name?.trim() || "a marca";
-  const segment = brand?.segment?.trim() || "seu segmento";
-  const audience = draft.audience.trim() || brand?.audience?.trim() || "o público da marca";
-  const needs =
-    brand?.audience_needs?.trim() ||
-    brand?.audience_difficulties?.trim() ||
-    "suas principais necessidades";
-  const services =
-    brand?.products_services?.trim() ||
-    brand?.priority_services?.join(", ") ||
-    "o que a marca oferece";
-  const differentiators = brand?.differentiators?.trim() || "a forma de trabalhar da marca";
-
-  const objective = draft.objective || "inform";
-  const byObjective: Record<Post2Objective, Post2IdeaSuggestion[]> = {
-    educate: [
-      {
-        id: "educate-1",
-        title: `Um erro comum de ${audience} ao lidar com ${segment}`,
-        understanding: `Explicar um erro frequente de forma prática e mostrar uma orientação mais clara, conectada às necessidades reais de ${audience}.`,
-        cta: "Qual parte dessa situação mais gera dúvida para você?",
-        editorial_type: "error_alert",
-      },
-      {
-        id: "educate-2",
-        title: `O que ${audience} precisa entender antes de escolher ${services}`,
-        understanding: `Ensinar os critérios essenciais para tomar uma decisão mais segura, sem promessas ou informações não confirmadas.`,
-        cta: "Salve este post para consultar antes de decidir.",
-        editorial_type: "direct_guidance",
-      },
-      {
-        id: "educate-3",
-        title: `Mito ou verdade sobre ${segment}`,
-        understanding: `Corrigir uma crença comum do público com linguagem simples, respeitosa e alinhada ao posicionamento de ${name}.`,
-        cta: "Você já tinha ouvido essa afirmação?",
-        editorial_type: "belief_break",
-      },
-    ],
-    inform: [
-      {
-        id: "inform-1",
-        title: `O que mudou ou merece atenção em ${segment}`,
-        understanding: `Apresentar uma informação relevante para ${audience}, destacando somente fatos confirmados e seus impactos práticos.`,
-        cta: "Compartilhe com alguém que precisa saber disso.",
-        editorial_type: "direct_guidance",
-      },
-      {
-        id: "inform-2",
-        title: `3 pontos para entender melhor ${services}`,
-        understanding: `Organizar os principais pontos de forma curta e útil, ajudando o público a compreender o assunto sem excesso de informação.`,
-        cta: "Qual desses pontos você quer ver explicado em outro post?",
-        editorial_type: "direct_guidance",
-      },
-      {
-        id: "inform-3",
-        title: `Uma dúvida frequente de ${audience}`,
-        understanding: `Responder uma dúvida recorrente de forma objetiva e alinhada às informações oficiais da marca.`,
-        cta: "Deixe sua dúvida nos comentários.",
-        editorial_type: "question_identification",
-      },
-    ],
-    identify: [
-      {
-        id: "identify-1",
-        title: `Você também enfrenta isso em ${segment}?`,
-        understanding: `Mostrar uma situação real vivida por ${audience} e acolher a dificuldade sem julgamento.`,
-        cta: "Isso acontece com você também?",
-        editorial_type: "question_identification",
-      },
-      {
-        id: "identify-2",
-        title: `Quando ${needs} começa a pesar na rotina`,
-        understanding: `Criar identificação com uma dor concreta e mostrar que ela pode ser compreendida e organizada.`,
-        cta: "Qual é a maior dificuldade hoje?",
-        editorial_type: "question_identification",
-      },
-      {
-        id: "identify-3",
-        title: `Você não precisa resolver tudo sozinho`,
-        understanding: `Acolher o público e apresentar ${name} como apoio possível, sem transformar o conteúdo em promessa comercial exagerada.`,
-        cta: "Converse com a gente para entender o próximo passo.",
-        editorial_type: "benefit_opportunity",
-      },
-    ],
-    promote: [
-      {
-        id: "promote-1",
-        title: `Conheça melhor ${services}`,
-        understanding: `Apresentar de forma clara o que a marca oferece, para quem é indicado e qual necessidade atende.`,
-        cta: "Fale com a gente para saber mais.",
-        editorial_type: "institutional",
-      },
-      {
-        id: "promote-2",
-        title: `Como ${name} pode apoiar ${audience}`,
-        understanding: `Relacionar os serviços da marca às necessidades do público sem inventar resultados ou garantias.`,
-        cta: "Envie uma mensagem para entender como funciona.",
-        editorial_type: "benefit_opportunity",
-      },
-      {
-        id: "promote-3",
-        title: `O diferencial de ${name} em ${segment}`,
-        understanding: `Evidenciar ${differentiators} com linguagem concreta, evitando afirmações genéricas ou não comprovadas.`,
-        cta: "Conheça nosso jeito de trabalhar.",
-        editorial_type: "institutional",
-      },
-    ],
-    sell: [
-      {
-        id: "sell-1",
-        title: `Uma solução para ${needs}`,
-        understanding: `Apresentar ${services} como uma possibilidade concreta para uma necessidade do público, sem prometer resultado garantido.`,
-        cta: "Solicite mais informações.",
-        editorial_type: "commercial_offer",
-      },
-      {
-        id: "sell-2",
-        title: `Por que considerar ${name} para ${segment}`,
-        understanding: `Mostrar valor, diferenciais e adequação ao público com argumentos verificáveis e linguagem responsável.`,
-        cta: "Converse com a equipe.",
-        editorial_type: "benefit_opportunity",
-      },
-      {
-        id: "sell-3",
-        title: `Seu próximo passo em ${segment}`,
-        understanding: `Conduzir o público a uma ação comercial simples, deixando claro o que será oferecido e o que precisa ser confirmado.`,
-        cta: "Entre em contato para começar.",
-        editorial_type: "commercial_offer",
-      },
-    ],
-    contact: [
-      {
-        id: "contact-1",
-        title: `Tem dúvidas sobre ${services}?`,
-        understanding: `Abrir uma conversa com ${audience}, usando uma dúvida real como ponto de partida.`,
-        cta: "Envie sua dúvida por mensagem.",
-        editorial_type: "question_identification",
-      },
-      {
-        id: "contact-2",
-        title: `Vamos entender o que você precisa?`,
-        understanding: `Convidar o público a explicar sua necessidade para receber orientação inicial, sem antecipar proposta ou promessa.`,
-        cta: "Chame a gente para conversar.",
-        editorial_type: "commercial_offer",
-      },
-      {
-        id: "contact-3",
-        title: `Descubra qual caminho faz sentido para você`,
-        understanding: `Estimular contato para avaliar contexto, objetivo e possibilidades com atendimento personalizado.`,
-        cta: "Fale com a equipe e conte seu objetivo.",
-        editorial_type: "benefit_opportunity",
-      },
-    ],
-  };
-
-  return byObjective[objective];
-}
 
 export const POST2_OBJECTIVES: Array<{ id: Post2Objective; label: string; description: string }> = [
   {
@@ -329,6 +174,10 @@ export function createPost2Draft(): Post2Draft {
     theme: "",
     audience: "",
     understanding: "",
+    situation: "",
+    current_belief: "",
+    desired_shift: "",
+    desired_reaction: "",
     mandatory_information: "",
     call_to_action: "",
     restrictions: "",
@@ -336,6 +185,8 @@ export function createPost2Draft(): Post2Draft {
     preset_id: "",
     reference_content: "",
     reference_notes: "",
+    concept_options: [],
+    selected_concept_index: null,
     title_options: [],
     selected_title_index: null,
     custom_title: "",
@@ -636,4 +487,218 @@ function capitalize(value: string) {
 function sentenceCase(value: string) {
   const clean = value.trim().replace(/[.!?]+$/, "");
   return capitalize(clean);
+}
+
+export function buildPost2ConceptOptions(
+  draft: Post2Draft,
+  brand?: Tables<"brands"> | null,
+): Post2ConceptOption[] {
+  const theme = cleanTheme(draft.theme) || "este tema";
+  const understanding = draft.understanding.trim() || `Entender melhor ${theme.toLowerCase()}`;
+  const reaction = draft.desired_reaction.trim() || draft.call_to_action.trim() || "Saiba mais";
+  const brandName = brand?.name?.trim() || "a marca";
+  const baseVisual =
+    draft.ratio === "4:5"
+      ? "Composição vertical 4:5, título forte no terço superior, elemento visual principal central e CTA discreto na base."
+      : "Composição quadrada 1:1, hierarquia compacta, título em destaque e elemento visual central com bom respiro.";
+
+  const byType: Record<Post2EditorialType, Post2ConceptOption[]> = {
+    direct_guidance: [
+      {
+        label: "Orientação direta",
+        concept: `Transformar ${theme.toLowerCase()} em uma orientação simples e imediatamente compreensível.`,
+        title: `${capitalize(theme)}: o que fazer na prática`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Use uma cena cotidiana ou símbolo claro que represente ação prática.`,
+      },
+      {
+        label: "Passo essencial",
+        concept: `Destacar a decisão mais importante sobre ${theme.toLowerCase()}.`,
+        title: `Antes de agir, entenda isto`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Use contraste entre problema e orientação, sem dividir a arte em muitos blocos.`,
+      },
+      {
+        label: "Clareza visual",
+        concept: `Apresentar ${theme.toLowerCase()} com linguagem direta e acolhedora.`,
+        title: `Um caminho mais claro para ${theme.toLowerCase()}`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Visual limpo, humano e com um único foco principal.`,
+      },
+    ],
+    error_alert: [
+      {
+        label: "Alerta sem medo",
+        concept: `Mostrar um erro comum relacionado a ${theme.toLowerCase()} sem culpabilizar o público.`,
+        title: `O erro que pode mudar tudo`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Use sinal visual de atenção com moderação, sem dramatização.`,
+      },
+      {
+        label: "Detalhe despercebido",
+        concept: `Revelar um detalhe que costuma passar despercebido em ${theme.toLowerCase()}.`,
+        title: `Atenção a este detalhe`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Destaque um pequeno detalhe visual ampliado ou marcado.`,
+      },
+      {
+        label: "Correção prática",
+        concept: `Conectar erro e ajuste de forma simples.`,
+        title: `${capitalize(theme)}: o que pode estar passando despercebido`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Estrutura antes/depois ou problema/ajuste, sem excesso de texto.`,
+      },
+    ],
+    question_identification: [
+      {
+        label: "Pergunta direta",
+        concept: `Fazer o público se reconhecer em uma situação real relacionada a ${theme.toLowerCase()}.`,
+        title: `Você também passa por isso?`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Use pessoa ou situação cotidiana com expressão natural e espaço para a pergunta.`,
+      },
+      {
+        label: "Cena real",
+        concept: `Abrir com uma cena familiar ao público de ${brandName}.`,
+        title: `Isso acontece com você?`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Cena contextual, sem poses artificiais, com texto curto e legível.`,
+      },
+      {
+        label: "Dúvida central",
+        concept: `Transformar a principal dúvida sobre ${theme.toLowerCase()} em título.`,
+        title: `Por que ${theme.toLowerCase()} parece tão difícil?`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Composição editorial com pergunta em destaque e imagem contextual.`,
+      },
+    ],
+    belief_break: [
+      {
+        label: "Quebra de crença",
+        concept: `Corrigir uma percepção comum sobre ${theme.toLowerCase()} sem atacar o público.`,
+        title: `Talvez o problema não seja o que você imagina`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Use contraste conceitual e uma imagem que sugira mudança de perspectiva.`,
+      },
+      {
+        label: "Novo olhar",
+        concept: `Apresentar um novo ponto de vista sobre ${theme.toLowerCase()}.`,
+        title: `O que quase ninguém explica sobre ${theme.toLowerCase()}`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Visual editorial forte, com hierarquia clara e poucos elementos.`,
+      },
+      {
+        label: "Mito x realidade",
+        concept: `Substituir uma crença comum por uma orientação mais útil.`,
+        title: `${capitalize(theme)} não funciona como muita gente imagina`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Evite clichê de “mito x verdade”; use uma composição mais sofisticada de contraste.`,
+      },
+    ],
+    benefit_opportunity: [
+      {
+        label: "Benefício concreto",
+        concept: `Evidenciar o ganho prático de compreender ${theme.toLowerCase()}.`,
+        title: `O que você ganha ao entender ${theme.toLowerCase()}`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Use imagem aspiracional realista e benefício visualmente evidente.`,
+      },
+      {
+        label: "Possibilidade",
+        concept: `Mostrar que ${theme.toLowerCase()} pode ser mais simples ou acessível.`,
+        title: `${capitalize(theme)} pode ser mais simples do que parece`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Visual leve, positivo e com sensação de possibilidade.`,
+      },
+      {
+        label: "Oportunidade",
+        concept: `Apresentar uma oportunidade ligada a ${theme.toLowerCase()} sem promessa exagerada.`,
+        title: `Uma oportunidade que pode fazer diferença`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Composição comercial limpa, sem aparência promocional genérica.`,
+      },
+    ],
+    institutional: [
+      {
+        label: "Posicionamento",
+        concept: `Apresentar como ${brandName} enxerga ${theme.toLowerCase()}.`,
+        title: `Como enxergamos ${theme.toLowerCase()}`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Use identidade da marca, imagem humana e acabamento institucional contemporâneo.`,
+      },
+      {
+        label: "Jeito de trabalhar",
+        concept: `Mostrar o método ou cuidado da marca.`,
+        title: `Nosso jeito de trabalhar com ${theme.toLowerCase()}`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Bastidor ou cena de atendimento realista, sem inventar equipe ou estrutura.`,
+      },
+      {
+        label: "Propósito",
+        concept: `Conectar ${theme.toLowerCase()} ao propósito da marca.`,
+        title: `${capitalize(theme)} com mais clareza e cuidado`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Visual acolhedor e profissional, com destaque para valores reais da marca.`,
+      },
+    ],
+    commercial_offer: [
+      {
+        label: "Convite claro",
+        concept: `Apresentar a solução da marca ligada a ${theme.toLowerCase()} com chamada direta.`,
+        title: `${capitalize(theme)} com orientação do início ao fim`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Visual comercial humano, sem excesso de selos ou elementos promocionais.`,
+      },
+      {
+        label: "Próximo passo",
+        concept: `Convidar o público a avançar em ${theme.toLowerCase()}.`,
+        title: `Pronto para dar o próximo passo?`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} CTA visível, imagem contextual e espaço de respiro.`,
+      },
+      {
+        label: "Solução",
+        concept: `Conectar necessidade e solução oferecida pela marca.`,
+        title: `O próximo passo para ${theme.toLowerCase()}`,
+        support_text: understanding,
+        art_cta: reaction,
+        visual_direction: `${baseVisual} Destaque benefício e ação, sem inventar preço, prazo ou condição.`,
+      },
+    ],
+  };
+
+  return draft.editorial_type ? byType[draft.editorial_type] : byType.direct_guidance;
+}
+
+export function applyPost2Concept(
+  draft: Post2Draft,
+  option: Post2ConceptOption,
+): Partial<Post2Draft> {
+  return {
+    custom_title: option.title,
+    selected_title_index: null,
+    support_text: option.support_text,
+    art_cta: option.art_cta,
+    visual_direction: option.visual_direction,
+  };
 }

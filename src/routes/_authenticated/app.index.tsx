@@ -263,7 +263,8 @@ function Dashboard() {
     {
       title: "Post",
       desc: "Uma mensagem visual, direta e fácil de aprovar.",
-      to: "/app/create/post",
+      to: "/app/content/new",
+      search: { format: "post" },
       icon: ImageIcon,
       tone: "violet" as const,
       label: "Rápido",
