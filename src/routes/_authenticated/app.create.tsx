@@ -1,7 +1,16 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Lightbulb, PenSquare, RefreshCw, Layers, ArrowRight, ChevronRight, Sparkles, Film } from "lucide-react";
+import {
+  Lightbulb,
+  PenSquare,
+  RefreshCw,
+  Layers,
+  ArrowRight,
+  ChevronRight,
+  Sparkles,
+  Film,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
@@ -9,13 +18,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { OBJECTIVE_LABELS } from "@/lib/promptBuilder";
-import { CreateReel2 } from "./app.create.reel";
-import { CREATIVE_PATHS, rankPathsByObjective, type CreativePath } from "@/lib/creativePaths";
+import {
+  CREATIVE_PATHS,
+  rankPathsByObjective,
+  type CreativePath,
+} from "@/lib/creativePaths";
 import type { IdeaObjective } from "@/lib/ideaTaxonomy";
 
-type Mode = "hub" | "tema" | "adaptar" | "campanha" | "reel";
+type Mode = "hub" | "tema" | "adaptar" | "campanha";
 
 export const Route = createFileRoute("/_authenticated/app/create")({
   head: () => ({ meta: [{ title: "Criar conteúdo — Cria Aí" }] }),
@@ -28,53 +46,36 @@ export const Route = createFileRoute("/_authenticated/app/create")({
 function CreateHub() {
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const pathRequestsReel = typeof window !== "undefined" && /\/app\/create\/reel\/?$/.test(window.location.pathname);
-  const initialMode: Mode = pathRequestsReel ? "reel" : (search.mode ?? "hub");
+  const initialMode: Mode = search.mode ?? "hub";
   const [mode, setMode] = useState<Mode>(initialMode);
-
-  if (pathRequestsReel || mode === "reel") {
-    return <CreateReel2 />;
-  }
 
   if (mode === "tema") {
     return <ModeTema onBack={() => setMode("hub")} />;
   }
   if (mode === "adaptar") {
-    return (
-      <ComingSoon
-        title="Adaptar conteúdo"
-        description="Selecionar projeto, ideia ou peça anterior e transformá-los em novos formatos — sem copiar literalmente."
-        onBack={() => setMode("hub")}
-        fallbackHref="/app/library"
-        fallbackLabel="Abrir biblioteca"
-      />
-    );
+    return <ComingSoon
+      title="Adaptar conteúdo"
+      description="Selecionar projeto, ideia ou peça anterior e transformá-los em novos formatos — sem copiar literalmente."
+      onBack={() => setMode("hub")}
+      fallbackHref="/app/library"
+      fallbackLabel="Abrir biblioteca"
+    />;
   }
   if (mode === "campanha") {
-    return (
-      <ComingSoon
-        title="Campanha completa"
-        description="Desenvolver uma ideia central e suas adaptações para vários canais com funções diferentes por peça."
-        onBack={() => setMode("hub")}
-        fallbackHref="/app/content/new"
-        fallbackLabel="Abrir wizard atual"
-      />
-    );
+    return <ComingSoon
+      title="Campanha completa"
+      description="Desenvolver uma ideia central e suas adaptações para vários canais com funções diferentes por peça."
+      onBack={() => setMode("hub")}
+      fallbackHref="/app/content/new"
+      fallbackLabel="Abrir wizard atual"
+    />;
   }
 
-  return (
-    <Hub
-      onPick={(m) => {
-        if (m === "ideias") navigate({ to: "/app/ideas" });
-        else if (m === "reel") {
-          setMode("reel");
-          try {
-            window.history.pushState(null, "", "/app/create?mode=reel");
-          } catch {}
-        } else setMode(m);
-      }}
-    />
-  );
+  return <Hub onPick={(m) => {
+    if (m === "ideias") navigate({ to: "/app/ideas" });
+    else if (m === "reel") navigate({ to: "/app/create/reel" });
+    else setMode(m);
+  }} />;
 }
 
 function Hub({ onPick }: { onPick: (m: "ideias" | "tema" | "adaptar" | "campanha" | "reel") => void }) {
@@ -123,13 +124,11 @@ function Hub({ onPick }: { onPick: (m: "ideias" | "tema" | "adaptar" | "campanha
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="space-y-2">
-        <Badge variant="secondary" className="rounded-full">
-          Oficina Criativa
-        </Badge>
+        <Badge variant="secondary" className="rounded-full">Oficina Criativa</Badge>
         <h1 className="text-2xl font-bold sm:text-3xl">Como você quer começar?</h1>
         <p className="text-sm text-muted-foreground">
-          Escolha o ponto de partida que combina com o seu momento. Você pode começar do zero, a partir de um tema,
-          adaptar algo que já existe ou planejar uma campanha completa.
+          Escolha o ponto de partida que combina com o seu momento. Você pode começar do zero,
+          a partir de um tema, adaptar algo que já existe ou planejar uma campanha completa.
         </p>
       </header>
 
@@ -153,11 +152,7 @@ function Hub({ onPick }: { onPick: (m: "ideias" | "tema" | "adaptar" | "campanha
             <div className="min-w-0 space-y-1">
               <div className="flex items-center gap-2">
                 <p className="font-semibold">{c.title}</p>
-                {c.badge && (
-                  <Badge variant="outline" className="text-[10px]">
-                    {c.badge}
-                  </Badge>
-                )}
+                {c.badge && <Badge variant="outline" className="text-[10px]">{c.badge}</Badge>}
               </div>
               <p className="text-sm text-muted-foreground">{c.desc}</p>
             </div>
@@ -168,7 +163,9 @@ function Hub({ onPick }: { onPick: (m: "ideias" | "tema" | "adaptar" | "campanha
 
       <Card className="border-dashed">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
-          <span className="text-muted-foreground">Prefere ir direto ao briefing tradicional?</span>
+          <span className="text-muted-foreground">
+            Prefere ir direto ao briefing tradicional?
+          </span>
           <Button asChild variant="ghost" size="sm">
             <Link to="/app/content/new">
               Abrir wizard <ArrowRight className="ml-1 h-3 w-3" />
@@ -189,7 +186,10 @@ function ModeTema({ onBack }: { onBack: () => void }) {
   const { data: brands } = useQuery({
     queryKey: ["brands-light-create"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("brands").select("id, name").order("name");
+      const { data, error } = await supabase
+        .from("brands")
+        .select("id, name")
+        .order("name");
       if (error) throw error;
       return (data ?? []) as Pick<Tables<"brands">, "id" | "name">[];
     },
@@ -225,8 +225,8 @@ function ModeTema({ onBack }: { onBack: () => void }) {
         </button>
         <h1 className="text-2xl font-bold sm:text-3xl">Já tenho um tema</h1>
         <p className="text-sm text-muted-foreground">
-          Informe o assunto principal. O Cria Aí mostra diferentes caminhos editoriais para você escolher antes de
-          desenvolver as peças.
+          Informe o assunto principal. O Cria Aí mostra diferentes caminhos editoriais
+          para você escolher antes de desenvolver as peças.
         </p>
       </header>
 
@@ -235,14 +235,10 @@ function ModeTema({ onBack }: { onBack: () => void }) {
           <div className="space-y-1.5">
             <Label>Marca</Label>
             <Select value={brandId} onValueChange={setBrandId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
                 {(brands ?? []).map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -258,15 +254,11 @@ function ModeTema({ onBack }: { onBack: () => void }) {
           <div className="space-y-1.5 sm:col-span-3">
             <Label>Objetivo (opcional — usado para priorizar os caminhos)</Label>
             <Select value={objective} onValueChange={(v) => setObjective(v as IdeaObjective)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sem preferência" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Sem preferência" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="qualquer">Sem preferência</SelectItem>
                 {Object.entries(OBJECTIVE_LABELS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>
-                    {v}
-                  </SelectItem>
+                  <SelectItem key={k} value={k}>{v}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -278,27 +270,29 @@ function ModeTema({ onBack }: { onBack: () => void }) {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Caminhos editoriais</h2>
           {!canPickPath && (
-            <p className="text-xs text-muted-foreground">Selecione a marca e informe um tema para ativar.</p>
+            <p className="text-xs text-muted-foreground">
+              Selecione a marca e informe um tema para ativar.
+            </p>
           )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
           {ranked.map((path) => {
-            const recommended =
-              objective && objective !== "qualquer"
-                ? path.recommendedObjectives.includes(objective as IdeaObjective)
-                : false;
+            const recommended = objective && objective !== "qualquer"
+              ? path.recommendedObjectives.includes(objective as IdeaObjective)
+              : false;
             return (
-              <Card key={path.id} className={recommended ? "border-primary/50" : "border-border/60"}>
+              <Card
+                key={path.id}
+                className={recommended ? "border-primary/50" : "border-border/60"}
+              >
                 <CardContent className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold">{path.label}</p>
                         {recommended && (
-                          <Badge variant="default" className="text-[10px]">
-                            Recomendado
-                          </Badge>
+                          <Badge variant="default" className="text-[10px]">Recomendado</Badge>
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">{path.description}</p>
@@ -306,9 +300,13 @@ function ModeTema({ onBack }: { onBack: () => void }) {
                   </div>
 
                   <div className="rounded-md border border-dashed bg-muted/40 p-3 text-sm">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Prévia de título</p>
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Prévia de título
+                    </p>
                     <p className="mt-1 font-medium">
-                      {themeTrim ? path.previewTitle(themeTrim) : "Informe um tema para ver a prévia."}
+                      {themeTrim
+                        ? path.previewTitle(themeTrim)
+                        : "Informe um tema para ver a prévia."}
                     </p>
                   </div>
 
@@ -326,12 +324,15 @@ function ModeTema({ onBack }: { onBack: () => void }) {
                   <div className="flex items-center justify-between pt-1">
                     <div className="flex flex-wrap gap-1">
                       {path.suggestedFormats.slice(0, 3).map((f) => (
-                        <Badge key={f} variant="outline" className="text-[10px]">
-                          {f}
-                        </Badge>
+                        <Badge key={f} variant="outline" className="text-[10px]">{f}</Badge>
                       ))}
                     </div>
-                    <Button size="sm" disabled={!canPickPath} onClick={() => goToWizard(path)} className="gap-1">
+                    <Button
+                      size="sm"
+                      disabled={!canPickPath}
+                      onClick={() => goToWizard(path)}
+                      className="gap-1"
+                    >
                       <Sparkles className="h-3 w-3" />
                       Desenvolver
                     </Button>
@@ -370,8 +371,8 @@ function ComingSoon({
           <h1 className="text-2xl font-bold">{title}</h1>
           <p className="text-sm text-muted-foreground">{description}</p>
           <p className="text-sm text-muted-foreground">
-            Esta etapa será liberada nas próximas fases da Oficina Criativa. Enquanto isso, você pode usar o fluxo
-            atual.
+            Esta etapa será liberada nas próximas fases da Oficina Criativa. Enquanto isso,
+            você pode usar o fluxo atual.
           </p>
           <div className="flex gap-2">
             <Button asChild variant="outline" size="sm">

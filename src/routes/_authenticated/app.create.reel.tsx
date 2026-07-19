@@ -106,7 +106,7 @@ function getCreateProjectErrorMessage(error: unknown): string {
   return "Não foi possível criar o projeto.";
 }
 
-export function CreateReel2() {
+function CreateReel2() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [step, setStep] = useState<StepIndex>(0);
