@@ -50,6 +50,8 @@ import { ReelScriptView } from "@/components/reel-script-view";
 import { ReelScriptVisualPanel } from "@/components/reel-script-visual-panel";
 import { Reel2ResultOverview } from "@/components/reel2-result-overview";
 import { Reel2ProductionPanel } from "@/components/reel2-production-panel";
+import { Post2ResultOverview } from "@/components/post2-result-overview";
+import { Post2ProductionPanel } from "@/components/post2-production-panel";
 import { getStoredReelScript, reelScriptToPlainText, type ReelScript } from "@/lib/reelScript";
 import { attachReelScriptVisualMeta, getStoredReelScriptVisualMeta } from "@/lib/reelScriptVisual";
 import { getReel2ScriptFromProject } from "@/lib/reel2Project";
@@ -57,6 +59,7 @@ import { buildReel2StoryboardPrompt } from "@/lib/reel2Script";
 import { inferReelDurationSeconds } from "@/lib/reelContent";
 import { MAX_HASHTAGS, normalizeHashtags } from "@/lib/hashtags";
 import { presetFromProject, saveUserPreset } from "@/lib/contentPresets";
+import { getPost2ProjectSnapshot } from "@/lib/post2Project";
 
 export const Route = createFileRoute("/_authenticated/app/content/$projectId/result")({
   head: () => ({ meta: [{ title: "Resultado — Cria Aí" }] }),
@@ -156,6 +159,7 @@ function ResultPage() {
 
   const project = data.project;
   const reel2Script = getReel2ScriptFromProject(project);
+  const post2Snapshot = getPost2ProjectSnapshot(project);
 
   const pieces: { row: Output; piece: Piece | null }[] = pieceRows.map((row) => {
     const piece = parsePiece(row.edited_content ?? row.original_content);
@@ -260,6 +264,7 @@ function ResultPage() {
               <Badge variant="outline" className="break-words">
                 {project.brands?.name ?? "Sem marca"}
               </Badge>
+              {post2Snapshot && <Badge variant="secondary">Post 2.0</Badge>}
               <Badge
                 variant={
                   (project as unknown as { content_source?: string }).content_source ===
@@ -298,6 +303,8 @@ function ResultPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               {reel2Script
                 ? "Pacote do Reel 2.0 criado · roteiro, capa/frame, publicação e produção organizados abaixo."
+                : post2Snapshot
+                  ? "Pacote do Post 2.0 · conteúdo importado, arte final, aprovação e calendário no mesmo projeto."
                 : `${pieces.length} peça${pieces.length === 1 ? "" : "s"} gerada${pieces.length === 1 ? "" : "s"} · ordem sugerida de publicação abaixo.`}
             </p>
           </div>
@@ -339,12 +346,21 @@ function ResultPage() {
               <SlidersHorizontal className="mr-2 h-4 w-4" />
               Salvar preset
             </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/app/content/new">
-                <PenSquare className="mr-2 h-4 w-4" />
-                Melhorar briefing
-              </Link>
-            </Button>
+            {post2Snapshot ? (
+              <Button asChild variant="outline" size="sm">
+                <a href={`/app/create/post?projectId=${encodeURIComponent(projectId)}`}>
+                  <PenSquare className="mr-2 h-4 w-4" />
+                  Ajustar conteúdo no Post 2.0
+                </a>
+              </Button>
+            ) : (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/app/content/new">
+                  <PenSquare className="mr-2 h-4 w-4" />
+                  Melhorar briefing
+                </Link>
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="mr-2 h-4 w-4" />
               Relatório interno
@@ -367,7 +383,7 @@ function ResultPage() {
         </div>
       </header>
 
-      {summaryRow && !reel2Script && (
+      {summaryRow && !reel2Script && !post2Snapshot && (
         <section className="space-y-2">
           <h2 className="font-display text-lg font-semibold">Resumo da campanha</h2>
           <Card>
@@ -390,6 +406,20 @@ function ResultPage() {
         />
       )}
 
+      {post2Snapshot && (
+        <Post2ResultOverview
+          projectId={projectId}
+          snapshot={post2Snapshot}
+          approvalStatus={
+            (data.latestApproval as { status?: string; decision?: string } | null | undefined)
+              ?.status ??
+            (data.latestApproval as { decision?: string } | null | undefined)?.decision
+          }
+          hasSchedule={Boolean(project.publication_date || (data.scheduleItems ?? []).length)}
+          hasFinalArt={(data.assets ?? []).length > 0}
+        />
+      )}
+
       {/* Aprovação do cliente */}
       <ClientApprovalPanel
         projectId={projectId}
@@ -408,7 +438,9 @@ function ResultPage() {
                 : isReelOnly
                   ? "Materiais do Reel"
                   : `Materiais do Reel e outros formatos (${pieces.length})`
-              : `Peças geradas (${pieces.length})`}
+              : post2Snapshot
+                ? `Produção e arquivos do Post (${pieces.length})`
+                : `Peças geradas (${pieces.length})`}
           </h2>
           <div className="flex items-center gap-2">
             {(() => {
@@ -462,6 +494,17 @@ function ResultPage() {
               }
             />
           </div>
+        ) : post2Snapshot ? (
+          <Post2ProductionPanel
+            projectId={projectId}
+            outputId={pieceRows[0]?.id ?? ""}
+            userId={user?.id ?? ""}
+            snapshot={post2Snapshot}
+            assets={(data.assets ?? []).filter((asset) => asset.output_id === pieceRows[0]?.id)}
+            onAssetsChanged={() =>
+              qc.invalidateQueries({ queryKey: ["project-result", projectId] })
+            }
+          />
         ) : (
           pieces.map(({ row, piece }) =>
             piece ? (
@@ -475,6 +518,7 @@ function ResultPage() {
                 onCopyAndOpen={copyAndOpenChatGPT}
                 userId={user?.id ?? ""}
                 assets={(data.assets ?? []).filter((a) => a.output_id === row.id)}
+                isPost2={Boolean(post2Snapshot)}
                 onAssetsChanged={() =>
                   qc.invalidateQueries({ queryKey: ["project-result", projectId] })
                 }
@@ -569,6 +613,7 @@ function PieceCard({
   userId,
   assets,
   onAssetsChanged,
+  isPost2 = false,
 }: {
   row: Output;
   piece: Piece;
@@ -579,6 +624,7 @@ function PieceCard({
   userId: string;
   assets: PieceAsset[];
   onAssetsChanged: () => void;
+  isPost2?: boolean;
 }) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(true);
@@ -695,18 +741,27 @@ function PieceCard({
             <p className="text-xs text-muted-foreground">Objetivo: {piece.objective}</p>
           </div>
           <div className="flex flex-wrap items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setAdjustFocus(undefined);
-                setAdjustOpen(true);
-              }}
-              className="gap-1.5"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Ajustar esta peça
-            </Button>
+            {isPost2 ? (
+              <Button asChild variant="outline" size="sm" className="gap-1.5">
+                <a href={`/app/create/post?projectId=${encodeURIComponent(row.project_id)}`}>
+                  <Pencil className="h-3.5 w-3.5" />
+                  Ajustar conteúdo no Post 2.0
+                </a>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setAdjustFocus(undefined);
+                  setAdjustOpen(true);
+                }}
+                className="gap-1.5"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Ajustar esta peça
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={() => fav.mutate()} aria-label="Favoritar">
               <Star className={`h-4 w-4 ${row.is_favorite ? "fill-primary text-primary" : ""}`} />
             </Button>
@@ -721,7 +776,7 @@ function PieceCard({
           </div>
         </div>
 
-        {piece.warning && (
+        {piece.warning && !isPost2 && (
           <button
             type="button"
             onClick={() => {
@@ -736,7 +791,7 @@ function PieceCard({
             </span>
           </button>
         )}
-        {draft.qualityStatus === "blocked" && (
+        {!isPost2 && draft.qualityStatus === "blocked" && (
           <div className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
             <p className="flex items-center gap-1.5 font-semibold">
               <AlertTriangle className="h-3.5 w-3.5" />
@@ -766,7 +821,8 @@ function PieceCard({
             </p>
           </div>
         )}
-        {draft.qualityStatus !== "blocked" &&
+        {!isPost2 &&
+          draft.qualityStatus !== "blocked" &&
           piece.qualityIssues &&
           piece.qualityIssues.length > 0 && (
             <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-900 dark:text-amber-200">
@@ -1106,7 +1162,7 @@ function PieceCard({
           </div>
         )}
       </CardContent>
-      {brand && (
+      {brand && !isPost2 && (
         <AdjustPieceDialog
           open={adjustOpen}
           onOpenChange={setAdjustOpen}

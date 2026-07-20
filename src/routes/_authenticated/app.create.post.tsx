@@ -1,11 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
-  CalendarDays,
   Check,
   Copy,
   FileJson2,
@@ -17,13 +16,12 @@ import {
   Palette,
   RefreshCw,
   Save,
-  Send,
   Sparkles,
   Target,
-  Upload,
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ImportPost2ContentDialog } from "@/components/import-post2-content-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import type { Tables } from "@/integrations/supabase/types";
@@ -54,8 +52,6 @@ import {
   clearPost2Draft,
   createPost2Draft,
   exportPost2Json,
-  generatePost2Result,
-  getSelectedPost2Title,
   loadPost2Draft,
   savePost2Draft,
   type Post2ConceptOption,
@@ -66,6 +62,12 @@ import {
   type Post2Objective,
   type Post2Ratio,
 } from "@/lib/post2";
+import {
+  applyPost2ImportedContent,
+  buildPost2ExternalContentPrompt,
+  type Post2ContentImportResult,
+} from "@/lib/post2Content";
+import { getPost2ProjectSnapshot } from "@/lib/post2Project";
 
 export const Route = createFileRoute("/_authenticated/app/create/post")({
   head: () => ({ meta: [{ title: "Criar Post 2.0 — Cria Aí" }] }),
@@ -82,6 +84,12 @@ function CreatePost2() {
   const [step, setStep] = useState<StepIndex>(0);
   const [draft, setDraft] = useState<Post2Draft>(() => createPost2Draft());
   const [pieceGenerationRound, setPieceGenerationRound] = useState(0);
+  const [importContentOpen, setImportContentOpen] = useState(false);
+  const [editProjectId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("projectId") || "";
+  });
+  const editProjectLoaded = useRef(false);
 
   const { data: brands } = useQuery({
     queryKey: ["brands-post2"],
@@ -96,6 +104,29 @@ function CreatePost2() {
     },
   });
 
+  const { data: editBundle } = useQuery({
+    queryKey: ["post2-edit-project", editProjectId],
+    enabled: Boolean(editProjectId),
+    queryFn: async () => {
+      const { data: project, error } = await supabase
+        .from("content_projects")
+        .select("*")
+        .eq("id", editProjectId)
+        .single();
+      if (error) throw error;
+      const { data: output, error: outputError } = await supabase
+        .from("content_outputs")
+        .select("id")
+        .eq("project_id", editProjectId)
+        .eq("output_type", "piece")
+        .order("display_order")
+        .limit(1)
+        .maybeSingle();
+      if (outputError) throw outputError;
+      return { project, outputId: output?.id || "" };
+    },
+  });
+
   const presets = useMemo(
     () =>
       getAllPresets().filter(
@@ -107,6 +138,10 @@ function CreatePost2() {
     () => brands?.find((brand) => brand.id === draft.brand_id) ?? null,
     [brands, draft.brand_id],
   );
+  const contentPrompt = useMemo(
+    () => buildPost2ExternalContentPrompt(draft, selectedBrand),
+    [draft, selectedBrand],
+  );
   const layoutPrompt = useMemo(
     () => buildPost2LayoutPrompt(draft, selectedBrand),
     [draft, selectedBrand],
@@ -116,6 +151,25 @@ function CreatePost2() {
     () => buildPost2NoIdeaSuggestions(selectedBrand, draft.objective, draft.editorial_type),
     [selectedBrand, draft.objective, draft.editorial_type],
   );
+
+  useEffect(() => {
+    if (!editBundle || editProjectLoaded.current) return;
+    const snapshot = getPost2ProjectSnapshot(editBundle.project);
+    if (!snapshot) {
+      toast.error("Este projeto não foi criado no Post 2.0.");
+      return;
+    }
+    editProjectLoaded.current = true;
+    setDraft({
+      ...snapshot.post2,
+      version: 2,
+      project_id: editProjectId,
+      output_id: editBundle.outputId,
+      imported_content: snapshot.generated_content ?? snapshot.post2.imported_content,
+    });
+    setStep(6);
+    toast.success("Briefing do Post 2.0 carregado para ajuste.");
+  }, [editBundle, editProjectId]);
 
   useEffect(() => savePost2Draft(draft), [draft]);
   const patch = (partial: Partial<Post2Draft>) =>
@@ -150,7 +204,14 @@ function CreatePost2() {
     if (step === 5) {
       const selected = draft.concept_options[draft.selected_concept_index ?? 0];
       const conceptDraft = { ...draft, ...applyPost2Concept(draft, selected) };
-      setDraft({ ...conceptDraft, ...generatePost2Result(conceptDraft, selectedBrand) });
+      setDraft({
+        ...conceptDraft,
+        imported_content: null,
+        imported_content_raw: "",
+        imported_content_imported_at: "",
+        caption: "",
+        hashtags: "",
+      });
       setStep(6);
       return;
     }
@@ -173,50 +234,88 @@ function CreatePost2() {
     toast.success("Preset aplicado como ponto de partida.");
   };
 
+  const importGeneratedContent = (
+    content: NonNullable<Post2Draft["imported_content"]>,
+    raw: string,
+    result: Post2ContentImportResult,
+  ) => {
+    patch(applyPost2ImportedContent(content, raw));
+    if (result.warnings.length) {
+      toast.warning("Conteúdo importado com avisos para revisão.", {
+        description: result.warnings[0],
+      });
+    } else {
+      toast.success("Conteúdo do Post 2.0 importado.");
+    }
+  };
+
   const saveForProduction = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Sessão expirada. Entre novamente.");
       if (!selectedBrand) throw new Error("Selecione uma marca antes de salvar o Post.");
-      const finalTitle = draft.custom_title || getSelectedPost2Title(draft);
+      if (!draft.imported_content) {
+        throw new Error("Gere e importe o conteúdo editorial do Post antes de criar o projeto.");
+      }
+
+      const finalTitle = draft.custom_title || draft.imported_content.art.title;
       const hashtags = draft.hashtags
         .split(/\s+/)
         .map((item) => item.trim())
-        .filter(Boolean)
-        .slice(0, 5);
-      const { data: project, error } = await supabase
-        .from("content_projects")
-        .insert({
-          user_id: user.id,
-          brand_id: selectedBrand.id,
-          internal_title: `Post 2.0 — ${finalTitle}`.slice(0, 160),
-          display_title: finalTitle.slice(0, 120),
-          theme: draft.theme,
-          objective: draft.objective || "informar",
-          specific_audience: draft.audience || selectedBrand.audience || null,
-          main_message: draft.understanding,
-          mandatory_information: draft.mandatory_information || null,
-          call_to_action: draft.call_to_action || draft.art_cta || null,
-          desired_style: draft.visual_direction || null,
-          restrictions: draft.restrictions || selectedBrand.forbidden_inventions || null,
-          notes: `Origem: Criar Post 2.0.\nFormato: ${draft.ratio}.\nTipo editorial: ${draft.editorial_type}.`,
-          selected_formats: ["post"],
-          selected_outputs: ["textos_artes", "legenda_completa", "hashtags", "prompt_visual"],
-          generation_mode: "safe",
-          status: "draft",
-          content_source: "external_chatgpt",
-          content_development_status: "script_imported",
-          campaign_content_json: {
-            source: "post_2_0",
-            post2: draft,
-            caption: { text: draft.caption, hashtags },
-            layout_prompt: layoutPrompt,
-            created_at: new Date().toISOString(),
-          },
-          imported_at: new Date().toISOString(),
-        })
-        .select("*")
-        .single();
-      if (error) throw error;
+        .filter(Boolean);
+      if (hashtags.length > 5) throw new Error("Use no máximo 5 hashtags.");
+
+      const now = new Date().toISOString();
+      const projectPayload = {
+        user_id: user.id,
+        brand_id: selectedBrand.id,
+        internal_title: `Post 2.0 — ${finalTitle}`.slice(0, 160),
+        display_title: finalTitle.slice(0, 120),
+        theme: draft.theme,
+        objective: draft.objective || "informar",
+        specific_audience: draft.audience || selectedBrand.audience || null,
+        main_message: draft.understanding,
+        mandatory_information: draft.mandatory_information || null,
+        call_to_action: draft.call_to_action || draft.art_cta || null,
+        desired_style: draft.visual_direction || null,
+        restrictions: draft.restrictions || selectedBrand.forbidden_inventions || null,
+        notes: `Origem: Criar Post 2.0.\nFormato: ${draft.ratio}.\nTipo editorial: ${draft.editorial_type}.`,
+        selected_formats: ["post"],
+        selected_outputs: ["textos_artes", "legenda_completa", "hashtags", "prompt_visual"],
+        generation_mode: "safe",
+        content_source: "external_chatgpt",
+        content_development_status: "script_imported",
+        campaign_content_json: {
+          source: "post_2_0",
+          schema_version: "post2-v2",
+          post2: draft,
+          generated_content: draft.imported_content,
+          caption: { text: draft.caption, hashtags },
+          layout_prompt: layoutPrompt,
+          created_at: editProjectId
+            ? getPost2ProjectSnapshot(editBundle?.project ?? { campaign_content_json: null })?.created_at || now
+            : now,
+          updated_at: now,
+        },
+        imported_at: draft.imported_content_imported_at || now,
+      };
+
+      let projectId = editProjectId;
+      if (editProjectId) {
+        const { error } = await supabase
+          .from("content_projects")
+          .update(projectPayload)
+          .eq("id", editProjectId);
+        if (error) throw error;
+      } else {
+        const { data: project, error } = await supabase
+          .from("content_projects")
+          .insert({ ...projectPayload, status: "draft" })
+          .select("id")
+          .single();
+        if (error) throw error;
+        projectId = project.id;
+      }
+
       const piece = {
         index: 1,
         formatKey: "post",
@@ -229,7 +328,7 @@ function CreatePost2() {
         mainText: finalTitle,
         supportText: draft.support_text,
         bullets: draft.badge_text ? [draft.badge_text] : [],
-        cta: draft.art_cta || draft.call_to_action,
+        cta: draft.art_cta,
         caption: draft.caption,
         hashtags,
         productionNotes: [draft.visual_direction, `Proporção: ${draft.ratio}`].filter(Boolean),
@@ -240,22 +339,44 @@ function CreatePost2() {
         contentStage: "publication_copy",
         copySource: "external_chatgpt",
       };
-      const { error: outputError } = await supabase.from("content_outputs").insert({
-        project_id: project.id,
-        user_id: user.id,
-        output_type: "piece",
-        title: piece.name,
-        original_content: JSON.stringify(piece),
-        display_order: 0,
-      });
-      if (outputError) throw outputError;
-      return project.id as string;
+
+      const outputId = draft.output_id || editBundle?.outputId || "";
+      if (outputId) {
+        const { error } = await supabase
+          .from("content_outputs")
+          .update({
+            title: piece.name,
+            original_content: JSON.stringify(piece),
+            edited_content: null,
+            imported_content: draft.imported_content as never,
+            source: "post_2_0",
+            version: 2,
+          })
+          .eq("id", outputId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("content_outputs").insert({
+          project_id: projectId,
+          user_id: user.id,
+          output_type: "piece",
+          title: piece.name,
+          original_content: JSON.stringify(piece),
+          imported_content: draft.imported_content as never,
+          source: "post_2_0",
+          version: 2,
+          display_order: 0,
+        });
+        if (error) throw error;
+      }
+
+      return projectId;
     },
     onSuccess: (projectId) => {
       clearPost2Draft();
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
       qc.invalidateQueries({ queryKey: ["library"] });
-      toast.success("Post salvo. Agora anexe a arte e siga para aprovação.");
+      qc.invalidateQueries({ queryKey: ["project-result", projectId] });
+      toast.success(editProjectId ? "Post 2.0 atualizado." : "Post salvo. Agora anexe a arte.");
       navigate({ to: "/app/content/$projectId/result", params: { projectId } });
     },
     onError: (error: Error) =>
@@ -264,6 +385,10 @@ function CreatePost2() {
 
   const reset = () => {
     clearPost2Draft();
+    if (editProjectId && typeof window !== "undefined") {
+      window.location.assign("/app/create/post");
+      return;
+    }
     setDraft(createPost2Draft());
     setStep(0);
     toast.success("Novo Post 2.0 iniciado.");
@@ -291,7 +416,7 @@ function CreatePost2() {
               </Link>
             </Button>
             <Button variant="outline" size="sm" onClick={reset}>
-              Limpar rascunho
+              {editProjectId ? "Sair da edição" : "Limpar rascunho"}
             </Button>
           </div>
         </div>
@@ -383,13 +508,22 @@ function CreatePost2() {
         <ProductionStep
           draft={draft}
           brand={selectedBrand}
+          contentPrompt={contentPrompt}
           layoutPrompt={layoutPrompt}
           jsonOutput={jsonOutput}
           patch={patch}
+          onOpenImport={() => setImportContentOpen(true)}
           onSave={() => saveForProduction.mutate()}
           saving={saveForProduction.isPending}
+          editingProject={Boolean(editProjectId)}
         />
       )}
+
+      <ImportPost2ContentDialog
+        open={importContentOpen}
+        onOpenChange={setImportContentOpen}
+        onImport={importGeneratedContent}
+      />
 
       <div className="flex items-center justify-between border-t pt-5">
         <Button
@@ -406,25 +540,16 @@ function CreatePost2() {
             <ArrowRight className="ml-1 h-4 w-4" />
           </Button>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                savePost2Draft(draft);
-                toast.success("Rascunho salvo.");
-              }}
-            >
-              <Save className="mr-1 h-4 w-4" />
-              Salvar rascunho
-            </Button>
-            <Button
-              onClick={() => saveForProduction.mutate()}
-              disabled={saveForProduction.isPending}
-            >
-              {saveForProduction.isPending ? "Criando projeto..." : "Criar projeto e anexar arte"}
-              <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              savePost2Draft(draft);
+              toast.success("Rascunho salvo.");
+            }}
+          >
+            <Save className="mr-1 h-4 w-4" />
+            Salvar rascunho
+          </Button>
         )}
       </div>
     </div>
@@ -905,21 +1030,27 @@ function PieceStep({
 function ProductionStep({
   draft,
   brand,
+  contentPrompt,
   layoutPrompt,
   jsonOutput,
   patch,
+  onOpenImport,
   onSave,
   saving,
+  editingProject,
 }: {
   draft: Post2Draft;
   brand: Tables<"brands"> | null;
+  contentPrompt: string;
   layoutPrompt: string;
   jsonOutput: string;
   patch: (p: Partial<Post2Draft>) => void;
+  onOpenImport: () => void;
   onSave: () => void;
   saving: boolean;
+  editingProject: boolean;
 }) {
-  const title = draft.custom_title || getSelectedPost2Title(draft);
+  const content = draft.imported_content;
   const selectedConcept = draft.concept_options[draft.selected_concept_index ?? 0];
   const objectiveLabel =
     POST2_OBJECTIVES.find((item) => item.id === draft.objective)?.label || "Não definido";
@@ -928,17 +1059,57 @@ function ProductionStep({
   const entryLabel =
     POST2_ENTRY_OPTIONS.find((item) => item.id === draft.entry_mode)?.label || "Não definida";
 
+  const updateArt = (field: keyof NonNullable<Post2Draft["imported_content"]>["art"], value: string) => {
+    if (!content) return;
+    const next = { ...content, art: { ...content.art, [field]: value } };
+    patch({
+      imported_content: next,
+      ...(field === "title" ? { custom_title: value } : {}),
+      ...(field === "support_text" ? { support_text: value } : {}),
+      ...(field === "optional_seal" ? { badge_text: value } : {}),
+      ...(field === "art_cta" ? { art_cta: value } : {}),
+    });
+  };
+
+  const updatePublication = (
+    field: "caption" | "cta" | "hashtags",
+    value: string | string[],
+  ) => {
+    if (!content) return;
+    const next = {
+      ...content,
+      publication: { ...content.publication, [field]: value },
+    };
+    patch({
+      imported_content: next,
+      ...(field === "caption" ? { caption: String(value) } : {}),
+      ...(field === "cta" ? { call_to_action: String(value) } : {}),
+      ...(field === "hashtags" ? { hashtags: (value as string[]).join(" ") } : {}),
+    });
+  };
+
+  const updateVisualDirection = (value: string) => {
+    if (!content) return;
+    patch({
+      imported_content: {
+        ...content,
+        visual: { ...content.visual, direction: value },
+      },
+      visual_direction: value,
+    });
+  };
+
   return (
     <Step
-      title="Revise o pacote antes de criar o projeto"
-      description="Confira conteúdo, peça, publicação e pedido externo. Depois, crie o projeto para anexar a arte gerada no GPT e seguir para aprovação, agenda e publicação."
+      title={editingProject ? "Ajuste o conteúdo do Post 2.0" : "Gere, importe e revise o conteúdo"}
+      description="Como no Reel 2.0, o Cria Aí organiza a estratégia e o ChatGPT escreve o conteúdo completo. A arte só é gerada depois que o JSON editorial for importado e revisado."
     >
-      <PostJourney />
+      <PostJourney hasImportedContent={Boolean(content)} editingProject={editingProject} />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Pacote revisado</CardTitle>
+            <CardTitle className="text-lg">Direção aprovada</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 text-sm md:grid-cols-2">
             <Info label="Marca" value={brand?.name || "Não selecionada"} />
@@ -951,165 +1122,234 @@ function ProductionStep({
               <Info label="Ideia central" value={draft.theme || "Não definida"} />
             </div>
             <div className="md:col-span-2">
-              <Info label="Promessa da peça" value={draft.understanding || "Não definida"} />
+              <Info label="Promessa" value={draft.understanding || "Não definida"} />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-violet-500/30 bg-violet-500/5">
+        <Card className={cn(content ? "border-emerald-500/30 bg-emerald-500/5" : "border-violet-500/30 bg-violet-500/5")}>
           <CardContent className="space-y-3 p-5">
             <div className="flex items-center gap-2 font-semibold">
-              <ArrowRight className="h-4 w-4 text-violet-500" /> Próximo passo
+              {content ? (
+                <BadgeCheck className="h-4 w-4 text-emerald-500" />
+              ) : (
+                <Sparkles className="h-4 w-4 text-violet-500" />
+              )}
+              {content ? "Conteúdo importado" : "Primeiro: gerar o conteúdo"}
             </div>
             <p className="text-sm text-muted-foreground">
-              Gere a arte no GPT com o pedido abaixo. Depois, crie o projeto para abrir o painel de
-              anexo, aprovação e calendário.
+              {content
+                ? "Revise o texto abaixo. Nenhum campo foi cortado automaticamente."
+                : "Copie o pedido editorial, use no ChatGPT e importe o JSON devolvido antes de criar a arte."}
             </p>
-            <CopyAction text={layoutPrompt}>Copiar pedido para o GPT</CopyAction>
+            <CopyAction text={contentPrompt}>Copiar pedido de conteúdo</CopyAction>
             <Button
               type="button"
               variant="outline"
               className="w-full"
               onClick={() => window.open("https://chatgpt.com", "_blank", "noopener,noreferrer")}
             >
-              <Sparkles className="mr-2 h-4 w-4" />
-              Abrir ChatGPT
+              <Sparkles className="mr-2 h-4 w-4" /> Abrir ChatGPT
             </Button>
-            <Button onClick={onSave} disabled={saving} className="w-full">
-              <Save className="mr-2 h-4 w-4" />
-              {saving ? "Criando projeto..." : "Criar projeto e anexar arte"}
+            <Button type="button" variant={content ? "outline" : "default"} className="w-full" onClick={onOpenImport}>
+              <FileJson2 className="mr-2 h-4 w-4" />
+              {content ? "Substituir JSON importado" : "Importar JSON do conteúdo"}
             </Button>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ImageIcon className="h-4 w-4 text-orange-500" /> Conteúdo aprovado da arte
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-5 lg:grid-cols-[260px_1fr]">
-            <div
-              className={cn(
-                "mx-auto flex aspect-[4/5] w-full max-w-[250px] flex-col justify-between rounded-2xl border bg-gradient-to-br from-muted to-background p-5",
-                draft.ratio === "1:1" && "aspect-square",
-              )}
-            >
-              <div>
-                {draft.badge_text && <Badge>{draft.badge_text}</Badge>}
-                <h3 className="mt-5 text-2xl font-bold leading-tight">{title}</h3>
-                <p className="mt-3 text-sm text-muted-foreground">{draft.support_text}</p>
-              </div>
-              {draft.art_cta && (
-                <p className="text-sm font-semibold text-orange-500">{draft.art_cta}</p>
-              )}
-            </div>
-            <div className="space-y-4">
-              <Field label="Título principal">
-                <Input
-                  value={title}
-                  onChange={(event) =>
-                    patch({ custom_title: event.target.value, selected_title_index: null })
-                  }
-                />
-              </Field>
-              <Field label="Texto de apoio">
-                <Textarea
-                  rows={3}
-                  value={draft.support_text}
-                  onChange={(event) => patch({ support_text: event.target.value })}
-                />
-              </Field>
-              <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Selo opcional">
-                  <Input
-                    value={draft.badge_text}
-                    onChange={(event) => patch({ badge_text: event.target.value })}
+      {!content ? (
+        <Notice
+          title="Aguardando o conteúdo editorial"
+          text="O Cria Aí não vai concatenar campos nem cortar CTA ou legenda. Importe o JSON escrito pelo ChatGPT para liberar o prompt visual e a continuidade para produção."
+        />
+      ) : (
+        <>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ImageIcon className="h-4 w-4 text-orange-500" /> Conteúdo aprovado da arte
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-5 lg:grid-cols-[260px_1fr]">
+                <div
+                  className={cn(
+                    "mx-auto flex aspect-[4/5] w-full max-w-[250px] flex-col justify-between rounded-2xl border bg-gradient-to-br from-muted to-background p-5",
+                    draft.ratio === "1:1" && "aspect-square",
+                  )}
+                >
+                  <div>
+                    {content.art.optional_seal && <Badge>{content.art.optional_seal}</Badge>}
+                    <h3 className="mt-5 text-2xl font-bold leading-tight">{content.art.title}</h3>
+                    <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">
+                      {content.art.support_text}
+                    </p>
+                  </div>
+                  {content.art.art_cta && (
+                    <p className="text-sm font-semibold text-orange-500">{content.art.art_cta}</p>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <Field label="Título principal">
+                    <Input value={content.art.title} onChange={(event) => updateArt("title", event.target.value)} />
+                  </Field>
+                  <LengthNotice value={content.art.title} recommended={90} label="título" />
+                  <Field label="Texto de apoio">
+                    <Textarea
+                      rows={5}
+                      value={content.art.support_text}
+                      onChange={(event) => updateArt("support_text", event.target.value)}
+                    />
+                  </Field>
+                  <LengthNotice value={content.art.support_text} recommended={240} label="texto de apoio" />
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label="Selo opcional">
+                      <Input
+                        value={content.art.optional_seal}
+                        onChange={(event) => updateArt("optional_seal", event.target.value)}
+                      />
+                    </Field>
+                    <Field label="CTA curto na arte">
+                      <Input
+                        value={content.art.art_cta}
+                        onChange={(event) => updateArt("art_cta", event.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  <LengthNotice value={content.art.art_cta} recommended={70} label="CTA da arte" />
+                  <Field label="Direção visual">
+                    <Textarea
+                      rows={7}
+                      value={content.visual.direction}
+                      onChange={(event) => updateVisualDirection(event.target.value)}
+                    />
+                  </Field>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <MessageSquareText className="h-4 w-4 text-orange-500" /> Publicação completa
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Field label="Legenda da publicação">
+                  <Textarea
+                    rows={16}
+                    value={content.publication.caption}
+                    onChange={(event) => updatePublication("caption", event.target.value)}
                   />
                 </Field>
-                <Field label="CTA curto na arte">
+                <Field label="CTA da publicação">
                   <Input
-                    value={draft.art_cta}
-                    onChange={(event) => patch({ art_cta: event.target.value })}
+                    value={content.publication.cta}
+                    onChange={(event) => updatePublication("cta", event.target.value)}
                   />
                 </Field>
-              </div>
-              <Field label="Direção visual">
-                <Textarea
-                  rows={6}
-                  value={draft.visual_direction}
-                  onChange={(event) => patch({ visual_direction: event.target.value })}
-                />
-              </Field>
-              <p className="text-xs text-muted-foreground">
-                A direção visual orienta o GPT, mas nunca deve aparecer como texto dentro da arte.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <MessageSquareText className="h-4 w-4 text-orange-500" /> Publicação
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Field label="Legenda da publicação">
-              <Textarea
-                rows={12}
-                value={draft.caption}
-                onChange={(event) => patch({ caption: event.target.value })}
-              />
-            </Field>
-            <Field label="Hashtags — máximo 5">
-              <Input
-                value={draft.hashtags}
-                onChange={(event) => patch({ hashtags: event.target.value })}
-              />
-            </Field>
-            <CopyAction
-              text={`${draft.caption}
-
-${draft.hashtags}`}
-            >
-              Copiar publicação
-            </CopyAction>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-violet-500/30 bg-violet-500/5">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Sparkles className="h-5 w-5 text-violet-500" /> Pedido externo Post 2.0
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Copie este pedido, cole no ChatGPT e gere uma única arte. O texto estratégico foi
-            separado do conteúdo publicável para impedir que instruções internas apareçam no layout.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <CopyAction text={layoutPrompt}>Copiar pedido</CopyAction>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => window.open("https://chatgpt.com", "_blank", "noopener,noreferrer")}
-            >
-              Abrir ChatGPT
-            </Button>
-            <CopyAction text={jsonOutput} variant="outline">
-              <FileJson2 className="mr-1 h-4 w-4" />
-              Copiar JSON
-            </CopyAction>
+                <Field label="Hashtags — máximo 5">
+                  <Input
+                    value={content.publication.hashtags.join(" ")}
+                    onChange={(event) =>
+                      updatePublication(
+                        "hashtags",
+                        event.target.value.split(/\s+/).map((item) => item.trim()).filter(Boolean),
+                      )
+                    }
+                  />
+                </Field>
+                {content.publication.hashtags.length > 5 && (
+                  <p className="text-xs font-medium text-destructive">
+                    Há {content.publication.hashtags.length} hashtags. Reduza para no máximo 5 antes de salvar.
+                  </p>
+                )}
+                <CopyAction
+                  text={`${content.publication.caption}\n\n${content.publication.hashtags.join(" ")}`}
+                >
+                  Copiar publicação
+                </CopyAction>
+              </CardContent>
+            </Card>
           </div>
-          <Textarea value={layoutPrompt} readOnly rows={16} className="font-mono text-xs" />
-        </CardContent>
-      </Card>
+
+          {content.information_to_confirm.length > 0 && (
+            <Notice
+              title="Informações a confirmar"
+              text={content.information_to_confirm.map((item) => `• ${item}`).join("\n")}
+            />
+          )}
+
+          <Card className="border-violet-500/30 bg-violet-500/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Palette className="h-5 w-5 text-violet-500" /> Criar a arte no GPT
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Este segundo pedido usa somente o conteúdo editorial já importado. A legenda e as instruções estratégicas ficam separadas e não podem aparecer dentro da arte.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <CopyAction text={layoutPrompt}>Copiar prompt da arte</CopyAction>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => window.open("https://chatgpt.com", "_blank", "noopener,noreferrer")}
+                >
+                  <Sparkles className="mr-2 h-4 w-4" /> Abrir ChatGPT
+                </Button>
+                <CopyAction text={jsonOutput} variant="outline">
+                  <FileJson2 className="mr-1 h-4 w-4" /> Copiar JSON do projeto
+                </CopyAction>
+              </div>
+              <Textarea value={layoutPrompt} readOnly rows={16} className="font-mono text-xs" />
+            </CardContent>
+          </Card>
+
+          <Card className="border-orange-500/30 bg-orange-500/5">
+            <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold">
+                  {editingProject ? "Atualizar o Post 2.0" : "Continuar para arte, aprovação e calendário"}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {editingProject
+                    ? "Salve as alterações no mesmo projeto, preservando a arte anexada e o histórico."
+                    : "Crie o projeto e abra o painel Post 2.0 para anexar a arte, aprovar e agendar."}
+                </p>
+              </div>
+              <Button
+                onClick={onSave}
+                disabled={saving || content.publication.hashtags.length > 5}
+                className="shrink-0"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {saving
+                  ? editingProject
+                    ? "Atualizando..."
+                    : "Criando..."
+                  : editingProject
+                    ? "Salvar ajustes"
+                    : "Criar projeto e anexar arte"}
+              </Button>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </Step>
+  );
+}
+
+function LengthNotice({ value, recommended, label }: { value: string; recommended: number; label: string }) {
+  if (value.length <= recommended) return null;
+  return (
+    <p className="text-xs font-medium text-amber-600 dark:text-amber-300">
+      O {label} tem {value.length} caracteres. Ele não foi cortado; revise a legibilidade antes de gerar a arte.
+    </p>
   );
 }
 
@@ -1206,25 +1446,33 @@ function Notice({ title, text }: { title: string; text: string }) {
     </div>
   );
 }
-function PostJourney() {
+function PostJourney({
+  hasImportedContent,
+  editingProject,
+}: {
+  hasImportedContent: boolean;
+  editingProject: boolean;
+}) {
   const steps = [
     {
-      title: "1. Conteúdo",
+      title: "1. Estratégia",
       text: "Ideia, promessa e execução criativa definidas.",
       done: true,
       current: false,
     },
     {
-      title: "2. Criação",
-      text: "Pedido externo pronto para gerar a arte no GPT.",
-      done: true,
-      current: false,
+      title: "2. Conteúdo",
+      text: hasImportedContent
+        ? "Texto da arte e publicação importados do ChatGPT."
+        : "Gerar e importar o JSON editorial do ChatGPT.",
+      done: hasImportedContent,
+      current: !hasImportedContent,
     },
     {
       title: "3. Arte final",
-      text: "Gerar a imagem e anexar ao projeto.",
+      text: "Gerar a imagem com o prompt visual e anexar ao projeto.",
       done: false,
-      current: true,
+      current: hasImportedContent,
     },
     {
       title: "4. Aprovação",
@@ -1233,8 +1481,8 @@ function PostJourney() {
       current: false,
     },
     {
-      title: "5. Agenda e publicação",
-      text: "Agendar depois da aprovação e publicar.",
+      title: "5. Agenda",
+      text: "Agendar depois da aprovação e acompanhar a publicação.",
       done: false,
       current: false,
     },
@@ -1242,7 +1490,9 @@ function PostJourney() {
   return (
     <Card className="border-orange-500/25 bg-orange-500/5">
       <CardHeader>
-        <CardTitle className="text-lg">Jornada depois da criação</CardTitle>
+        <CardTitle className="text-lg">
+          {editingProject ? "Jornada do projeto em edição" : "Jornada do Post 2.0"}
+        </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-2 md:grid-cols-5">
         {steps.map((item) => (

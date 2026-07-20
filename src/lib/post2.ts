@@ -35,8 +35,35 @@ export interface Post2IdeaSuggestion {
   cta: string;
 }
 
+export interface Post2ImportedContent {
+  schema_version: "post_2_0";
+  brand: string;
+  central_idea: string;
+  promise: string;
+  selected_execution: {
+    label: string;
+    concept: string;
+  };
+  art: {
+    title: string;
+    support_text: string;
+    optional_seal: string;
+    art_cta: string;
+  };
+  publication: {
+    caption: string;
+    cta: string;
+    hashtags: string[];
+  };
+  visual: {
+    concept: string;
+    direction: string;
+  };
+  information_to_confirm: string[];
+}
+
 export interface Post2Draft {
-  version: 1;
+  version: 2;
   entry_mode: Post2EntryMode | "";
   brand_id: string;
   objective: Post2Objective | "";
@@ -67,6 +94,11 @@ export interface Post2Draft {
   caption: string;
   hashtags: string;
   visual_direction: string;
+  imported_content: Post2ImportedContent | null;
+  imported_content_raw: string;
+  imported_content_imported_at: string;
+  project_id: string;
+  output_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -177,7 +209,7 @@ export const POST2_EDITORIAL_TYPES: Array<{
 export function createPost2Draft(): Post2Draft {
   const now = new Date().toISOString();
   return {
-    version: 1,
+    version: 2,
     entry_mode: "",
     brand_id: "",
     objective: "",
@@ -208,6 +240,11 @@ export function createPost2Draft(): Post2Draft {
     caption: "",
     hashtags: "",
     visual_direction: "",
+    imported_content: null,
+    imported_content_raw: "",
+    imported_content_imported_at: "",
+    project_id: "",
+    output_id: "",
     created_at: now,
     updated_at: now,
   };
@@ -226,7 +263,11 @@ export function loadPost2Draft(): Post2Draft {
   try {
     const raw = localStorage.getItem(POST2_DRAFT_KEY);
     if (!raw) return createPost2Draft();
-    return { ...createPost2Draft(), ...(JSON.parse(raw) as Partial<Post2Draft>) };
+    return {
+      ...createPost2Draft(),
+      ...(JSON.parse(raw) as Partial<Post2Draft>),
+      version: 2,
+    };
   } catch {
     return createPost2Draft();
   }
@@ -632,7 +673,11 @@ export function generatePost2Result(
 }
 
 export function buildPost2LayoutPrompt(draft: Post2Draft, brand?: Tables<"brands"> | null): string {
-  const title = getSelectedPost2Title(draft);
+  const imported = draft.imported_content;
+  if (!imported) {
+    return "Importe o conteúdo editorial gerado pelo ChatGPT antes de montar o pedido visual.";
+  }
+  const title = draft.custom_title || imported.art.title;
   const dimensions = draft.ratio === "4:5" ? "4:5, 1080 × 1350 px" : "1:1, 1080 × 1080 px";
   const colors =
     [brand?.primary_color, brand?.secondary_color, ...(brand?.additional_colors ?? [])]
@@ -669,17 +714,17 @@ ESTRATÉGIA — CONTEXTO INTERNO, NÃO RENDERIZAR
 Objetivo: ${POST2_OBJECTIVES.find((item) => item.id === draft.objective)?.label ?? "Não definido"}
 Tema: ${draft.theme.trim() || "Não definido"}
 Caminho criativo: ${POST2_EDITORIAL_TYPES.find((item) => item.id === draft.editorial_type)?.label ?? "Não definido"}
-Conceito escolhido: ${selectedConcept?.concept || draft.understanding.trim() || "Não definido"}
+Conceito escolhido: ${imported.visual.concept || selectedConcept?.concept || draft.understanding.trim() || "Não definido"}
 
 TEXTO EXATO QUE PODE APARECER NA ARTE
 Título principal: ${title || "Não definido"}
-Texto de apoio: ${draft.support_text.trim() || "Não usar"}
-Selo ou destaque: ${draft.badge_text.trim() || "Não usar"}
-CTA curto: ${draft.art_cta.trim() || "Não usar"}
+Texto de apoio: ${draft.support_text.trim() || imported.art.support_text || "Não usar"}
+Selo ou destaque: ${draft.badge_text.trim() || imported.art.optional_seal || "Não usar"}
+CTA curto: ${draft.art_cta.trim() || imported.art.art_cta || "Não usar"}
 ${draft.mandatory_information.trim() ? `Informação adicional obrigatória, usar exatamente como escrita: ${draft.mandatory_information.trim()}` : "Informação adicional obrigatória: não usar"}
 
 DIREÇÃO VISUAL — NÃO RENDERIZAR COMO TEXTO
-${draft.visual_direction.trim() || buildVisualDirection(draft, brand, title)}
+${draft.visual_direction.trim() || imported.visual.direction || buildVisualDirection(draft, brand, title)}
 
 RESTRIÇÕES
 - Não inventar informações, preços, datas, disponibilidade, promessas, benefícios, logotipo ou dados comerciais.
@@ -705,7 +750,7 @@ ENTREGA
 export function exportPost2Json(draft: Post2Draft, brand?: Tables<"brands"> | null) {
   return JSON.stringify(
     {
-      schema_version: "post2-v1",
+      schema_version: "post2-v2",
       format: "post",
       ratio: draft.ratio,
       brand: brand ? { id: brand.id, name: brand.name, segment: brand.segment } : null,
@@ -721,8 +766,9 @@ export function exportPost2Json(draft: Post2Draft, brand?: Tables<"brands"> | nu
       },
       publication: {
         caption: draft.caption,
-        hashtags: draft.hashtags.split(/\s+/).filter(Boolean).slice(0, 5),
+        hashtags: draft.hashtags.split(/\s+/).filter(Boolean),
       },
+      generated_content: draft.imported_content,
       visual_direction: draft.visual_direction,
       layout_prompt: buildPost2LayoutPrompt(draft, brand),
       mandatory_information: draft.mandatory_information,
