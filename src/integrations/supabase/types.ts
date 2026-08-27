@@ -1377,7 +1377,19 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      approve_creation_strategy: {
+        Args: {
+          p_project_id: string
+          p_strategy_version_id: string
+        }
+        Returns: Json
+      }
+      build_creation_brand_snapshot_json: {
+        Args: {
+          p_brand_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
