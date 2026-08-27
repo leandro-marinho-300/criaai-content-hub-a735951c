@@ -675,6 +675,90 @@ export type Database = {
           },
         ]
       }
+      creation_ai_task_runs: {
+        Row: {
+          brand_snapshot_id: string | null
+          contract_version: string
+          created_at: string
+          execution_origin: string
+          expected_schema: Json
+          id: string
+          input_versions: Json
+          project_id: string
+          prompt_text: string
+          prompt_version: string
+          provenance: Json
+          response_imported_at: string | null
+          response_json: Json | null
+          response_text: string | null
+          rule_pack_versions: Json
+          task_type: string
+          updated_at: string
+          validated_at: string | null
+          validation_errors: Json
+          validation_status: string
+        }
+        Insert: {
+          brand_snapshot_id?: string | null
+          contract_version?: string
+          created_at?: string
+          execution_origin?: string
+          expected_schema?: Json
+          id?: string
+          input_versions?: Json
+          project_id: string
+          prompt_text: string
+          prompt_version: string
+          provenance?: Json
+          response_imported_at?: string | null
+          response_json?: Json | null
+          response_text?: string | null
+          rule_pack_versions?: Json
+          task_type: string
+          updated_at?: string
+          validated_at?: string | null
+          validation_errors?: Json
+          validation_status?: string
+        }
+        Update: {
+          brand_snapshot_id?: string | null
+          contract_version?: string
+          created_at?: string
+          execution_origin?: string
+          expected_schema?: Json
+          id?: string
+          input_versions?: Json
+          project_id?: string
+          prompt_text?: string
+          prompt_version?: string
+          provenance?: Json
+          response_imported_at?: string | null
+          response_json?: Json | null
+          response_text?: string | null
+          rule_pack_versions?: Json
+          task_type?: string
+          updated_at?: string
+          validated_at?: string | null
+          validation_errors?: Json
+          validation_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creation_ai_task_runs_brand_snapshot_id_fkey"
+            columns: ["brand_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "creation_brand_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creation_ai_task_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "creation_core"
+            referencedColumns: ["project_id"]
+          },
+        ]
+      }
       creation_brand_snapshots: {
         Row: {
           brand_id: string | null
