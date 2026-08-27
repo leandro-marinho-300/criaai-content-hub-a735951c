@@ -4,6 +4,20 @@ import type {
   TablesInsert,
   TablesUpdate,
 } from "@/integrations/supabase/types";
+import {
+  parseStrategyProvenance,
+  strategyProvenanceToJson,
+  type StrategyProvenance,
+} from "@/lib/creation/provenance";
+import {
+  normalizeCreationApproach,
+  normalizeCreationConcept,
+  normalizeCreationFormat,
+  normalizeCreationObjective,
+  type CreationApproach,
+  type CreationFormat,
+  type CreationObjective,
+} from "@/lib/creation/taxonomy";
 
 export const STRATEGY_SCHEMA_VERSION = "1.0" as const;
 export const BRAND_SNAPSHOT_SCHEMA_VERSION = "1.0" as const;
@@ -23,13 +37,13 @@ export type StrategyStateStatus =
   | "needs_revision";
 
 export type StrategyVersionInput = {
-  objective?: string | null;
-  approach?: string | null;
-  format?: string | null;
+  objective?: CreationObjective | null;
+  approach?: CreationApproach | null;
+  format?: CreationFormat | null;
   concept?: string | null;
   audience?: string | null;
   strategyPayload?: Json;
-  provenance?: Json;
+  provenance: StrategyProvenance;
 };
 
 export type StrategyVersion = {
@@ -37,13 +51,13 @@ export type StrategyVersion = {
   projectId: string;
   versionNumber: number;
   schemaVersion: string;
-  objective: string | null;
-  approach: string | null;
-  format: string | null;
+  objective: CreationObjective | null;
+  approach: CreationApproach | null;
+  format: CreationFormat | null;
   concept: string | null;
   audience: string | null;
   strategyPayload: Json;
-  provenance: Json;
+  provenance: StrategyProvenance;
   approvalStatus: StrategyApprovalStatus;
   approvedAt: string | null;
   createdAt: string;
@@ -82,10 +96,10 @@ export function buildStrategyVersionInsert(
     objective: input.objective ?? null,
     approach: input.approach ?? null,
     format: input.format ?? null,
-    concept: input.concept ?? null,
-    audience: input.audience ?? null,
+    concept: normalizeCreationConcept(input.concept),
+    audience: input.audience?.trim() || null,
     strategy_payload: input.strategyPayload ?? {},
-    provenance: input.provenance ?? {},
+    provenance: strategyProvenanceToJson(input.provenance),
     approval_status: "draft",
     approved_at: null,
   };
@@ -139,13 +153,13 @@ export function toStrategyVersion(
     projectId: row.project_id,
     versionNumber: row.version_number,
     schemaVersion: row.schema_version,
-    objective: row.objective,
-    approach: row.approach,
-    format: row.format,
-    concept: row.concept,
-    audience: row.audience,
+    objective: normalizeCreationObjective(row.objective),
+    approach: normalizeCreationApproach(row.approach),
+    format: normalizeCreationFormat(row.format),
+    concept: normalizeCreationConcept(row.concept),
+    audience: row.audience?.trim() || null,
     strategyPayload: row.strategy_payload,
-    provenance: row.provenance,
+    provenance: parseStrategyProvenance(row.provenance),
     approvalStatus: row.approval_status as StrategyApprovalStatus,
     approvedAt: row.approved_at,
     createdAt: row.created_at,
