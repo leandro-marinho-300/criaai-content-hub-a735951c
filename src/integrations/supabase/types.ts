@@ -675,6 +675,172 @@ export type Database = {
           },
         ]
       }
+      creation_brand_snapshots: {
+        Row: {
+          brand_id: string | null
+          brand_updated_at: string | null
+          created_at: string
+          id: string
+          project_id: string
+          snapshot_json: Json
+          snapshot_schema_version: string
+          strategy_version_id: string
+        }
+        Insert: {
+          brand_id?: string | null
+          brand_updated_at?: string | null
+          created_at?: string
+          id?: string
+          project_id: string
+          snapshot_json: Json
+          snapshot_schema_version?: string
+          strategy_version_id: string
+        }
+        Update: {
+          brand_id?: string | null
+          brand_updated_at?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string
+          snapshot_json?: Json
+          snapshot_schema_version?: string
+          strategy_version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creation_brand_snapshots_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creation_brand_snapshots_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "creation_core"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "creation_brand_snapshots_strategy_project_fkey"
+            columns: ["project_id", "strategy_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_strategy_versions"
+            referencedColumns: ["project_id", "id"]
+          },
+        ]
+      }
+      creation_strategy_state: {
+        Row: {
+          created_at: string
+          current_approved_version_id: string | null
+          current_version_id: string | null
+          project_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_approved_version_id?: string | null
+          current_version_id?: string | null
+          project_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_approved_version_id?: string | null
+          current_version_id?: string | null
+          project_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creation_strategy_state_current_approved_version_id_fkey"
+            columns: ["current_approved_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_strategy_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creation_strategy_state_current_version_id_fkey"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_strategy_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creation_strategy_state_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "creation_core"
+            referencedColumns: ["project_id"]
+          },
+        ]
+      }
+      creation_strategy_versions: {
+        Row: {
+          approach: string | null
+          approval_status: string
+          approved_at: string | null
+          audience: string | null
+          concept: string | null
+          created_at: string
+          format: string | null
+          id: string
+          objective: string | null
+          project_id: string
+          provenance: Json
+          schema_version: string
+          strategy_payload: Json
+          updated_at: string
+          version_number: number
+        }
+        Insert: {
+          approach?: string | null
+          approval_status?: string
+          approved_at?: string | null
+          audience?: string | null
+          concept?: string | null
+          created_at?: string
+          format?: string | null
+          id?: string
+          objective?: string | null
+          project_id: string
+          provenance?: Json
+          schema_version?: string
+          strategy_payload?: Json
+          updated_at?: string
+          version_number: number
+        }
+        Update: {
+          approach?: string | null
+          approval_status?: string
+          approved_at?: string | null
+          audience?: string | null
+          concept?: string | null
+          created_at?: string
+          format?: string | null
+          id?: string
+          objective?: string | null
+          project_id?: string
+          provenance?: Json
+          schema_version?: string
+          strategy_payload?: Json
+          updated_at?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creation_strategy_versions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "creation_core"
+            referencedColumns: ["project_id"]
+          },
+        ]
+      }
       content_projects: {
         Row: {
           audience_problem: string | null
