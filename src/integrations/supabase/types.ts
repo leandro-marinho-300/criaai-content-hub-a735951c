@@ -643,6 +643,38 @@ export type Database = {
           },
         ]
       }
+      creation_core: {
+        Row: {
+          aggregate_version: number
+          created_at: string
+          project_id: string
+          schema_version: string
+          updated_at: string
+        }
+        Insert: {
+          aggregate_version?: number
+          created_at?: string
+          project_id: string
+          schema_version?: string
+          updated_at?: string
+        }
+        Update: {
+          aggregate_version?: number
+          created_at?: string
+          project_id?: string
+          schema_version?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creation_core_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "content_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_projects: {
         Row: {
           audience_problem: string | null
