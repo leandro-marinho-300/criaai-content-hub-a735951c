@@ -80,7 +80,7 @@ const TIMELINE: Array<{
   { key: "copyCore", label: "Copy Core" },
   { key: "postCopy", label: "Post Copy" },
   { key: "design", label: "Design" },
-  { key: "renderPrompt", label: "Render" },
+  { key: "renderPrompt", label: "Render Prompt" },
   { key: "production", label: "Asset" },
   { key: "qa", label: "QA" },
   { key: "clientApproval", label: "Cliente" },
@@ -188,9 +188,26 @@ function EmptyStage({
   );
 }
 
+function displayStepState(
+  snapshot: PostV2PipelineSnapshot,
+  key: keyof PostV2PipelineSnapshot["steps"],
+): PostV2StepState {
+  const state = snapshot.steps[key].state;
+
+  // The canonical orchestrator keeps Render Prompt as `ready` because it is an
+  // input for Production. In the progress UI, however, a valid deterministic
+  // Render Prompt is already a completed pipeline artifact. Keep this strictly
+  // presentational so no orchestration/business rule changes.
+  if (key === "renderPrompt" && snapshot.renderPromptPlan && state === "ready") {
+    return "complete";
+  }
+
+  return state;
+}
+
 function completedPercent(snapshot: PostV2PipelineSnapshot) {
   const complete = TIMELINE.filter(
-    ({ key }) => snapshot.steps[key].state === "complete",
+    ({ key }) => displayStepState(snapshot, key) === "complete",
   ).length;
   return Math.round((complete / TIMELINE.length) * 100);
 }
@@ -314,17 +331,17 @@ export function PostV2PipelineShell({
 
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                 {TIMELINE.map(({ key, label }) => {
-                  const step = snapshot.steps[key];
+                  const state = displayStepState(snapshot, key);
                   return (
                     <div
                       key={key}
                       className={cn(
                         "rounded-lg border px-3 py-2",
-                        stepTone(step.state),
+                        stepTone(state),
                       )}
                     >
                       <div className="flex items-center gap-2 text-xs font-medium">
-                        <StepIcon state={step.state} />
+                        <StepIcon state={state} />
                         <span>{label}</span>
                       </div>
                     </div>
@@ -473,7 +490,7 @@ export function PostV2PipelineShell({
                   Render Prompt canônico
                 </p>
                 <p className="mt-1 text-xs">
-                  {STEP_STATE_LABEL[snapshot.steps.renderPrompt.state]}
+                  {STEP_STATE_LABEL[displayStepState(snapshot, "renderPrompt")]}
                 </p>
               </div>
             </StageCard>
@@ -493,7 +510,7 @@ export function PostV2PipelineShell({
                     Render Prompt
                   </p>
                   <p className="mt-1 text-xs">
-                    {STEP_STATE_LABEL[snapshot.steps.renderPrompt.state]}
+                    {STEP_STATE_LABEL[displayStepState(snapshot, "renderPrompt")]}
                   </p>
                 </div>
                 <div className="rounded-md border bg-background/70 p-2">
