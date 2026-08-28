@@ -4,6 +4,7 @@ import { Check, Clipboard, Loader2, Play, Save, Sparkles, Upload } from "lucide-
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,10 +26,19 @@ import {
   prepareStrategyManualTask,
   prepareVisualDirectorManualTask,
   registerPostV2ProductionAsset,
+  runPostV2ProductionQa,
   savePostV2SpecDecision,
   type PreparedManualTask,
 } from "@/lib/creation/post-v2-workflow";
 import { getNextSpecDecision, type SpecDecisionKey } from "@/lib/creation/spec";
+import {
+  deriveOverallQaStatus,
+  deriveQaStatusesWithFindings,
+  evaluateDeterministicProductionAssetChecks,
+  type QaAxisStatuses,
+  type QaStatus,
+} from "@/lib/creation/qa";
+import { getSignedUrl } from "@/lib/pieceAssets";
 
 const OBJECTIVE_OPTIONS = [
   ["engage", "Engajar"],
@@ -212,12 +222,29 @@ export function PostV2ActionConsole({ loaded, onChanged, onBootstrapped }: Props
   }
 
   if (action === "run_qa") {
+    return <ProductionQaCard loaded={loaded} onChanged={onChanged} />;
+  }
+
+  if (action === "fix_qa_block") {
+    return (
+      <ProductionAssetCard
+        loaded={loaded}
+        onChanged={onChanged}
+        mode="qa_correction"
+      />
+    );
+  }
+
+  if (action === "send_client_approval") {
+    const qa = loaded.production.latestQaReview;
     return (
       <Alert>
         <Sparkles className="h-4 w-4" />
-        <AlertTitle>Production Asset registrado · checkpoint desta entrega</AlertTitle>
+        <AlertTitle>QA concluído · checkpoint desta entrega</AlertTitle>
         <AlertDescription>
-          O Asset final já está vinculado ao Design aprovado e o orquestrador liberou QA. A execução do QA permanece fora do escopo operacional desta entrega.
+          {qa
+            ? `O QA ${qa.overallStatus} está registrado para o Asset atual. O orquestrador liberou a aprovação do cliente, que permanece fora do escopo operacional desta entrega.`
+            : "O QA foi concluído e o próximo estágio é aprovação do cliente, ainda somente em leitura."}
         </AlertDescription>
       </Alert>
     );
@@ -228,7 +255,7 @@ export function PostV2ActionConsole({ loaded, onChanged, onBootstrapped }: Props
       <Sparkles className="h-4 w-4" />
       <AlertTitle>Ação fora do escopo operacional atual</AlertTitle>
       <AlertDescription>
-        O Studio respeitou a próxima ação do orquestrador, mas esta entrega libera ações somente até o registro do Production Asset. QA, aprovação do cliente e operação continuam em leitura.
+        O Studio respeitou a próxima ação do orquestrador, mas esta entrega libera ações somente até QA e a correção de Production quando um QA BLOCK exigir nova versão. Aprovação do cliente e operação continuam em leitura.
       </AlertDescription>
     </Alert>
   );
@@ -416,9 +443,11 @@ function DesignApprovalCard({
 function ProductionAssetCard({
   loaded,
   onChanged,
+  mode = "initial",
 }: {
   loaded: LoadedPostV2Pipeline;
   onChanged: () => Promise<unknown> | unknown;
+  mode?: "initial" | "qa_correction";
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [source, setSource] = useState("");
@@ -464,7 +493,11 @@ function ProductionAssetCard({
         source,
       }),
     onSuccess: async () => {
-      toast.success("Production Asset registrado. QA é a próxima etapa.");
+      toast.success(
+        mode === "qa_correction"
+          ? "Asset corrigido registrado. Execute um novo QA."
+          : "Production Asset registrado. QA é a próxima etapa.",
+      );
       setFile(null);
       setSource("");
       await onChanged();
@@ -486,12 +519,37 @@ function ProductionAssetCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Production externa · registrar Asset final</CardTitle>
+        <CardTitle>
+          {mode === "qa_correction"
+            ? "Corrigir Production após QA BLOCK"
+            : "Production externa · registrar Asset final"}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
         <p className="text-sm text-muted-foreground">
-          Produza a arte fora do Cria Aí usando exatamente o Render Prompt abaixo. Depois anexe somente o arquivo final. O registro cria uma Production Asset Version imutável vinculada ao Design aprovado; QA ainda não é executado aqui.
+          {mode === "qa_correction"
+            ? "O QA atual bloqueou este Asset. Corrija a peça externamente, preserve o Design aprovado e registre um novo arquivo final. A versão anterior e o QA BLOCK permanecem no histórico; a nova versão volta para QA pendente."
+            : "Produza a arte fora do Cria Aí usando exatamente o Render Prompt abaixo. Depois anexe somente o arquivo final. O registro cria uma Production Asset Version imutável vinculada ao Design aprovado; QA ainda não é executado aqui."}
         </p>
+
+        {mode === "qa_correction" && loaded.production.latestQaReview && (
+          <Alert variant="destructive">
+            <AlertTitle>Bloqueios registrados no QA #{loaded.production.latestQaReview.reviewNumber}</AlertTitle>
+            <AlertDescription>
+              {loaded.production.latestQaReview.findings.length > 0 ? (
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {loaded.production.latestQaReview.findings.map((finding, index) => (
+                    <li key={`${finding.code}-${index}`}>
+                      <strong>{finding.axis}</strong> · {finding.status}: {finding.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2">Revise os eixos marcados como BLOCK no QA antes de gerar a nova versão.</p>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -591,7 +649,334 @@ function ProductionAssetCard({
             ) : (
               <Upload className="mr-2 h-4 w-4" />
             )}
-            Registrar Asset final
+            {mode === "qa_correction" ? "Registrar Asset corrigido" : "Registrar Asset final"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+const QA_AXIS_CONFIG = [
+  {
+    key: "factual",
+    label: "Factual",
+    description:
+      "Confirme textos, datas, nomes, números, promessas e informações que aparecem na peça.",
+  },
+  {
+    key: "strategic",
+    label: "Estratégico",
+    description:
+      "Valide aderência à mensagem aprovada, objetivo, hierarquia e CTA do Post.",
+  },
+  {
+    key: "brand",
+    label: "Marca",
+    description:
+      "Valide identidade, tom, restrições e coerência com o Brand Snapshot congelado.",
+  },
+  {
+    key: "visualTechnical",
+    label: "Visual / técnico",
+    description:
+      "Valide legibilidade, composição, recortes, resolução, proporção e acabamento do arquivo.",
+  },
+] as const;
+
+type QaUiAxisKey = (typeof QA_AXIS_CONFIG)[number]["key"];
+type QaDraftStatuses = Record<QaUiAxisKey, QaStatus | "">;
+type QaDraftNotes = Record<QaUiAxisKey, string>;
+
+function qaStatusClass(status: QaStatus) {
+  if (status === "BLOCK") return "border-destructive/50 bg-destructive/5";
+  if (status === "WARN") return "border-amber-500/40 bg-amber-500/5";
+  return "border-emerald-500/30 bg-emerald-500/5";
+}
+
+function ProductionQaCard({
+  loaded,
+  onChanged,
+}: {
+  loaded: LoadedPostV2Pipeline;
+  onChanged: () => Promise<unknown> | unknown;
+}) {
+  const [statuses, setStatuses] = useState<QaDraftStatuses>({
+    factual: "",
+    strategic: "",
+    brand: "",
+    visualTechnical: "",
+  });
+  const [notes, setNotes] = useState<QaDraftNotes>({
+    factual: "",
+    strategic: "",
+    brand: "",
+    visualTechnical: "",
+  });
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const asset = loaded.production.currentAsset;
+  const pieceAsset = loaded.production.currentPieceAsset;
+  const designState = loaded.design.state;
+  const approvedCopy = loaded.copy.approvedVersion;
+  const approvedDesign = loaded.design.approvedVersion;
+
+  const automaticChecks = useMemo(() => {
+    if (!asset || !pieceAsset || !designState) return null;
+    return evaluateDeterministicProductionAssetChecks({
+      asset,
+      designState,
+      pieceAsset,
+    });
+  }, [asset, designState, pieceAsset]);
+
+  const previewMutation = useMutation({
+    mutationFn: async () => {
+      if (!pieceAsset) throw new Error("Arquivo do Production Asset não foi carregado.");
+      return getSignedUrl(pieceAsset.storage_path, 1800);
+    },
+    onSuccess: (url) => setPreviewUrl(url),
+    onError: (error) => toast.error(mutationError(error)),
+  });
+
+  const allSelected = QA_AXIS_CONFIG.every(({ key }) => statuses[key] !== "");
+  const missingRequiredNotes = QA_AXIS_CONFIG.some(
+    ({ key }) =>
+      statuses[key] !== "" &&
+      statuses[key] !== "PASS" &&
+      !notes[key].trim(),
+  );
+
+  const baseStatuses: QaAxisStatuses | null = allSelected
+    ? {
+        factual: statuses.factual as QaStatus,
+        strategic: statuses.strategic as QaStatus,
+        brand: statuses.brand as QaStatus,
+        visualTechnical: statuses.visualTechnical as QaStatus,
+      }
+    : null;
+
+  const projectedStatuses =
+    baseStatuses && automaticChecks
+      ? deriveQaStatusesWithFindings({
+          baseStatuses,
+          findings: automaticChecks.findings,
+        })
+      : baseStatuses;
+  const projectedOverall = projectedStatuses
+    ? deriveOverallQaStatus(projectedStatuses)
+    : null;
+
+  const qaMutation = useMutation({
+    mutationFn: () =>
+      runPostV2ProductionQa({
+        projectId: loaded.project.id,
+        statuses: baseStatuses!,
+        notes,
+      }),
+    onSuccess: async (review) => {
+      toast.success(`QA ${review.overallStatus} registrado.`);
+      await onChanged();
+    },
+    onError: (error) => toast.error(mutationError(error)),
+  });
+
+  if (!asset || !pieceAsset || !designState || !approvedCopy || !approvedDesign) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Contexto de QA incompleto</AlertTitle>
+        <AlertDescription>
+          O QA exige o Production Asset atual, seu arquivo, Copy aprovada e Design aprovado. Recarregue a Creation antes de continuar.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const extension =
+    approvedCopy.formatExtension &&
+    typeof approvedCopy.formatExtension === "object" &&
+    !Array.isArray(approvedCopy.formatExtension)
+      ? (approvedCopy.formatExtension as Record<string, unknown>)
+      : null;
+  const headline =
+    typeof extension?.headline === "string" && extension.headline.trim()
+      ? extension.headline.trim()
+      : approvedCopy.core.primaryMessage;
+  const supportText =
+    typeof extension?.supportText === "string" && extension.supportText.trim()
+      ? extension.supportText.trim()
+      : null;
+  const caption =
+    typeof extension?.caption === "string" && extension.caption.trim()
+      ? extension.caption.trim()
+      : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>QA do Production Asset · v{asset.versionNumber}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <p className="text-sm text-muted-foreground">
+          Revise explicitamente os quatro eixos abaixo. Nenhum eixo começa aprovado por padrão. Checks determinísticos são recalculados no momento do registro e podem elevar PASS para WARN/BLOCK, nunca esconder um problema automático.
+        </p>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <div className="space-y-3 rounded-lg border bg-background/70 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-medium">Asset atual</p>
+                <p className="mt-1 text-xs text-muted-foreground">{pieceAsset.file_name}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {pieceAsset.image_width && pieceAsset.image_height
+                    ? `${pieceAsset.image_width} × ${pieceAsset.image_height} · `
+                    : ""}
+                  {(pieceAsset.file_size / 1024 / 1024).toFixed(2)} MB · {pieceAsset.file_type}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => previewMutation.mutate()}
+                disabled={previewMutation.isPending}
+              >
+                {previewMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                {previewUrl ? "Atualizar preview" : "Carregar preview"}
+              </Button>
+            </div>
+            {previewUrl && pieceAsset.file_type.startsWith("image/") && (
+              <div className="overflow-hidden rounded-md border bg-muted/30">
+                <img
+                  src={previewUrl}
+                  alt={`Preview de ${pieceAsset.file_name}`}
+                  className="mx-auto max-h-[520px] w-auto max-w-full object-contain"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 rounded-lg border bg-background/70 p-3 text-xs">
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Headline aprovada</p>
+              <p className="mt-1 font-medium">{headline}</p>
+            </div>
+            {supportText && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Apoio</p>
+                <p className="mt-1">{supportText}</p>
+              </div>
+            )}
+            {caption && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Legenda</p>
+                <p className="mt-1 line-clamp-6 whitespace-pre-wrap">{caption}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Sistema visual aprovado</p>
+              <p className="mt-1">{approvedDesign.design.visualSystem}</p>
+            </div>
+            {approvedDesign.design.restrictions.length > 0 && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Restrições</p>
+                <ul className="mt-1 list-disc space-y-1 pl-4">
+                  {approvedDesign.design.restrictions.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Alert>
+          <AlertTitle>Checks automáticos</AlertTitle>
+          <AlertDescription>
+            {automaticChecks && automaticChecks.findings.length > 0 ? (
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {automaticChecks.findings.map((finding, index) => (
+                  <li key={`${finding.code}-${index}`}>
+                    <strong>{finding.status}</strong> · {finding.message}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2">Nenhum WARN/BLOCK determinístico encontrado no arquivo e na vinculação com o Design atual.</p>
+            )}
+          </AlertDescription>
+        </Alert>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          {QA_AXIS_CONFIG.map(({ key, label, description }) => {
+            const status = statuses[key];
+            return (
+              <div
+                key={key}
+                className={`space-y-3 rounded-lg border p-3 ${status ? qaStatusClass(status) : "bg-background/70"}`}
+              >
+                <div>
+                  <Label htmlFor={`post-v2-qa-${key}`}>{label}</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+                </div>
+                <select
+                  id={`post-v2-qa-${key}`}
+                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  value={status}
+                  onChange={(event) =>
+                    setStatuses((current) => ({
+                      ...current,
+                      [key]: event.target.value as QaStatus | "",
+                    }))
+                  }
+                >
+                  <option value="">Selecione…</option>
+                  <option value="PASS">PASS · sem problema</option>
+                  <option value="WARN">WARN · atenção, mas pode prosseguir</option>
+                  <option value="BLOCK">BLOCK · precisa corrigir</option>
+                </select>
+                <Textarea
+                  value={notes[key]}
+                  onChange={(event) =>
+                    setNotes((current) => ({ ...current, [key]: event.target.value }))
+                  }
+                  rows={3}
+                  placeholder={
+                    status && status !== "PASS"
+                      ? `Obrigatório: descreva o motivo do ${status}.`
+                      : "Observação opcional."
+                  }
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background/70 p-3">
+          <div>
+            <p className="text-xs font-medium">Resultado projetado</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              O resultado final usa o pior status entre os quatro eixos depois dos checks automáticos.
+            </p>
+          </div>
+          {projectedOverall ? (
+            <Badge variant={projectedOverall === "BLOCK" ? "destructive" : "outline"}>
+              {projectedOverall}
+            </Badge>
+          ) : (
+            <Badge variant="outline">4 eixos pendentes</Badge>
+          )}
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            onClick={() => qaMutation.mutate()}
+            disabled={!baseStatuses || missingRequiredNotes || qaMutation.isPending}
+          >
+            {qaMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="mr-2 h-4 w-4" />
+            )}
+            Registrar QA
           </Button>
         </div>
       </CardContent>

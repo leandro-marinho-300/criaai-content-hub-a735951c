@@ -54,6 +54,16 @@ import {
   toProductionAssetVersion,
 } from "@/lib/creation/production";
 import { buildRenderPromptPlan } from "@/lib/creation/render-prompt";
+import {
+  buildProductionQaReviewInsert,
+  buildQaProvenance,
+  deriveQaStatusesWithFindings,
+  evaluateDeterministicProductionAssetChecks,
+  toProductionQaReview,
+  type QaAxisStatuses,
+  type QaFinding,
+  type QaStatus,
+} from "@/lib/creation/qa";
 import { deletePieceAsset, uploadPieceAsset } from "@/lib/pieceAssets";
 import { mergePostV2SpecIntoCampaignJson } from "@/lib/creation/post-v2-project";
 
@@ -724,5 +734,166 @@ export async function registerPostV2ProductionAsset(input: {
     }
     throw error;
   }
+}
+
+export type PostV2QaAxisKey = keyof QaAxisStatuses;
+
+export type PostV2QaManualReviewInput = {
+  projectId: string;
+  statuses: QaAxisStatuses;
+  notes?: Partial<Record<PostV2QaAxisKey, string>>;
+};
+
+const QA_AXIS_META: Record<
+  PostV2QaAxisKey,
+  { axis: QaFinding["axis"]; code: string }
+> = {
+  factual: { axis: "factual", code: "human_factual_review" },
+  strategic: { axis: "strategic", code: "human_strategic_review" },
+  brand: { axis: "brand", code: "human_brand_review" },
+  visualTechnical: {
+    axis: "visual_technical",
+    code: "human_visual_technical_review",
+  },
+};
+
+function isPostV2QaStatus(value: unknown): value is QaStatus {
+  return value === "PASS" || value === "WARN" || value === "BLOCK";
+}
+
+/**
+ * Records the immutable QA Review for the exact current Production Asset.
+ * Deterministic findings are recomputed at commit time and may elevate, but
+ * never soften, the human axis selections.
+ */
+export async function runPostV2ProductionQa(
+  input: PostV2QaManualReviewInput,
+) {
+  const projectId = input.projectId.trim();
+  if (!projectId) throw new Error("projectId must not be blank.");
+
+  for (const key of Object.keys(QA_AXIS_META) as PostV2QaAxisKey[]) {
+    const status = input.statuses[key];
+    if (!isPostV2QaStatus(status)) {
+      throw new Error("Selecione PASS, WARN ou BLOCK para todos os eixos do QA.");
+    }
+    if (status !== "PASS" && !input.notes?.[key]?.trim()) {
+      throw new Error(
+        `Descreva o motivo do ${status} no eixo ${key === "visualTechnical" ? "visual/técnico" : String(key)}.`,
+      );
+    }
+  }
+
+  const { data: productionState, error: stateError } = await supabase
+    .from("creation_production_state")
+    .select("*")
+    .eq("project_id", projectId)
+    .single();
+  if (stateError) throw stateError;
+
+  if (productionState.status !== "qa_pending") {
+    throw new Error(
+      "O QA não está pendente para o Asset atual. Recarregue a Creation antes de registrar uma revisão.",
+    );
+  }
+  if (!productionState.current_asset_version_id) {
+    throw new Error("Não existe Production Asset atual para executar QA.");
+  }
+  if (productionState.latest_qa_review_id) {
+    throw new Error(
+      "O Production State já aponta para um QA concluído. Recarregue a Creation antes de continuar.",
+    );
+  }
+
+  const { data: assetRow, error: assetError } = await supabase
+    .from("creation_production_asset_versions")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("id", productionState.current_asset_version_id)
+    .single();
+  if (assetError) throw assetError;
+  const asset = toProductionAssetVersion(assetRow);
+
+  const [{ data: pieceAsset, error: pieceAssetError }, { data: designStateRow, error: designStateError }] =
+    await Promise.all([
+      supabase
+        .from("content_piece_assets")
+        .select("project_id,file_size,file_type,image_width,image_height")
+        .eq("project_id", projectId)
+        .eq("id", asset.pieceAssetId)
+        .single(),
+      supabase
+        .from("creation_design_state")
+        .select("*")
+        .eq("project_id", projectId)
+        .single(),
+    ]);
+  if (pieceAssetError) throw pieceAssetError;
+  if (designStateError) throw designStateError;
+
+  const designState = toDesignState(designStateRow);
+  const deterministic = evaluateDeterministicProductionAssetChecks({
+    asset,
+    designState,
+    pieceAsset,
+  });
+
+  if (deterministic.freshness !== "current") {
+    throw new Error(
+      "O Production Asset ficou desatualizado em relação ao Design aprovado. Registre um novo Asset antes do QA.",
+    );
+  }
+
+  const humanFindings: QaFinding[] = [];
+  for (const key of Object.keys(QA_AXIS_META) as PostV2QaAxisKey[]) {
+    const status = input.statuses[key];
+    if (status === "PASS") continue;
+    const note = input.notes?.[key]?.trim();
+    if (!note) continue;
+    humanFindings.push({
+      axis: QA_AXIS_META[key].axis,
+      status,
+      code: QA_AXIS_META[key].code,
+      message: note,
+      origin: "human",
+    });
+  }
+
+  const findings = [...deterministic.findings, ...humanFindings];
+  const statuses = deriveQaStatusesWithFindings({
+    baseStatuses: input.statuses,
+    findings,
+  });
+
+  const { data: previousReviews, error: reviewNumberError } = await supabase
+    .from("creation_production_qa_reviews")
+    .select("review_number")
+    .eq("project_id", projectId)
+    .eq("production_asset_version_id", asset.id)
+    .order("review_number", { ascending: false })
+    .limit(1);
+  if (reviewNumberError) throw reviewNumberError;
+  const reviewNumber = (previousReviews?.[0]?.review_number ?? 0) + 1;
+
+  const insert = buildProductionQaReviewInsert({
+    projectId,
+    asset,
+    reviewNumber,
+    statuses,
+    findings,
+    provenance: buildQaProvenance({
+      origin: "human",
+      source: "post_v2_studio_qa",
+    }),
+  });
+
+  const { data: reviewRow, error: reviewError } = await supabase
+    .from("creation_production_qa_reviews")
+    .insert(insert)
+    .select("*")
+    .single();
+  if (reviewError) throw reviewError;
+
+  return toProductionQaReview(reviewRow);
 }
 

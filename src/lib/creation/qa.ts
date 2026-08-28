@@ -97,6 +97,43 @@ export function deriveOverallQaStatus(statuses: QaAxisStatuses): QaStatus {
   "PASS");
 }
 
+function strongestQaStatus(a: QaStatus, b: QaStatus): QaStatus {
+  return qaWeight(b) > qaWeight(a) ? b : a;
+}
+
+/**
+ * Applies findings as non-downgradable evidence over a base human review.
+ * A deterministic WARN/BLOCK can elevate an axis, but never be masked by a
+ * softer manual selection.
+ */
+export function deriveQaStatusesWithFindings(input: {
+  baseStatuses: QaAxisStatuses;
+  findings: QaFinding[];
+}): QaAxisStatuses {
+  const statuses: QaAxisStatuses = { ...input.baseStatuses };
+
+  for (const finding of input.findings) {
+    if (finding.axis === "factual") {
+      statuses.factual = strongestQaStatus(statuses.factual, finding.status);
+      continue;
+    }
+    if (finding.axis === "strategic") {
+      statuses.strategic = strongestQaStatus(statuses.strategic, finding.status);
+      continue;
+    }
+    if (finding.axis === "brand") {
+      statuses.brand = strongestQaStatus(statuses.brand, finding.status);
+      continue;
+    }
+    statuses.visualTechnical = strongestQaStatus(
+      statuses.visualTechnical,
+      finding.status,
+    );
+  }
+
+  return statuses;
+}
+
 export function buildQaProvenance(input: {
   origin: KnownProvenanceOrigin;
   source?: string | null;
