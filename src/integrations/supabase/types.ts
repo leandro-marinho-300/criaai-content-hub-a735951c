@@ -1629,6 +1629,13 @@ export type Database = {
         }
         Returns: Json
       }
+      approve_creation_design: {
+        Args: {
+          p_design_version_id: string
+          p_project_id: string
+        }
+        Returns: Json
+      }
       approve_creation_strategy: {
         Args: {
           p_project_id: string
