@@ -233,9 +233,9 @@ export function PostV2PipelineShell({
                 "Post V2 Studio"}
             </h1>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              Studio paralelo conectado ao pipeline canônico. Nesta entrega, somente $Spec,
-              Strategy, Copy Core e Post Copy possuem ações operacionais; as etapas seguintes
-              continuam em leitura.
+              Studio paralelo conectado ao pipeline canônico. Nesta entrega, $Spec, Strategy,
+              Copy Core, Post Copy e Design Spec possuem ações operacionais; Render Prompt,
+              Asset, QA e aprovação do cliente continuam em leitura.
             </p>
           </div>
 
@@ -336,8 +336,8 @@ export function PostV2PipelineShell({
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">
-                  A próxima ação vem do orquestrador. A interface não libera Design, Render,
-                  Asset, QA ou aprovação do cliente nesta fase.
+                  A próxima ação vem do orquestrador. A interface libera ações até Design Spec;
+                  Render, Asset, QA e aprovação do cliente permanecem somente leitura nesta fase.
                 </p>
                 {snapshot.readyForOperations ? (
                   <Button asChild size="sm">
@@ -440,12 +440,40 @@ export function PostV2PipelineShell({
               icon={<Palette className="h-4 w-4" />}
               step={snapshot.steps.design}
             >
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-md border bg-background/70 p-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Versão atual
+                  </p>
+                  <p className="mt-1 text-xs">{versionLabel(loaded.design.currentVersion)}</p>
+                </div>
+                <div className="rounded-md border bg-background/70 p-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Versão aprovada
+                  </p>
+                  <p className="mt-1 text-xs">{versionLabel(loaded.design.approvedVersion)}</p>
+                </div>
+              </div>
+
+              {loaded.design.currentVersion && (
+                <div className="space-y-2 rounded-md border bg-background/70 p-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Sistema visual</p>
+                    <p className="mt-1 text-xs">{loaded.design.currentVersion.design.visualSystem}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Conceito de composição</p>
+                    <p className="mt-1 text-xs">{loaded.design.currentVersion.design.compositionConcept}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="rounded-md border bg-background/70 p-2">
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Somente leitura nesta entrega
+                  Render Prompt · somente leitura
                 </p>
                 <p className="mt-1 text-xs">
-                  Render Prompt: {STEP_STATE_LABEL[snapshot.steps.renderPrompt.state]}
+                  {STEP_STATE_LABEL[snapshot.steps.renderPrompt.state]}
                 </p>
               </div>
             </StageCard>

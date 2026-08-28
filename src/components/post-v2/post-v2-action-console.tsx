@@ -11,16 +11,19 @@ import { Textarea } from "@/components/ui/textarea";
 import type { LoadedPostV2Pipeline } from "@/lib/creation/post-v2-pipeline-loader";
 import {
   approveCopy,
+  approveDesign,
   approveStrategy,
   bootstrapExistingPostV2,
   bootstrapPostV2,
   importCopyResponse,
   importPostCopyResponse,
   importStrategyResponse,
+  importVisualDirectorResponse,
   listPostV2Brands,
   prepareCopyManualTask,
   preparePostCopyManualTask,
   prepareStrategyManualTask,
+  prepareVisualDirectorManualTask,
   savePostV2SpecDecision,
   type PreparedManualTask,
 } from "@/lib/creation/post-v2-workflow";
@@ -178,12 +181,49 @@ export function PostV2ActionConsole({ loaded, onChanged, onBootstrapped }: Props
     );
   }
 
+  if (action === "generate_design") {
+    return (
+      <ManualTaskCard
+        title="Visual Director · Design Spec"
+        description="Transforme a Post Copy aprovada em uma direção visual canônica. Esta etapa não gera arte, Render Prompt ou asset final."
+        existingRun={loaded.aiTasks.visualDirector ? {
+          runId: loaded.aiTasks.visualDirector.id,
+          promptText: loaded.aiTasks.visualDirector.promptText,
+          taskType: "visual_direction",
+        } : null}
+        prepare={() => prepareVisualDirectorManualTask(loaded.project.id)}
+        importResponse={(runId, response) => importVisualDirectorResponse({
+          projectId: loaded.project.id,
+          runId,
+          response,
+        })}
+        onChanged={onChanged}
+      />
+    );
+  }
+
+  if (action === "approve_design") {
+    return <DesignApprovalCard loaded={loaded} onChanged={onChanged} />;
+  }
+
+  if (action === "produce_asset_from_render_prompt") {
+    return (
+      <Alert>
+        <Sparkles className="h-4 w-4" />
+        <AlertTitle>Design aprovado · checkpoint desta entrega</AlertTitle>
+        <AlertDescription>
+          O Design Spec está aprovado e o Render Prompt canônico já pode ser derivado pelo orquestrador. Produção do asset continua fora do escopo operacional desta fase.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <Alert>
       <Sparkles className="h-4 w-4" />
-      <AlertTitle>Primeiro bloco funcional concluído</AlertTitle>
+      <AlertTitle>Ação fora do escopo operacional atual</AlertTitle>
       <AlertDescription>
-        $Spec, Strategy e Copy já chegaram ao limite deste ajuste. Design, Render, Asset e QA permanecem somente leitura por enquanto.
+        O Studio respeitou a próxima ação do orquestrador, mas esta entrega libera ações somente até a aprovação do Design Spec.
       </AlertDescription>
     </Alert>
   );
@@ -273,6 +313,91 @@ function SpecCard({ loaded, onChanged }: { loaded: LoadedPostV2Pipeline; onChang
           <Button onClick={() => save.mutate()} disabled={save.isPending || !value.trim()}>
             {save.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
             Salvar e continuar
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DesignApprovalCard({
+  loaded,
+  onChanged,
+}: {
+  loaded: LoadedPostV2Pipeline;
+  onChanged: () => Promise<unknown> | unknown;
+}) {
+  const current = loaded.design.currentVersion;
+  const mutation = useMutation({
+    mutationFn: () => approveDesign(loaded.project.id, current!.id),
+    onSuccess: async () => {
+      toast.success("Design Spec aprovado.");
+      await onChanged();
+    },
+    onError: (error) => toast.error(mutationError(error)),
+  });
+
+  if (!current) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Design atual não encontrado</AlertTitle>
+        <AlertDescription>
+          O orquestrador solicitou aprovação, mas nenhuma Design Version atual foi carregada. Recarregue a Creation antes de continuar.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const design = current.design;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Revisar e aprovar Design Spec · v{current.versionNumber}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Revise a direção visual antes de congelá-la para a etapa seguinte. A aprovação não produz imagem nem asset.
+        </p>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          {[
+            ["Sistema visual", design.visualSystem],
+            ["Conceito de composição", design.compositionConcept],
+            ["Gesto visual", design.visualGesture],
+            ["Comportamento tipográfico", design.typographyBehavior],
+            ["Modo de imagem", design.imageryMode],
+            ["Nível de intervenção", design.interventionLevel],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg border bg-background/70 p-3">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+              <p className="mt-1 text-sm">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-lg border bg-background/70 p-3">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Escolha anti-genérica</p>
+          <p className="mt-1 text-sm">{design.antiGenericity.distinctiveChoice}</p>
+          {design.antiGenericity.avoid.length > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Evitar: {design.antiGenericity.avoid.join(" · ")}
+            </p>
+          )}
+        </div>
+
+        {design.informationToConfirm.length > 0 && (
+          <Alert>
+            <AlertTitle>Informações registradas para confirmação</AlertTitle>
+            <AlertDescription>
+              {design.informationToConfirm.join(" · ")}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="flex justify-end">
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+            {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+            Aprovar Design Spec
           </Button>
         </div>
       </CardContent>

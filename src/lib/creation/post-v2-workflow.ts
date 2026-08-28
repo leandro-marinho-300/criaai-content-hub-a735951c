@@ -32,6 +32,13 @@ import {
   buildApprovedStrategyContext,
 } from "@/lib/creation/strategy-approval";
 import { buildCopyApprovalRpcArgs } from "@/lib/creation/copy-approval";
+import { buildDesignApprovalRpcArgs } from "@/lib/creation/design-approval";
+import {
+  buildVisualDirectorResponseImportUpdate,
+  buildVisualDirectorTaskPlan,
+  buildVisualDirectorValidationUpdate,
+  buildDesignDraftFromValidatedVisualDirectorRun,
+} from "@/lib/creation/visual-director";
 import { buildStrategyStateInsert, toBrandSnapshot, toStrategyVersion } from "@/lib/creation/strategy";
 import { buildCopyStateInsert, toCopyState, toCopyVersion } from "@/lib/creation/copy";
 import { buildDesignStateInsert } from "@/lib/creation/design";
@@ -48,7 +55,7 @@ export type PostV2BrandOption = Pick<
 export type PreparedManualTask = {
   runId: string;
   promptText: string;
-  taskType: "strategy" | "copy";
+  taskType: "strategy" | "copy" | "visual_direction";
 };
 
 async function requireUserId() {
@@ -183,6 +190,12 @@ async function nextCopyVersionNumber(projectId: string) {
   return (data?.[0]?.version_number ?? 0) + 1;
 }
 
+async function nextDesignVersionNumber(projectId: string) {
+  const { data, error } = await supabase.from("creation_design_versions").select("version_number").eq("project_id", projectId).order("version_number", { ascending: false }).limit(1);
+  if (error) throw error;
+  return (data?.[0]?.version_number ?? 0) + 1;
+}
+
 async function fetchBrandForProject(projectId: string) {
   const { data: project, error } = await supabase.from("content_projects").select("brand_id,theme,notes,mandatory_information,restrictions,specific_audience").eq("id", projectId).single();
   if (error) throw error;
@@ -296,19 +309,19 @@ export async function approveCopy(projectId: string, copyVersionId: string) {
   if (error) throw error;
 }
 
-async function loadApprovedPostCopyContext(projectId: string): Promise<ApprovedPostCopyContext> {
+async function loadApprovedCopyContext(projectId: string): Promise<ApprovedPostCopyContext> {
   const approvedStrategy = await loadApprovedStrategyContext(projectId);
   const { data: stateRow, error: stateError } = await supabase.from("creation_copy_state").select("*").eq("project_id", projectId).single();
   if (stateError) throw stateError;
   const state = toCopyState(stateRow);
-  if (!state.currentApprovedVersionId) throw new Error("Aprove a Copy Core antes de adaptar para Post.");
+  if (!state.currentApprovedVersionId) throw new Error("A Creation precisa de uma Copy aprovada para continuar.");
   const { data: copyRow, error: copyError } = await supabase.from("creation_copy_versions").select("*").eq("id", state.currentApprovedVersionId).single();
   if (copyError) throw copyError;
   return { sourceCopy: toCopyVersion(copyRow), copyState: state, approvedStrategy };
 }
 
 export async function preparePostCopyManualTask(projectId: string): Promise<PreparedManualTask> {
-  const context = await loadApprovedPostCopyContext(projectId);
+  const context = await loadApprovedCopyContext(projectId);
   const plan = buildPostCopyAdapterTaskPlan({ context });
   const { data, error } = await supabase.from("creation_ai_task_runs").insert(plan.taskInsert).select("id").single();
   if (error) throw error;
@@ -316,7 +329,7 @@ export async function preparePostCopyManualTask(projectId: string): Promise<Prep
 }
 
 export async function importPostCopyResponse(input: { projectId: string; runId: string; response: string; }) {
-  const context = await loadApprovedPostCopyContext(input.projectId);
+  const context = await loadApprovedCopyContext(input.projectId);
   let result = await supabase.from("creation_ai_task_runs").update(buildPostCopyAdapterResponseImportUpdate(input.response)).eq("id", input.runId);
   if (result.error) throw result.error;
   const validation = buildPostCopyAdapterValidationUpdate({ response: input.response, sourceCopy: context.sourceCopy });
@@ -332,3 +345,78 @@ export async function importPostCopyResponse(input: { projectId: string; runId: 
   if (stateError) throw stateError;
   return version.id;
 }
+
+export async function prepareVisualDirectorManualTask(projectId: string): Promise<PreparedManualTask> {
+  const context = await loadApprovedCopyContext(projectId);
+  const plan = buildVisualDirectorTaskPlan({ context });
+  const { data, error } = await supabase
+    .from("creation_ai_task_runs")
+    .insert(plan.taskInsert)
+    .select("id")
+    .single();
+  if (error) throw error;
+  return { runId: data.id, promptText: plan.promptText, taskType: "visual_direction" };
+}
+
+export async function importVisualDirectorResponse(input: {
+  projectId: string;
+  runId: string;
+  response: string;
+}) {
+  const context = await loadApprovedCopyContext(input.projectId);
+
+  let result = await supabase
+    .from("creation_ai_task_runs")
+    .update(buildVisualDirectorResponseImportUpdate(input.response))
+    .eq("id", input.runId);
+  if (result.error) throw result.error;
+
+  const validation = buildVisualDirectorValidationUpdate(input.response);
+  result = await supabase
+    .from("creation_ai_task_runs")
+    .update(validation.update)
+    .eq("id", input.runId);
+  if (result.error) throw result.error;
+  if (!validation.result.ok) {
+    throw new Error(validation.result.issues.map((issue) => issue.message).join("\n"));
+  }
+
+  const run = await getTaskRun(input.runId);
+  const versionNumber = await nextDesignVersionNumber(input.projectId);
+  const plan = buildDesignDraftFromValidatedVisualDirectorRun({
+    context,
+    run,
+    versionNumber,
+  });
+
+  await supabase
+    .from("creation_design_state")
+    .upsert(buildDesignStateInsert(input.projectId), {
+      onConflict: "project_id",
+      ignoreDuplicates: true,
+    });
+
+  const { data: version, error } = await supabase
+    .from("creation_design_versions")
+    .insert(plan.designVersionInsert)
+    .select("id")
+    .single();
+  if (error) throw error;
+
+  const { error: stateError } = await supabase
+    .from("creation_design_state")
+    .update(plan.designStateUpdateAfterInsert(version.id))
+    .eq("project_id", input.projectId);
+  if (stateError) throw stateError;
+
+  return version.id;
+}
+
+export async function approveDesign(projectId: string, designVersionId: string) {
+  const { error } = await supabase.rpc(
+    "approve_creation_design",
+    buildDesignApprovalRpcArgs({ projectId, designVersionId }),
+  );
+  if (error) throw error;
+}
+

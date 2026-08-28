@@ -47,6 +47,7 @@ import {
 import { isKnownProvenanceOrigin } from "@/lib/creation/provenance";
 import { toAiTaskRun, type AiTaskRun } from "@/lib/creation/ai-task-gateway";
 import { getPostV2SpecFromCampaignJson } from "@/lib/creation/post-v2-project";
+import { VISUAL_DIRECTOR_RESPONSE_SCHEMA_VERSION } from "@/lib/creation/visual-director";
 
 export type PostV2PipelineProjectSummary = Pick<
   Tables<"content_projects">,
@@ -74,6 +75,7 @@ export type LoadedPostV2Pipeline = {
     strategy: AiTaskRun | null;
     copyCore: AiTaskRun | null;
     postCopy: AiTaskRun | null;
+    visualDirector: AiTaskRun | null;
   };
   snapshot: PostV2PipelineSnapshot;
 };
@@ -419,7 +421,7 @@ async function loadLatestAiTasks(projectId: string): Promise<LoadedPostV2Pipelin
     .from("creation_ai_task_runs")
     .select("*")
     .eq("project_id", projectId)
-    .in("task_type", ["strategy", "copy"])
+    .in("task_type", ["strategy", "copy", "visual_direction"])
     .order("created_at", { ascending: false })
     .limit(30);
 
@@ -430,11 +432,16 @@ async function loadLatestAiTasks(projectId: string): Promise<LoadedPostV2Pipelin
   let strategy: AiTaskRun | null = null;
   let copyCore: AiTaskRun | null = null;
   let postCopy: AiTaskRun | null = null;
+  let visualDirector: AiTaskRun | null = null;
 
   for (const row of data ?? []) {
     const run = toAiTaskRun(row);
     if (!strategy && run.taskType === "strategy") {
       strategy = run;
+      continue;
+    }
+    if (!visualDirector && run.taskType === "visual_direction") {
+      visualDirector = run;
       continue;
     }
     if (run.taskType !== "copy") continue;
@@ -448,7 +455,7 @@ async function loadLatestAiTasks(projectId: string): Promise<LoadedPostV2Pipelin
     }
   }
 
-  return { strategy, copyCore, postCopy };
+  return { strategy, copyCore, postCopy, visualDirector };
 }
 
 export async function loadPostV2Pipeline(
@@ -528,6 +535,14 @@ export async function loadPostV2Pipeline(
       isResumableTask(aiTasks.postCopy) &&
       aiTasks.postCopy?.inputVersions.source_copy_version_id === copy.approvedVersion?.id
         ? aiTasks.postCopy
+        : null,
+    visualDirector:
+      isResumableTask(aiTasks.visualDirector) &&
+      aiTasks.visualDirector?.inputVersions.copy_version_id === copy.approvedVersion?.id &&
+      aiTasks.visualDirector?.inputVersions.strategy_version_id === strategy.approvedVersion?.id &&
+      aiTasks.visualDirector?.inputVersions.brand_snapshot_id === strategy.brandSnapshot?.id &&
+      aiTasks.visualDirector?.inputVersions.visual_direction_response_schema === VISUAL_DIRECTOR_RESPONSE_SCHEMA_VERSION
+        ? aiTasks.visualDirector
         : null,
   };
 
