@@ -21,6 +21,10 @@ import { MoreVertical } from "lucide-react";
 import { FORMAT_LABELS, OBJECTIVE_LABELS } from "@/lib/promptBuilder";
 import { getProjectDisplayTitle } from "@/lib/displayTitle";
 import { RenameTitleDialog } from "@/components/rename-title-dialog";
+import {
+  listLibraryV2OperationalSummary,
+  type LibraryV2OperationalSummary,
+} from "@/lib/creation/operational-integration";
 
 export const Route = createFileRoute("/_authenticated/app/library")({
   head: () => ({ meta: [{ title: "Biblioteca — Cria Aí" }] }),
@@ -54,6 +58,7 @@ interface LibProject {
   is_favorite: boolean;
   updated_at: string;
   brands: { name: string; logo_url: string | null } | null;
+  v2: LibraryV2OperationalSummary | null;
 }
 
 
@@ -104,7 +109,14 @@ function LibraryPage() {
       }
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as LibProject[];
+      const rows = (data ?? []) as Omit<LibProject, "v2">[];
+      const v2Summary = await listLibraryV2OperationalSummary(
+        rows.map((project) => project.id),
+      );
+      return rows.map((project) => ({
+        ...project,
+        v2: v2Summary.get(project.id) ?? null,
+      }));
     },
   });
 
@@ -200,6 +212,14 @@ function LibraryPage() {
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-1.5">
                     <Badge variant="secondary">{statusLabel(p.status)}</Badge>
+                    {p.v2?.isV2 && <Badge variant="outline">V2</Badge>}
+                    {p.v2?.approvedByClient && (
+                      <Badge variant="outline">
+                        {p.v2.clientApprovalStatus === "aprovado_com_ajustes"
+                          ? "Cliente aprovou c/ ajustes"
+                          : "Cliente aprovou"}
+                      </Badge>
+                    )}
                     {p.objective && <Badge variant="outline">{OBJECTIVE_LABELS[p.objective] ?? p.objective}</Badge>}
                     {p.is_favorite && <Heart className="h-3.5 w-3.5 fill-primary text-primary" />}
                   </div>
@@ -228,7 +248,13 @@ function LibraryPage() {
                       </Link>
                     </TableCell>
                     <TableCell>{p.brands?.name ?? "—"}</TableCell>
-                    <TableCell><Badge variant="secondary">{statusLabel(p.status)}</Badge></TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="secondary">{statusLabel(p.status)}</Badge>
+                        {p.v2?.isV2 && <Badge variant="outline">V2</Badge>}
+                        {p.v2?.approvedByClient && <Badge variant="outline">Cliente aprovou</Badge>}
+                      </div>
+                    </TableCell>
                     <TableCell>{OBJECTIVE_LABELS[p.objective ?? ""] ?? "—"}</TableCell>
                     <TableCell><ProjectMenu id={p.id} status={p.status} onStatus={(s) => updateStatus.mutate({ id: p.id, status: s })} onDelete={() => del.mutate(p.id)} onRename={() => setRenaming(p)} /></TableCell>
                   </TableRow>

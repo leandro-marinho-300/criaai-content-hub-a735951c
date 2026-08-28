@@ -1636,6 +1636,7 @@ export type Database = {
           cancelled_at: string | null
           channel: string | null
           checklist: Json
+          client_approval_id: string | null
           client_notes: string | null
           confirmed_date: string | null
           confirmed_time: string | null
@@ -1645,6 +1646,7 @@ export type Database = {
           id: string
           internal_notes: string | null
           project_id: string
+          production_asset_version_id: string | null
           publication_notes: string | null
           publication_unit: string
           publication_url: string | null
@@ -1667,6 +1669,7 @@ export type Database = {
           cancelled_at?: string | null
           channel?: string | null
           checklist?: Json
+          client_approval_id?: string | null
           client_notes?: string | null
           confirmed_date?: string | null
           confirmed_time?: string | null
@@ -1676,6 +1679,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           project_id: string
+          production_asset_version_id?: string | null
           publication_notes?: string | null
           publication_unit: string
           publication_url?: string | null
@@ -1698,6 +1702,7 @@ export type Database = {
           cancelled_at?: string | null
           channel?: string | null
           checklist?: Json
+          client_approval_id?: string | null
           client_notes?: string | null
           confirmed_date?: string | null
           confirmed_time?: string | null
@@ -1707,6 +1712,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           project_id?: string
+          production_asset_version_id?: string | null
           publication_notes?: string | null
           publication_unit?: string
           publication_url?: string | null
@@ -1726,6 +1732,20 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_schedule_items_client_approval_fkey"
+            columns: ["client_approval_id"]
+            isOneToOne: false
+            referencedRelation: "client_approvals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_schedule_items_production_asset_fkey"
+            columns: ["production_asset_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_production_asset_versions"
             referencedColumns: ["id"]
           },
           {

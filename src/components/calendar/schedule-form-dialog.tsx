@@ -15,6 +15,10 @@ import { upsertScheduleItem } from "@/lib/scheduleQueries";
 import { FORMAT_LABELS } from "@/lib/promptBuilder";
 import { derivePublicationUnits } from "@/lib/publicationUnits";
 import { getProjectDisplayTitle } from "@/lib/displayTitle";
+import {
+  resolveCalendarV2Readiness,
+  scheduleRequiresCanonicalV2Asset,
+} from "@/lib/creation/operational-integration";
 
 interface Props {
   open: boolean;
@@ -54,6 +58,12 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
     },
     enabled: tab === "projeto",
   });
+  const { data: v2Readiness, isLoading: readinessLoading } = useQuery({
+    queryKey: ["calendar-v2-readiness", projectId],
+    queryFn: () => resolveCalendarV2Readiness(projectId),
+    enabled: !!projectId,
+  });
+
   const { data: projectDetail } = useQuery({
     queryKey: ["project-detail-cal", projectId],
     queryFn: async () => {
@@ -65,6 +75,11 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
   });
 
   const units = projectDetail?.project ? derivePublicationUnits(projectDetail.project, projectDetail.outputs ?? []) : [];
+  const requiresCanonicalV2Asset = scheduleRequiresCanonicalV2Asset(status);
+  const v2ScheduleBlocked =
+    !!v2Readiness?.isV2 &&
+    requiresCanonicalV2Asset &&
+    !v2Readiness.canBindApprovedAsset;
 
   useEffect(() => {
     if (units.length && !unitKey) {
@@ -225,9 +240,28 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
           <Field label="Observações"><Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
         </div>
 
+        {v2Readiness?.isV2 && (
+          <div
+            className={`rounded-md border p-3 text-sm ${
+              v2ScheduleBlocked
+                ? "border-destructive/30 bg-destructive/5 text-destructive"
+                : "border-border/60 bg-muted/30 text-muted-foreground"
+            }`}
+          >
+            {requiresCanonicalV2Asset
+              ? v2Readiness.message
+              : "Planejamento V2 pode ser salvo sem congelar um asset. Ao mudar para Aprovado, Agendado ou Publicado, o calendário exigirá a versão canônica aprovada pelo cliente."}
+          </div>
+        )}
+
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={() => mut.mutate()} disabled={mut.isPending}>Criar publicação</Button>
+          <Button
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending || readinessLoading || v2ScheduleBlocked}
+          >
+            Criar publicação
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

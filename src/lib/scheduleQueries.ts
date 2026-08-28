@@ -2,6 +2,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { ScheduleItem, ScheduleStatus, ApprovalStatus, ChannelKind } from "./calendar";
 import { getProjectDisplayTitle } from "./displayTitle";
+import {
+  resolveCalendarV2Readiness,
+  scheduleRequiresCanonicalV2Asset,
+} from "@/lib/creation/operational-integration";
 
 export interface ScheduleItemWithRels extends ScheduleItem {
   brands?: { id: string; name: string; logo_url: string | null } | null;
@@ -41,6 +45,49 @@ export interface ScheduleFilters {
   approval?: ApprovalStatus;
   from?: string; // yyyy-mm-dd inclusive
   to?: string;   // yyyy-mm-dd inclusive
+}
+
+type V2ScheduleLinkagePatch = Pick<
+  ScheduleItem,
+  "client_approval_id" | "production_asset_version_id" | "approval_status"
+>;
+
+async function resolveV2ScheduleLinkagePatch(input: {
+  projectId: string;
+  scheduleStatus: ScheduleStatus | string | null | undefined;
+  force?: boolean;
+  existingClientApprovalId?: string | null;
+  existingProductionAssetVersionId?: string | null;
+}): Promise<Partial<V2ScheduleLinkagePatch>> {
+  if (!input.force && !scheduleRequiresCanonicalV2Asset(input.scheduleStatus)) {
+    return {};
+  }
+
+  if (
+    input.existingClientApprovalId &&
+    input.existingProductionAssetVersionId
+  ) {
+    // Preserve the frozen linkage. The database trigger will reject it if it
+    // became stale instead of silently swapping a scheduled/published asset.
+    return {};
+  }
+
+  const readiness = await resolveCalendarV2Readiness(input.projectId);
+  if (!readiness.isV2) return {};
+
+  if (
+    !readiness.canBindApprovedAsset ||
+    !readiness.clientApprovalId ||
+    !readiness.productionAssetVersionId
+  ) {
+    throw new Error(readiness.message);
+  }
+
+  return {
+    client_approval_id: readiness.clientApprovalId,
+    production_asset_version_id: readiness.productionAssetVersionId,
+    approval_status: readiness.calendarApprovalStatus,
+  };
 }
 
 const REL_SELECT = `
@@ -100,15 +147,29 @@ export interface UpsertScheduleInput {
   assigned_to?: string | null;
   outputs?: string[];
   checklist?: Record<string, boolean>;
+  client_approval_id?: string | null;
+  production_asset_version_id?: string | null;
+  /** Bind the exact client-approved V2 Production Asset even for planning statuses. */
+  bindApprovedV2Asset?: boolean;
 }
 
 export async function upsertScheduleItem(input: UpsertScheduleInput): Promise<ScheduleItem> {
-  const { outputs, ...patch } = input;
+  const { outputs, bindApprovedV2Asset = false, ...patch } = input;
   // Project_id é obrigatório no schema atual — para publicações avulsas exigimos
   // que o chamador passe um projeto fantasma ou um real. Validamos aqui.
   if (!patch.project_id) {
     throw new Error("Publicações avulsas exigem um projeto vinculado. Crie o conteúdo primeiro.");
   }
+
+  const linkagePatch = await resolveV2ScheduleLinkagePatch({
+    projectId: patch.project_id,
+    scheduleStatus: patch.schedule_status,
+    force: bindApprovedV2Asset,
+    existingClientApprovalId: patch.client_approval_id,
+    existingProductionAssetVersionId: patch.production_asset_version_id,
+  });
+  Object.assign(patch, linkagePatch);
+
   let saved: ScheduleItem;
   if (patch.id) {
     const { id, ...updatePatch } = patch;
@@ -156,15 +217,23 @@ export async function rescheduleItem(
 ): Promise<ScheduleItem> {
   const oldDate = item.confirmed_date ?? item.suggested_date;
   const oldTime = item.confirmed_time ?? item.suggested_time;
+  const nextStatus =
+    item.schedule_status === "sem_data" || !item.schedule_status
+      ? "agendado"
+      : (item.schedule_status as ScheduleStatus);
+  const linkagePatch = await resolveV2ScheduleLinkagePatch({
+    projectId: item.project_id,
+    scheduleStatus: nextStatus,
+    existingClientApprovalId: item.client_approval_id,
+    existingProductionAssetVersionId: item.production_asset_version_id,
+  });
   const { data, error } = await supabase
     .from("publication_schedule_items")
     .update({
       confirmed_date: newDate,
       confirmed_time: newTime,
-      schedule_status:
-        item.schedule_status === "sem_data" || !item.schedule_status
-          ? "agendado"
-          : item.schedule_status,
+      schedule_status: nextStatus,
+      ...linkagePatch,
     })
     .eq("id", item.id)
     .select()
@@ -183,7 +252,16 @@ export async function rescheduleItem(
 }
 
 export async function changeStatus(item: ScheduleItem, status: ScheduleStatus, notes?: string) {
-  const update: Partial<ScheduleItem> = { schedule_status: status };
+  const linkagePatch = await resolveV2ScheduleLinkagePatch({
+    projectId: item.project_id,
+    scheduleStatus: status,
+    existingClientApprovalId: item.client_approval_id,
+    existingProductionAssetVersionId: item.production_asset_version_id,
+  });
+  const update: Partial<ScheduleItem> = {
+    schedule_status: status,
+    ...linkagePatch,
+  };
   if (status === "publicado") update.published_at = new Date().toISOString();
   if (status === "cancelado") update.cancelled_at = new Date().toISOString();
   const { data, error } = await supabase
@@ -208,6 +286,12 @@ export async function markPublished(
   item: ScheduleItem,
   payload: { publishedAt: string; url?: string | null; notes?: string | null },
 ) {
+  const linkagePatch = await resolveV2ScheduleLinkagePatch({
+    projectId: item.project_id,
+    scheduleStatus: "publicado",
+    existingClientApprovalId: item.client_approval_id,
+    existingProductionAssetVersionId: item.production_asset_version_id,
+  });
   const { data, error } = await supabase
     .from("publication_schedule_items")
     .update({
@@ -215,6 +299,7 @@ export async function markPublished(
       published_at: payload.publishedAt,
       publication_url: payload.url ?? null,
       publication_notes: payload.notes ?? null,
+      ...linkagePatch,
     })
     .eq("id", item.id)
     .select()
@@ -232,11 +317,18 @@ export async function markPublished(
 }
 
 export async function undoPublished(item: ScheduleItem) {
+  const linkagePatch = await resolveV2ScheduleLinkagePatch({
+    projectId: item.project_id,
+    scheduleStatus: "agendado",
+    existingClientApprovalId: item.client_approval_id,
+    existingProductionAssetVersionId: item.production_asset_version_id,
+  });
   const { data, error } = await supabase
     .from("publication_schedule_items")
     .update({
       schedule_status: "agendado",
       published_at: null,
+      ...linkagePatch,
     })
     .eq("id", item.id)
     .select()

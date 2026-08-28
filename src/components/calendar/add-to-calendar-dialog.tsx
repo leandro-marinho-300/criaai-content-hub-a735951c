@@ -13,6 +13,7 @@ import { derivePublicationUnits, type PublicationUnit } from "@/lib/publicationU
 import { upsertScheduleItem } from "@/lib/scheduleQueries";
 import { FORMAT_LABELS } from "@/lib/promptBuilder";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { resolveCalendarV2Readiness } from "@/lib/creation/operational-integration";
 
 interface Props {
   open: boolean;
@@ -30,6 +31,12 @@ interface UnitDraft extends PublicationUnit {
 export function AddToCalendarDialog({ open, onOpenChange, projectId }: Props) {
   const qc = useQueryClient();
   const [drafts, setDrafts] = useState<UnitDraft[]>([]);
+
+  const { data: v2Readiness, isLoading: readinessLoading } = useQuery({
+    queryKey: ["calendar-v2-readiness", projectId],
+    queryFn: () => resolveCalendarV2Readiness(projectId),
+    enabled: open && !!projectId,
+  });
 
   const { data: detail } = useQuery({
     queryKey: ["add-cal-project", projectId],
@@ -71,6 +78,7 @@ export function AddToCalendarDialog({ open, onOpenChange, projectId }: Props) {
           schedule_status: d.date ? "agendado" : "sem_data",
           approval_status: "nao_enviado",
           outputs: d.outputIds,
+          bindApprovedV2Asset: true,
         });
       }
     },
@@ -93,6 +101,17 @@ export function AddToCalendarDialog({ open, onOpenChange, projectId }: Props) {
             Cada formato vira uma unidade de publicação. Carrossel/sequência viram um único item.
           </DialogDescription>
         </DialogHeader>
+        {v2Readiness?.isV2 && (
+          <div
+            className={`rounded-md border p-3 text-sm ${
+              v2Readiness.canBindApprovedAsset
+                ? "border-border/60 bg-muted/30 text-muted-foreground"
+                : "border-destructive/30 bg-destructive/5 text-destructive"
+            }`}
+          >
+            {v2Readiness.message}
+          </div>
+        )}
         <div className="space-y-3 max-h-[60vh] overflow-y-auto">
           {drafts.map((d, i) => (
             <div key={d.unitKey} className="rounded-lg border border-border/60 p-3 space-y-2">
@@ -133,7 +152,15 @@ export function AddToCalendarDialog({ open, onOpenChange, projectId }: Props) {
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={() => mut.mutate()} disabled={mut.isPending || !drafts.some((d) => d.selected)}>
+          <Button
+            onClick={() => mut.mutate()}
+            disabled={
+              mut.isPending ||
+              readinessLoading ||
+              !drafts.some((d) => d.selected) ||
+              (!!v2Readiness?.isV2 && !v2Readiness.canBindApprovedAsset)
+            }
+          >
             Adicionar selecionados
           </Button>
         </DialogFooter>
