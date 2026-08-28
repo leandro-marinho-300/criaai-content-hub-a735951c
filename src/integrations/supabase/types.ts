@@ -930,6 +930,183 @@ export type Database = {
           },
         ]
       }
+      creation_production_asset_versions: {
+        Row: {
+          based_on_version_id: string | null
+          created_at: string
+          design_version_id: string
+          id: string
+          piece_asset_id: string
+          project_id: string
+          provenance: Json
+          schema_version: string
+          version_number: number
+        }
+        Insert: {
+          based_on_version_id?: string | null
+          created_at?: string
+          design_version_id: string
+          id?: string
+          piece_asset_id: string
+          project_id: string
+          provenance?: Json
+          schema_version?: string
+          version_number: number
+        }
+        Update: {
+          based_on_version_id?: string | null
+          created_at?: string
+          design_version_id?: string
+          id?: string
+          piece_asset_id?: string
+          project_id?: string
+          provenance?: Json
+          schema_version?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creation_production_asset_versions_design_project_fkey"
+            columns: ["project_id", "design_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_design_versions"
+            referencedColumns: ["project_id", "id"]
+          },
+          {
+            foreignKeyName: "creation_production_asset_versions_lineage_project_fkey"
+            columns: ["project_id", "based_on_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_production_asset_versions"
+            referencedColumns: ["project_id", "id"]
+          },
+          {
+            foreignKeyName: "creation_production_asset_versions_piece_asset_id_fkey"
+            columns: ["piece_asset_id"]
+            isOneToOne: true
+            referencedRelation: "content_piece_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creation_production_asset_versions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "creation_core"
+            referencedColumns: ["project_id"]
+          },
+        ]
+      }
+      creation_production_qa_reviews: {
+        Row: {
+          brand_status: string
+          created_at: string
+          factual_status: string
+          findings: Json
+          id: string
+          overall_status: string
+          production_asset_version_id: string
+          project_id: string
+          provenance: Json
+          review_number: number
+          schema_version: string
+          strategic_status: string
+          visual_technical_status: string
+        }
+        Insert: {
+          brand_status: string
+          created_at?: string
+          factual_status: string
+          findings?: Json
+          id?: string
+          overall_status: string
+          production_asset_version_id: string
+          project_id: string
+          provenance?: Json
+          review_number: number
+          schema_version?: string
+          strategic_status: string
+          visual_technical_status: string
+        }
+        Update: {
+          brand_status?: string
+          created_at?: string
+          factual_status?: string
+          findings?: Json
+          id?: string
+          overall_status?: string
+          production_asset_version_id?: string
+          project_id?: string
+          provenance?: Json
+          review_number?: number
+          schema_version?: string
+          strategic_status?: string
+          visual_technical_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creation_production_qa_reviews_asset_project_fkey"
+            columns: ["project_id", "production_asset_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_production_asset_versions"
+            referencedColumns: ["project_id", "id"]
+          },
+          {
+            foreignKeyName: "creation_production_qa_reviews_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "creation_core"
+            referencedColumns: ["project_id"]
+          },
+        ]
+      }
+      creation_production_state: {
+        Row: {
+          created_at: string
+          current_asset_version_id: string | null
+          latest_qa_review_id: string | null
+          project_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_asset_version_id?: string | null
+          latest_qa_review_id?: string | null
+          project_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_asset_version_id?: string | null
+          latest_qa_review_id?: string | null
+          project_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creation_production_state_asset_project_fkey"
+            columns: ["project_id", "current_asset_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_production_asset_versions"
+            referencedColumns: ["project_id", "id"]
+          },
+          {
+            foreignKeyName: "creation_production_state_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "creation_core"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "creation_production_state_qa_project_fkey"
+            columns: ["project_id", "latest_qa_review_id"]
+            isOneToOne: false
+            referencedRelation: "creation_production_qa_reviews"
+            referencedColumns: ["project_id", "id"]
+          },
+        ]
+      }
       creation_strategy_state: {
         Row: {
           created_at: string
@@ -1622,6 +1799,15 @@ export type Database = {
       }
     }
     Functions: {
+      creation_qa_overall_status: {
+        Args: {
+          p_brand: string
+          p_factual: string
+          p_strategic: string
+          p_visual_technical: string
+        }
+        Returns: string
+      }
       approve_creation_copy: {
         Args: {
           p_copy_version_id: string
