@@ -126,19 +126,77 @@ export const Route = createFileRoute("/api/public/approval/$token")({
               .eq("id", approval.brand_id)
               .single()
           : { data: null };
-        const { data: outputs } = await supabaseAdmin
+
+        let canonicalPieceAssetId: string | null = null;
+        let canonicalOutputId: string | null = null;
+        let canonicalQaStatus: string | null = null;
+
+        if (
+          approval.production_asset_version_id &&
+          approval.production_qa_review_id
+        ) {
+          const [productionResult, qaResult] = await Promise.all([
+            supabaseAdmin
+              .from("creation_production_asset_versions")
+              .select("id, piece_asset_id")
+              .eq("project_id", approval.project_id)
+              .eq("id", approval.production_asset_version_id)
+              .maybeSingle(),
+            supabaseAdmin
+              .from("creation_production_qa_reviews")
+              .select("id, production_asset_version_id, overall_status")
+              .eq("project_id", approval.project_id)
+              .eq("id", approval.production_qa_review_id)
+              .maybeSingle(),
+          ]);
+
+          const productionAsset = productionResult.data;
+          const qaReview = qaResult.data;
+          if (
+            !productionAsset ||
+            !qaReview ||
+            qaReview.production_asset_version_id !== productionAsset.id ||
+            !["PASS", "WARN"].includes(qaReview.overall_status)
+          ) {
+            return json({ state: "invalid_v2_approval_link" }, 410);
+          }
+
+          const { data: canonicalAsset } = await supabaseAdmin
+            .from("content_piece_assets")
+            .select("id, output_id")
+            .eq("project_id", approval.project_id)
+            .eq("id", productionAsset.piece_asset_id)
+            .maybeSingle();
+
+          if (!canonicalAsset) {
+            return json({ state: "invalid_v2_approval_asset" }, 410);
+          }
+
+          canonicalPieceAssetId = canonicalAsset.id;
+          canonicalOutputId = canonicalAsset.output_id;
+          canonicalQaStatus = qaReview.overall_status;
+        }
+
+        let outputsQuery = supabaseAdmin
           .from("content_outputs")
           .select("id, output_type, title, edited_content, original_content, display_order")
-          .eq("project_id", approval.project_id)
-          .eq("output_type", "piece")
-          .order("display_order");
-        const { data: assets } = await supabaseAdmin
+          .eq("project_id", approval.project_id);
+        outputsQuery = canonicalOutputId
+          ? outputsQuery.eq("id", canonicalOutputId)
+          : outputsQuery.eq("output_type", "piece");
+        const { data: outputs } = await outputsQuery.order("display_order");
+
+        let assetsQuery = supabaseAdmin
           .from("content_piece_assets")
           .select(
             "id, output_id, storage_path, file_name, file_type, image_width, image_height, display_order, include_in_client_pdf, is_approved, created_at",
           )
-          .eq("project_id", approval.project_id)
-          .order("display_order");
+          .eq("project_id", approval.project_id);
+        if (canonicalPieceAssetId) {
+          assetsQuery = assetsQuery.eq("id", canonicalPieceAssetId);
+        }
+        const { data: assets } = await assetsQuery.order("display_order");
+
         const { data: items } = await supabaseAdmin
           .from("client_approval_items")
           .select("output_id, decision, comment")
@@ -171,11 +229,13 @@ export const Route = createFileRoute("/api/public/approval/$token")({
             // aparecer no portal para o cliente conferir se o storyboard corresponde
             // ao pedido aprovado. O mesmo vale para o vídeo final: só a versão mais
             // recente deve ir ao cliente.
-            const pieceAssets = [
-              ...regularClientAssets,
-              ...(latestScriptVisual ? [latestScriptVisual] : []),
-              ...(latestFinalVideo ? [latestFinalVideo] : []),
-            ];
+            const pieceAssets = canonicalPieceAssetId
+              ? outputAssets.filter((a) => a.id === canonicalPieceAssetId)
+              : [
+                  ...regularClientAssets,
+                  ...(latestScriptVisual ? [latestScriptVisual] : []),
+                  ...(latestFinalVideo ? [latestFinalVideo] : []),
+                ];
             const signed = await Promise.all(
               pieceAssets.map(async (a) => {
                 const { data: sig } = await supabaseAdmin.storage
@@ -230,6 +290,13 @@ export const Route = createFileRoute("/api/public/approval/$token")({
           brand: brand ? { name: brand.name, logoUrl: brand.logo_url } : null,
           project: { title: project?.display_title || project?.internal_title || "Campanha" },
           reel2: reel2Summary,
+          production: canonicalPieceAssetId
+            ? {
+                assetVersionId: approval.production_asset_version_id,
+                qaReviewId: approval.production_qa_review_id,
+                qaStatus: canonicalQaStatus,
+              }
+            : null,
           pieces: piecesPayload,
         });
       },
@@ -287,6 +354,33 @@ export const Route = createFileRoute("/api/public/approval/$token")({
           return json({ error: "comment_required" }, 400);
         }
 
+        let canonicalApprovalOutputId: string | null = null;
+        if (approval.production_asset_version_id) {
+          const { data: productionAsset } = await supabaseAdmin
+            .from("creation_production_asset_versions")
+            .select("piece_asset_id")
+            .eq("project_id", approval.project_id)
+            .eq("id", approval.production_asset_version_id)
+            .maybeSingle();
+
+          if (!productionAsset) {
+            return json({ error: "invalid_v2_approval_asset" }, 409);
+          }
+
+          const { data: pieceAsset } = await supabaseAdmin
+            .from("content_piece_assets")
+            .select("output_id")
+            .eq("project_id", approval.project_id)
+            .eq("id", productionAsset.piece_asset_id)
+            .maybeSingle();
+
+          if (!pieceAsset) {
+            return json({ error: "invalid_v2_approval_asset" }, 409);
+          }
+
+          canonicalApprovalOutputId = pieceAsset.output_id;
+        }
+
         const now = new Date().toISOString();
         const statusMap: Record<string, string> = {
           approved: "aprovado",
@@ -312,7 +406,12 @@ export const Route = createFileRoute("/api/public/approval/$token")({
         if (approval.allow_piece_approval && Array.isArray(body.pieces)) {
           await supabaseAdmin.from("client_approval_items").delete().eq("approval_id", approval.id);
           const rows = body.pieces
-            .filter((p) => p.outputId)
+            .filter(
+              (p) =>
+                p.outputId &&
+                (!canonicalApprovalOutputId ||
+                  p.outputId === canonicalApprovalOutputId),
+            )
             .map((p) => {
               const normalizedDecision =
                 body.decision === "approved"

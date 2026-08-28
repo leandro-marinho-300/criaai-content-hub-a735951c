@@ -302,6 +302,9 @@ export type Database = {
           locked_until: string | null
           password_hash: string | null
           project_id: string
+          production_asset_version_id: string | null
+          production_qa_review_id: string | null
+          qa_warn_acknowledged_at: string | null
           requested_date: string | null
           requested_time: string | null
           revoked_at: string | null
@@ -339,6 +342,9 @@ export type Database = {
           locked_until?: string | null
           password_hash?: string | null
           project_id: string
+          production_asset_version_id?: string | null
+          production_qa_review_id?: string | null
+          qa_warn_acknowledged_at?: string | null
           requested_date?: string | null
           requested_time?: string | null
           revoked_at?: string | null
@@ -376,6 +382,9 @@ export type Database = {
           locked_until?: string | null
           password_hash?: string | null
           project_id?: string
+          production_asset_version_id?: string | null
+          production_qa_review_id?: string | null
+          qa_warn_acknowledged_at?: string | null
           requested_date?: string | null
           requested_time?: string | null
           revoked_at?: string | null
@@ -389,6 +398,20 @@ export type Database = {
           view_count?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "client_approvals_production_asset_project_fkey"
+            columns: ["project_id", "production_asset_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_production_asset_versions"
+            referencedColumns: ["project_id", "id"]
+          },
+          {
+            foreignKeyName: "client_approvals_production_qa_project_fkey"
+            columns: ["project_id", "production_qa_review_id"]
+            isOneToOne: false
+            referencedRelation: "creation_production_qa_reviews"
+            referencedColumns: ["project_id", "id"]
+          },
           {
             foreignKeyName: "client_approvals_project_id_fkey"
             columns: ["project_id"]

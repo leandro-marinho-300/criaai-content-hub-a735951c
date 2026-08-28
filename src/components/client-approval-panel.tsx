@@ -28,6 +28,9 @@ type ApprovalRow = {
   schedule_decision: string | null;
   requested_date: string | null;
   requested_time: string | null;
+  production_asset_version_id: string | null;
+  production_qa_review_id: string | null;
+  qa_warn_acknowledged_at: string | null;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -82,6 +85,21 @@ export function ClientApprovalPanel({ projectId, onOpenSendDialog, onOpenAddToCa
   });
 
   const latest = approvals?.[0];
+
+  const { data: linkedQa } = useQuery({
+    queryKey: ["approval-v2-qa", latest?.production_qa_review_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("creation_production_qa_reviews")
+        .select("id, overall_status, review_number")
+        .eq("id", latest!.production_qa_review_id!)
+        .eq("project_id", projectId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!latest?.production_qa_review_id,
+  });
 
   const { data: items } = useQuery({
     queryKey: ["approval-items", latest?.id],
@@ -215,6 +233,22 @@ export function ClientApprovalPanel({ projectId, onOpenSendDialog, onOpenAddToCa
                 label="Resposta em"
                 value={latest.submitted_at ? formatDateTime(latest.submitted_at) : "—"}
               />
+              {latest.production_asset_version_id && (
+                <Info
+                  label="Asset V2 enviado"
+                  value={
+                    linkedQa
+                      ? `QA ${linkedQa.overall_status} · revisão ${linkedQa.review_number}`
+                      : "Vinculado à produção canônica"
+                  }
+                />
+              )}
+              {latest.qa_warn_acknowledged_at && (
+                <Info
+                  label="QA WARN confirmado em"
+                  value={formatDateTime(latest.qa_warn_acknowledged_at)}
+                />
+              )}
               {latest.requested_date && (
                 <Info
                   label="Data sugerida pelo cliente"

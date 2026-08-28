@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Copy, ExternalLink, Send, ShieldAlert, Lock, Clock } from "lucide-react";
+import { CheckCircle2, Copy, ExternalLink, Send, ShieldAlert, Lock, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,6 +18,16 @@ import {
   hashApprovalPassword,
   approvalUrl,
 } from "@/lib/approvalToken";
+import {
+  buildClientApprovalV2Linkage,
+  deriveClientApprovalReadiness,
+  type ClientApprovalReadiness,
+} from "@/lib/creation/client-approval";
+import {
+  toProductionAssetVersion,
+  toProductionState,
+} from "@/lib/creation/production";
+import { toProductionQaReview } from "@/lib/creation/qa";
 
 interface Props {
   open: boolean;
@@ -52,6 +62,7 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
   const [expiresInDays, setExpiresInDays] = useState<string>("7");
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
+  const [warnAcknowledged, setWarnAcknowledged] = useState(false);
 
   const { data: existing } = useQuery({
     queryKey: ["approvals", projectId],
@@ -66,9 +77,113 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
     enabled: open,
   });
 
+  const {
+    data: v2Gate,
+    isLoading: v2GateLoading,
+    isError: v2GateError,
+  } = useQuery({
+    queryKey: ["v2-client-approval-readiness", projectId],
+    queryFn: async (): Promise<{
+      readiness: ClientApprovalReadiness;
+      warnFindings: string[];
+    }> => {
+      const { data: core, error: coreError } = await supabase
+        .from("creation_core")
+        .select("project_id")
+        .eq("project_id", projectId)
+        .maybeSingle();
+      if (coreError) throw coreError;
+
+      if (!core) {
+        return {
+          readiness: deriveClientApprovalReadiness({
+            isV2: false,
+            productionState: null,
+            asset: null,
+            qaReview: null,
+          }),
+          warnFindings: [],
+        };
+      }
+
+      const { data: stateRow, error: stateError } = await supabase
+        .from("creation_production_state")
+        .select("*")
+        .eq("project_id", projectId)
+        .maybeSingle();
+      if (stateError) throw stateError;
+
+      if (
+        !stateRow ||
+        !stateRow.current_asset_version_id ||
+        !stateRow.latest_qa_review_id
+      ) {
+        return {
+          readiness: deriveClientApprovalReadiness({
+            isV2: true,
+            productionState: stateRow ? toProductionState(stateRow) : null,
+            asset: null,
+            qaReview: null,
+          }),
+          warnFindings: [],
+        };
+      }
+
+      const [assetResult, qaResult] = await Promise.all([
+        supabase
+          .from("creation_production_asset_versions")
+          .select("*")
+          .eq("project_id", projectId)
+          .eq("id", stateRow.current_asset_version_id)
+          .maybeSingle(),
+        supabase
+          .from("creation_production_qa_reviews")
+          .select("*")
+          .eq("project_id", projectId)
+          .eq("id", stateRow.latest_qa_review_id)
+          .maybeSingle(),
+      ]);
+      if (assetResult.error) throw assetResult.error;
+      if (qaResult.error) throw qaResult.error;
+
+      const asset = assetResult.data
+        ? toProductionAssetVersion(assetResult.data)
+        : null;
+      const qaReview = qaResult.data
+        ? toProductionQaReview(qaResult.data)
+        : null;
+
+      return {
+        readiness: deriveClientApprovalReadiness({
+          isV2: true,
+          productionState: toProductionState(stateRow),
+          asset,
+          qaReview,
+        }),
+        warnFindings:
+          qaReview?.findings
+            .filter((finding) => finding.status === "WARN")
+            .map((finding) => finding.message) ?? [],
+      };
+    },
+    enabled: open,
+  });
+
   const create = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Sessão expirada.");
+      if (!v2Gate) {
+        throw new Error("Não foi possível validar a elegibilidade para aprovação.");
+      }
+      if (!v2Gate.readiness.canSend) {
+        throw new Error(v2Gate.readiness.message);
+      }
+      if (
+        v2Gate.readiness.requiresWarnAcknowledgement &&
+        !warnAcknowledged
+      ) {
+        throw new Error("Confirme os avisos de QA antes de gerar o link.");
+      }
       if (requirePassword && password.trim().length < 4) {
         throw new Error("Senha deve ter ao menos 4 caracteres.");
       }
@@ -80,6 +195,12 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
         expiresInDays !== "never"
           ? new Date(Date.now() + Number(expiresInDays) * 86_400_000).toISOString()
           : null;
+      const v2Linkage = buildClientApprovalV2Linkage(
+        v2Gate.readiness,
+        v2Gate.readiness.kind === "warn" && warnAcknowledged
+          ? new Date().toISOString()
+          : null,
+      );
 
       const { error } = await supabase.from("client_approvals").insert({
         user_id: user.id,
@@ -95,6 +216,7 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
         password_hash: passwordHash,
         expires_at: expiresAt,
         status: "enviado_para_aprovacao",
+        ...v2Linkage,
       });
       if (error) throw error;
       return { url: approvalUrl(token), password: requirePassword ? password.trim() : null };
@@ -140,6 +262,7 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
     setCreatedPassword(null);
     setPassword("");
     setRequirePassword(false);
+    setWarnAcknowledged(false);
     onOpenChange(false);
   };
 
@@ -205,6 +328,70 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
               <Label htmlFor="ap-msg">Mensagem de apresentação</Label>
               <Textarea id="ap-msg" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={1000} />
             </div>
+
+            {v2GateLoading ? (
+              <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                Validando Asset e QA da Creation V2...
+              </div>
+            ) : v2GateError ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                <ShieldAlert className="mr-1.5 inline h-4 w-4 text-destructive" />
+                Não foi possível validar o QA da Creation V2. O envio foi bloqueado por segurança.
+              </div>
+            ) : v2Gate?.readiness.kind !== "legacy" ? (
+              <div
+                className={`rounded-md border p-3 ${
+                  v2Gate?.readiness.kind === "ready"
+                    ? "border-emerald-500/40 bg-emerald-500/5"
+                    : v2Gate?.readiness.kind === "warn"
+                      ? "border-amber-500/40 bg-amber-500/5"
+                      : "border-destructive/40 bg-destructive/5"
+                }`}
+              >
+                <p className="text-sm font-medium">
+                  {v2Gate?.readiness.kind === "ready" ? (
+                    <CheckCircle2 className="mr-1.5 inline h-4 w-4 text-emerald-600" />
+                  ) : (
+                    <ShieldAlert
+                      className={`mr-1.5 inline h-4 w-4 ${
+                        v2Gate?.readiness.kind === "warn"
+                          ? "text-amber-600"
+                          : "text-destructive"
+                      }`}
+                    />
+                  )}
+                  {v2Gate?.readiness.kind === "ready"
+                    ? "QA PASS — Asset V2 pronto"
+                    : v2Gate?.readiness.kind === "warn"
+                      ? "QA WARN — confirmação necessária"
+                      : "Envio V2 bloqueado"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {v2Gate?.readiness.message}
+                </p>
+                {v2Gate?.readiness.kind === "warn" && (
+                  <div className="mt-3 space-y-2">
+                    {v2Gate.warnFindings.length > 0 && (
+                      <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                        {v2Gate.warnFindings.slice(0, 3).map((finding, index) => (
+                          <li key={`${index}-${finding}`}>{finding}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="flex items-center justify-between gap-3 rounded border bg-background/60 p-2">
+                      <Label htmlFor="ap-qa-warn" className="text-xs font-normal">
+                        Revisei os avisos e quero enviar esta versão ao cliente.
+                      </Label>
+                      <Switch
+                        id="ap-qa-warn"
+                        checked={warnAcknowledged}
+                        onCheckedChange={setWarnAcknowledged}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             <div className="grid gap-3 rounded-md border p-3">
               <div className="flex items-center justify-between gap-3">
@@ -296,7 +483,17 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
 
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              <Button onClick={() => create.mutate()} disabled={create.isPending}>
+              <Button
+                onClick={() => create.mutate()}
+                disabled={
+                  create.isPending ||
+                  v2GateLoading ||
+                  v2GateError ||
+                  !v2Gate?.readiness.canSend ||
+                  ((v2Gate?.readiness.requiresWarnAcknowledgement ?? false) &&
+                    !warnAcknowledged)
+                }
+              >
                 <Send className="mr-2 h-4 w-4" />
                 {create.isPending ? "Gerando..." : "Gerar link de aprovação"}
               </Button>
