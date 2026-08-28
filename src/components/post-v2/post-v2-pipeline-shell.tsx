@@ -1,14 +1,14 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   Circle,
-  CircleDashed,
   Clock3,
+  ChevronDown,
+  Info,
   FileText,
-  Image as ImageIcon,
   Layers3,
   LockKeyhole,
   Palette,
@@ -16,13 +16,12 @@ import {
   ShieldCheck,
   Sparkles,
   Target,
-  UserRoundCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import type {
   PostV2PipelineAction,
@@ -43,25 +42,25 @@ const STEP_STATE_LABEL: Record<PostV2StepState, string> = {
 };
 
 const ACTION_LABEL: Record<PostV2PipelineAction, string> = {
-  bootstrap_creation: "Inicializar Creation V2",
-  complete_spec: "Completar $Spec",
-  generate_strategy: "Gerar Strategy",
-  approve_strategy: "Aprovar Strategy",
-  generate_copy_core: "Gerar Copy Core",
-  approve_copy_core: "Aprovar Copy Core",
-  generate_post_copy: "Gerar adaptação de Post",
-  approve_post_copy: "Aprovar Copy de Post",
-  generate_design: "Gerar Design Spec",
-  approve_design: "Aprovar Design Spec",
-  produce_asset_from_render_prompt: "Produzir asset",
-  run_qa: "Executar QA",
-  fix_qa_block: "Corrigir bloqueios do QA",
-  send_client_approval: "Enviar para aprovação",
-  wait_client_approval: "Aguardar cliente",
-  revise_after_client_feedback: "Revisar após feedback",
-  ready_for_operations: "Seguir para operação",
-  wrong_format: "Corrigir formato",
-  resolve_inconsistent_state: "Resolver inconsistência",
+  bootstrap_creation: "Preparar criação",
+  complete_spec: "Definir direção",
+  generate_strategy: "Criar estratégia",
+  approve_strategy: "Revisar estratégia",
+  generate_copy_core: "Criar mensagem central",
+  approve_copy_core: "Aprovar mensagem",
+  generate_post_copy: "Escrever o Post",
+  approve_post_copy: "Aprovar texto",
+  generate_design: "Definir direção visual",
+  approve_design: "Aprovar direção visual",
+  produce_asset_from_render_prompt: "Produzir peça",
+  run_qa: "Revisar peça",
+  fix_qa_block: "Corrigir peça",
+  send_client_approval: "Enviar ao cliente",
+  wait_client_approval: "Aguardando cliente",
+  revise_after_client_feedback: "Revisar feedback do cliente",
+  ready_for_operations: "Publicar ou agendar",
+  wrong_format: "Revisar formato",
+  resolve_inconsistent_state: "Revisar estado da criação",
 };
 
 const SPEC_LABEL: Record<SpecDecisionKey, string> = {
@@ -69,6 +68,21 @@ const SPEC_LABEL: Record<SpecDecisionKey, string> = {
   approach: "Abordagem",
   format: "Formato",
   concept: "Conceito",
+};
+
+const OBJECTIVE_DISPLAY: Record<string, string> = {
+  engage: "Engajar",
+  convert: "Converter",
+  inform_position: "Informar & posicionar",
+};
+
+const APPROACH_DISPLAY: Record<string, string> = {
+  viral: "Viral",
+  educational: "Educativo",
+  community: "Comunidade",
+  offer: "Oferta",
+  storytelling: "Storytelling",
+  social_proof: "Prova social",
 };
 
 const TIMELINE: Array<{
@@ -86,6 +100,39 @@ const TIMELINE: Array<{
   { key: "clientApproval", label: "Cliente" },
   { key: "operations", label: "Operação" },
 ];
+
+const EXPERIENCE_PHASES: Array<{
+  label: string;
+  keys: Array<keyof PostV2PipelineSnapshot["steps"]>;
+}> = [
+  { label: "Direção", keys: ["spec", "strategy"] },
+  { label: "Conteúdo", keys: ["copyCore", "postCopy"] },
+  { label: "Visual", keys: ["design", "renderPrompt", "production"] },
+  { label: "Revisão", keys: ["qa", "clientApproval"] },
+  { label: "Publicação", keys: ["operations"] },
+];
+
+const ACTION_DESCRIPTION: Record<PostV2PipelineAction, string> = {
+  bootstrap_creation: "Prepare a estrutura desta criação para começar.",
+  complete_spec: "Falta uma decisão para fechar a direção do conteúdo.",
+  generate_strategy: "Organize a estratégia que vai orientar todo o conteúdo.",
+  approve_strategy: "Confira a estratégia antes de seguir para o texto.",
+  generate_copy_core: "Transforme a estratégia na mensagem central da peça.",
+  approve_copy_core: "Revise a mensagem central antes da adaptação para Post.",
+  generate_post_copy: "Prepare headline, apoio, legenda e CTA do Post.",
+  approve_post_copy: "Confira o texto final que seguirá para a direção visual.",
+  generate_design: "Defina a direção visual da peça sem produzir a arte ainda.",
+  approve_design: "Revise a direção visual antes de congelá-la para produção.",
+  produce_asset_from_render_prompt: "Use o Render Prompt aprovado para produzir e registrar a peça final.",
+  run_qa: "Revise a peça final antes de enviá-la ao cliente.",
+  fix_qa_block: "Corrija a peça conforme os bloqueios encontrados no QA.",
+  send_client_approval: "Envie a versão revisada para decisão do cliente.",
+  wait_client_approval: "O link já foi enviado. Aguardamos a decisão do cliente.",
+  revise_after_client_feedback: "O cliente pediu revisão. O avanço fica bloqueado até a correção.",
+  ready_for_operations: "A versão aprovada está pronta para Biblioteca e Calendário.",
+  wrong_format: "Esta Creation precisa ser corrigida antes de continuar no Post V2.",
+  resolve_inconsistent_state: "Há uma inconsistência de estado que precisa ser resolvida antes de continuar.",
+};
 
 function StepIcon({ state }: { state: PostV2StepState }) {
   if (state === "complete") return <CheckCircle2 className="h-4 w-4" />;
@@ -158,36 +205,6 @@ function StageCard({
   );
 }
 
-function EmptyStage({
-  title,
-  icon,
-}: {
-  title: string;
-  icon: ReactNode;
-}) {
-  return (
-    <Card className="border-border/60 bg-muted/10">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <span className="text-muted-foreground">{icon}</span>
-            {title}
-          </CardTitle>
-          <Badge variant="outline">
-            <CircleDashed className="mr-1 h-3.5 w-3.5" />
-            Aguardando Creation
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">
-          Este painel será alimentado pelo orquestrador assim que uma Creation V2 for selecionada.
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
 function displayStepState(
   snapshot: PostV2PipelineSnapshot,
   key: keyof PostV2PipelineSnapshot["steps"],
@@ -212,6 +229,44 @@ function completedPercent(snapshot: PostV2PipelineSnapshot) {
   return Math.round((complete / TIMELINE.length) * 100);
 }
 
+function experiencePhaseState(
+  snapshot: PostV2PipelineSnapshot,
+  keys: Array<keyof PostV2PipelineSnapshot["steps"]>,
+): PostV2StepState {
+  const states = keys.map((key) => displayStepState(snapshot, key));
+  if (states.every((state) => state === "complete")) return "complete";
+  if (states.includes("blocked")) return "blocked";
+  if (states.includes("review_required")) return "review_required";
+  if (states.includes("in_progress")) return "in_progress";
+  if (states.includes("ready")) return "ready";
+  if (states.includes("complete")) return "in_progress";
+  return "not_started";
+}
+
+function postCopyPreview(loaded: LoadedPostV2Pipeline) {
+  const copy = loaded.copy.approvedVersion ?? loaded.copy.currentVersion;
+  const extension =
+    copy?.formatExtension &&
+    typeof copy.formatExtension === "object" &&
+    !Array.isArray(copy.formatExtension)
+      ? (copy.formatExtension as Record<string, unknown>)
+      : null;
+
+  const text = (key: string) => {
+    const candidate = extension?.[key];
+    return typeof candidate === "string" && candidate.trim()
+      ? candidate.trim()
+      : null;
+  };
+
+  return {
+    headline: text("headline") ?? copy?.core.primaryMessage ?? null,
+    supportText: text("support_text"),
+    caption: text("caption"),
+    cta: text("cta") ?? copy?.core.cta?.wording ?? null,
+  };
+}
+
 function versionLabel(version: { versionNumber: number; approvalStatus: string } | null) {
   if (!version) return "Nenhuma versão";
   return `v${version.versionNumber} · ${version.approvalStatus}`;
@@ -225,6 +280,8 @@ export function PostV2PipelineShell({
   actionConsole: ReactNode;
 }) {
   const snapshot = loaded?.snapshot ?? null;
+  const [technicalOpen, setTechnicalOpen] = useState(false);
+  const preview = loaded ? postCopyPreview(loaded) : null;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -236,140 +293,200 @@ export function PostV2PipelineShell({
               Oficina Criativa
             </Link>
           </Button>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">Pipeline V2</Badge>
-            <Badge variant="outline">Paralelo</Badge>
-          </div>
+          <Badge variant="secondary">Post</Badge>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold sm:text-3xl">
-              {loaded?.project.display_title ||
-                loaded?.project.internal_title ||
-                "Post V2 Studio"}
-            </h1>
-            <p className="max-w-3xl text-sm text-muted-foreground">
-              Studio paralelo conectado ao pipeline canônico. $Spec, Strategy, Copy Core, Post Copy,
-              Design Spec, Production Asset, QA e aprovação do cliente permanecem canônicos; quando o cliente aprova,
-              a mesma versão é liberada para Biblioteca e Calendário sem criar uma cópia paralela.
-            </p>
-          </div>
-
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold sm:text-3xl">
+            {loaded?.project.display_title ||
+              loaded?.project.internal_title ||
+              "Criar Post"}
+          </h1>
+          <p className="max-w-3xl text-sm text-muted-foreground">
+            {loaded?.project.theme?.trim() ||
+              "Organize a ideia, aprove o conteúdo e leve a versão final até a publicação."}
+          </p>
           {loaded && (
-            <div className="rounded-xl border bg-card px-4 py-3 text-right">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Creation ID
-              </p>
-              <p className="max-w-[260px] truncate font-mono text-xs">{loaded.project.id}</p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {loaded.spec.decisions.objective?.value && (
+                <Badge variant="outline">
+                  Objetivo · {OBJECTIVE_DISPLAY[loaded.spec.decisions.objective.value] ?? loaded.spec.decisions.objective.value}
+                </Badge>
+              )}
+              {loaded.spec.decisions.approach?.value && (
+                <Badge variant="outline">
+                  Abordagem · {APPROACH_DISPLAY[loaded.spec.decisions.approach.value] ?? loaded.spec.decisions.approach.value}
+                </Badge>
+              )}
             </div>
           )}
         </div>
       </header>
 
       {!snapshot || !loaded ? (
-        <>
+        <div className="space-y-5">
           {actionConsole}
-
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <p className="font-semibold">Nenhuma Creation V2 selecionada</p>
-                <p className="text-sm text-muted-foreground">
-                  Inicie um Post V2 acima. O Post atual e o Reel2 seguem preservados em paralelo.
+          <Card className="border-dashed bg-muted/10">
+            <CardContent className="p-6">
+              <div className="mx-auto max-w-2xl text-center">
+                <Sparkles className="mx-auto h-6 w-6 text-primary" />
+                <h2 className="mt-3 text-lg font-semibold">Uma criação por vez, sem perder o contexto</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  O Post V2 conduz a criação pela próxima decisão necessária. Versões, bloqueios e histórico continuam registrados em segundo plano.
                 </p>
+                <Button asChild variant="link" className="mt-2">
+                  <Link to="/app/create/post">Continuar usando o Post atual</Link>
+                </Button>
               </div>
-              <Button asChild variant="outline">
-                <Link to="/app/create/post">Continuar usando o Post atual</Link>
-              </Button>
             </CardContent>
           </Card>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <EmptyStage title="$Spec" icon={<Target className="h-4 w-4" />} />
-            <EmptyStage title="Strategy" icon={<RouteIcon className="h-4 w-4" />} />
-            <EmptyStage title="Copy" icon={<FileText className="h-4 w-4" />} />
-            <EmptyStage title="Design" icon={<Palette className="h-4 w-4" />} />
-            <EmptyStage title="Production + QA" icon={<ImageIcon className="h-4 w-4" />} />
-            <EmptyStage title="Aprovação" icon={<UserRoundCheck className="h-4 w-4" />} />
-          </div>
-        </>
+        </div>
       ) : (
         <>
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Próxima ação canônica
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {ACTION_LABEL[snapshot.nextAction]}
-                  </p>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(300px,0.8fr)]">
+            <Card className={cn(
+              "overflow-hidden border",
+              snapshot.blockingReason ? "border-destructive/40" : "border-primary/20",
+            )}>
+              <CardContent className="space-y-5 p-5 sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Agora
+                    </p>
+                    <h2 className="text-xl font-semibold">{ACTION_LABEL[snapshot.nextAction]}</h2>
+                    <p className="max-w-2xl text-sm text-muted-foreground">
+                      {ACTION_DESCRIPTION[snapshot.nextAction]}
+                    </p>
+                  </div>
+                  <Badge variant={snapshot.blockingReason ? "destructive" : "secondary"}>
+                    {snapshot.blockingReason ? "Precisa de atenção" : `${completedPercent(snapshot)}% concluído`}
+                  </Badge>
                 </div>
-                <Badge
-                  variant={snapshot.blockingReason ? "destructive" : "secondary"}
-                  className="px-3 py-1"
-                >
-                  {snapshot.blockingReason ? "Bloqueado" : "Orquestrador"}
-                </Badge>
-              </div>
 
-              {snapshot.blockingReason && (
-                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
-                  {snapshot.blockingReason}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Progresso do pipeline</span>
-                  <span>{completedPercent(snapshot)}%</span>
-                </div>
-                <Progress value={completedPercent(snapshot)} />
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                {TIMELINE.map(({ key, label }) => {
-                  const state = displayStepState(snapshot, key);
-                  return (
-                    <div
-                      key={key}
-                      className={cn(
-                        "rounded-lg border px-3 py-2",
-                        stepTone(state),
-                      )}
-                    >
-                      <div className="flex items-center gap-2 text-xs font-medium">
-                        <StepIcon state={state} />
-                        <span>{label}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <Separator />
-
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">
-                  A próxima ação vem do orquestrador. Até a aprovação do cliente, nenhuma operação acionável do V2 é liberada;
-                  depois disso, Biblioteca e Calendário usam o vínculo exato entre Asset, QA e aprovação.
-                </p>
-                {snapshot.readyForOperations ? (
-                  <Button size="sm" disabled>
-                    Operação liberada abaixo
-                  </Button>
-                ) : (
-                  <Button size="sm" disabled>
-                    Siga a ação operacional abaixo
-                  </Button>
+                {snapshot.blockingReason && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                    {snapshot.blockingReason}
+                  </div>
                 )}
-              </div>
-            </CardContent>
-          </Card>
 
+                <Progress value={completedPercent(snapshot)} className="h-2" />
+
+                <div className="grid gap-2 sm:grid-cols-5">
+                  {EXPERIENCE_PHASES.map((phase) => {
+                    const state = experiencePhaseState(snapshot, phase.keys);
+                    return (
+                      <div
+                        key={phase.label}
+                        className={cn(
+                          "rounded-xl border px-3 py-2.5",
+                          stepTone(state),
+                        )}
+                      >
+                        <div className="flex items-center gap-2 text-xs font-medium">
+                          <StepIcon state={state} />
+                          <span>{phase.label}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Conteúdo em construção</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {preview?.headline ? (
+                  <>
+                    <div>
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Headline</p>
+                      <p className="mt-1 text-sm font-semibold leading-snug">{preview.headline}</p>
+                    </div>
+                    {preview.supportText && (
+                      <div>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Apoio</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{preview.supportText}</p>
+                      </div>
+                    )}
+                    {preview.caption && (
+                      <div>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Legenda</p>
+                        <p className="mt-1 line-clamp-4 text-sm text-muted-foreground">{preview.caption}</p>
+                      </div>
+                    )}
+                    {preview.cta && (
+                      <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
+                        <span className="text-muted-foreground">CTA · </span>{preview.cta}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="rounded-lg bg-muted/40 p-3">
+                    <p className="text-sm font-medium">{loaded.project.theme || "Conteúdo ainda em definição"}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      O resumo ganha forma conforme Strategy e Copy são aprovadas.
+                    </p>
+                  </div>
+                )}
+
+                {loaded.production.currentAsset && (
+                  <div className="rounded-lg border p-3">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Peça final</p>
+                    <p className="mt-1 truncate text-sm font-medium">
+                      {loaded.production.currentPieceAsset?.file_name ?? `Asset v${loaded.production.currentAsset.versionNumber}`}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      v{loaded.production.currentAsset.versionNumber}
+                      {loaded.production.latestQaReview ? ` · QA ${loaded.production.latestQaReview.overallStatus}` : ""}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <section className="space-y-2">
+            <div className="flex items-center gap-2 px-1">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold">Próximo passo</h2>
+            </div>
           {actionConsole}
+          </section>
+
+          <Collapsible open={technicalOpen} onOpenChange={setTechnicalOpen}>
+            <Card className="border-dashed bg-muted/5">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="h-auto w-full justify-between px-5 py-4 text-left">
+                  <span className="flex items-center gap-2">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                    <span>Detalhes técnicos e histórico</span>
+                  </span>
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", technicalOpen && "rotate-180")} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="space-y-5 border-t px-5 py-5">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                    {TIMELINE.map(({ key, label }) => {
+                      const state = displayStepState(snapshot, key);
+                      return (
+                        <div key={key} className={cn("rounded-lg border px-3 py-2", stepTone(state))}>
+                          <div className="flex items-center gap-2 text-xs font-medium">
+                            <StepIcon state={state} />
+                            <span>{label}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="rounded-lg border bg-background/70 p-3 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Creation ID:</span>{" "}
+                    <span className="font-mono">{loaded.project.id}</span>
+                  </div>
 
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <StageCard
@@ -670,6 +787,10 @@ export function PostV2PipelineShell({
               )}
             </StageCard>
           </div>
+                </div>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
         </>
       )}
     </div>
