@@ -79,6 +79,8 @@ export function ScheduleDrawer({ scheduleItemId, open, onOpenChange }: Props) {
         approval_status: current.approval_status as ApprovalStatus | null,
         client_notes: current.client_notes,
         internal_notes: current.internal_notes,
+        client_approval_id: current.client_approval_id,
+        production_asset_version_id: current.production_asset_version_id,
       });
     },
     onSuccess: () => {
@@ -119,6 +121,9 @@ export function ScheduleDrawer({ scheduleItemId, open, onOpenChange }: Props) {
   const status = (current?.schedule_status ?? "sem_data") as ScheduleStatus;
   const overdue = current ? computeIsOverdue(current as ScheduleItemWithRels) : false;
   const hasProject = !!(current?.project_id && current.content_projects);
+  const isV2Linked = Boolean(
+    current?.client_approval_id && current?.production_asset_version_id,
+  );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -168,6 +173,11 @@ export function ScheduleDrawer({ scheduleItemId, open, onOpenChange }: Props) {
               {current.channel && <Badge variant="outline">{CHANNEL_LABELS[current.channel as ChannelKind] ?? current.channel}</Badge>}
               {overdue && <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" />Atrasado</Badge>}
               {current.title_override && <Badge variant="outline" className="text-[10px]">Título personalizado</Badge>}
+              {isV2Linked && (
+                <Badge variant="outline" className="text-[10px]">
+                  V2 · Asset canônico congelado
+                </Badge>
+              )}
             </div>
 
             {editing ? (
@@ -208,8 +218,12 @@ export function ScheduleDrawer({ scheduleItemId, open, onOpenChange }: Props) {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Aprovação">
-                  <Select value={current.approval_status ?? ""} onValueChange={(v) => setDraft((p) => ({ ...p, approval_status: v }))}>
+                <Field label={isV2Linked ? "Aprovação do cliente" : "Aprovação"}>
+                  <Select
+                    value={current.approval_status ?? ""}
+                    onValueChange={(v) => setDraft((p) => ({ ...p, approval_status: v }))}
+                    disabled={isV2Linked}
+                  >
                     <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
                     <SelectContent>
                       {APPROVAL_STATUSES.map((s) => <SelectItem key={s} value={s}>{APPROVAL_LABELS[s]}</SelectItem>)}
@@ -255,6 +269,11 @@ export function ScheduleDrawer({ scheduleItemId, open, onOpenChange }: Props) {
                     <li key={o.id} className="truncate">• {o.content_outputs?.title ?? "Peça"}</li>
                   ))}
                 </ul>
+              ) : isV2Linked ? (
+                <div className="rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
+                  Production Asset V2 canônico vinculado à aprovação do cliente.
+                  O calendário usa o vínculo imutável do Asset, mesmo sem depender de um output legado.
+                </div>
               ) : (
                 <p className="text-xs text-muted-foreground">Nenhuma peça vinculada.</p>
               )}
@@ -268,9 +287,23 @@ export function ScheduleDrawer({ scheduleItemId, open, onOpenChange }: Props) {
                 <Button variant="outline" size="sm" onClick={() => setEditing((v) => !v)}>{editing ? "Cancelar edição" : "Editar"}</Button>
                 {hasProject ? (
                   <Button asChild variant="outline" size="sm">
-                    <Link to="/app/content/$projectId/result" params={{ projectId: current.project_id as string }} onClick={() => onOpenChange(false)}>
-                      <ExternalLink className="mr-1 h-3 w-3" />Abrir projeto
-                    </Link>
+                    {isV2Linked ? (
+                      <Link
+                        to="/app/create/post-v2"
+                        search={{ projectId: current.project_id as string }}
+                        onClick={() => onOpenChange(false)}
+                      >
+                        <ExternalLink className="mr-1 h-3 w-3" />Abrir Post V2
+                      </Link>
+                    ) : (
+                      <Link
+                        to="/app/content/$projectId/result"
+                        params={{ projectId: current.project_id as string }}
+                        onClick={() => onOpenChange(false)}
+                      >
+                        <ExternalLink className="mr-1 h-3 w-3" />Abrir projeto
+                      </Link>
+                    )}
                   </Button>
                 ) : null}
                 <Button variant="outline" size="sm" onClick={() => statusMut.mutate("aprovado")} disabled={status === "aprovado"}>Aprovar</Button>

@@ -81,6 +81,8 @@ export function ScheduleCard({ item, variant = "normal", colorBy = "status", onC
           {time && <p className="text-xs">Horário: {time}</p>}
           {item.publication_schedule_outputs?.length ? (
             <p className="text-xs text-muted-foreground">{item.publication_schedule_outputs.length} peça(s) vinculada(s)</p>
+          ) : item.production_asset_version_id ? (
+            <p className="text-xs text-muted-foreground">Production Asset V2 canônico vinculado</p>
           ) : null}
           {item.internal_notes && <p className="text-xs italic text-muted-foreground line-clamp-3">{item.internal_notes}</p>}
         </div>

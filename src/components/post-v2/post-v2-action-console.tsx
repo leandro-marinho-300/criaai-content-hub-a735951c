@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Clipboard, Eye, Loader2, MessageSquare, Play, RefreshCw, Save, Send, ShieldCheck, Sparkles, Upload } from "lucide-react";
+import { CalendarPlus, Check, Clipboard, Eye, LibraryBig, Loader2, MessageSquare, Play, RefreshCw, Save, Send, ShieldCheck, Sparkles, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -281,7 +282,7 @@ export function PostV2ActionConsole({ loaded, onChanged, onBootstrapped }: Props
   }
 
   if (action === "ready_for_operations") {
-    return <ClientApprovedCheckpointCard loaded={loaded} />;
+    return <ClientApprovedOperationsCard loaded={loaded} />;
   }
 
   return (
@@ -487,7 +488,7 @@ function ClientFeedbackCheckpointCard({ loaded }: { loaded: LoadedPostV2Pipeline
   );
 }
 
-function ClientApprovedCheckpointCard({ loaded }: { loaded: LoadedPostV2Pipeline }) {
+function ClientApprovedOperationsCard({ loaded }: { loaded: LoadedPostV2Pipeline }) {
   const approval = loaded.clientApproval;
   const asset = loaded.production.currentAsset;
   const qa = loaded.production.latestQaReview;
@@ -497,9 +498,9 @@ function ClientApprovedCheckpointCard({ loaded }: { loaded: LoadedPostV2Pipeline
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle>Cliente aprovou a versão canônica</CardTitle>
+            <CardTitle>Peça V2 pronta para operação</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              A aprovação congela exatamente o Production Asset e o QA enviados. Library e Calendar permanecem fora da operação desta entrega.
+              A Biblioteca mantém esta Creation como envelope operacional. O Calendário congela exatamente o Production Asset e a aprovação do cliente ao criar a publicação.
             </p>
           </div>
           <Badge variant="secondary">
@@ -524,7 +525,7 @@ function ClientApprovedCheckpointCard({ loaded }: { loaded: LoadedPostV2Pipeline
             </p>
           </div>
           <div className="rounded-lg border bg-background/70 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Resposta</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Resposta do cliente</p>
             <p className="mt-1 text-sm font-medium">
               {formatApprovalDate(approval?.submitted_at)}
             </p>
@@ -540,11 +541,32 @@ function ClientApprovedCheckpointCard({ loaded }: { loaded: LoadedPostV2Pipeline
 
         <Alert>
           <ShieldCheck className="h-4 w-4" />
-          <AlertTitle>Aprovação concluída · checkpoint desta entrega</AlertTitle>
+          <AlertTitle>Operação liberada pelo orquestrador</AlertTitle>
           <AlertDescription>
-            O orquestrador liberou a operação. O vínculo com Library/Calendar será ativado somente na próxima camada, sem alterar esta aprovação.
+            A Biblioteca não cria uma cópia paralela: ela usa o projeto existente e identifica a versão V2 aprovada. Ao agendar, o Calendário grava o vínculo com a mesma aprovação e o mesmo Production Asset canônico.
           </AlertDescription>
         </Alert>
+
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link
+              to="/app/library"
+              search={{ projectId: loaded.project.id }}
+            >
+              <LibraryBig className="mr-2 h-4 w-4" />
+              Abrir na Biblioteca
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link
+              to="/app/calendar"
+              search={{ projectId: loaded.project.id, create: true }}
+            >
+              <CalendarPlus className="mr-2 h-4 w-4" />
+              Agendar no Calendário
+            </Link>
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

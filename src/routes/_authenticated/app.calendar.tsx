@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, CalendarDays, Plus, ListTodo, Palette } from "lucide-react";
@@ -23,6 +23,16 @@ import {
 
 export const Route = createFileRoute("/_authenticated/app/calendar")({
   head: () => ({ meta: [{ title: "Calendário — Cria Aí" }] }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    projectId:
+      typeof search.projectId === "string" && search.projectId.trim()
+        ? search.projectId.trim()
+        : undefined,
+    create:
+      search.create === true ||
+      search.create === "1" ||
+      search.create === "true",
+  }),
   component: CalendarPage,
 });
 
@@ -44,6 +54,8 @@ function loadColorPref(): "status" | "brand" {
 
 function CalendarPage() {
   const qc = useQueryClient();
+  const routeSearch = Route.useSearch();
+  const consumedOperationEntry = useRef<string | null>(null);
   const [view, setView] = useState<ViewKey>(loadViewPref);
   const [colorBy, setColorBy] = useState<"status" | "brand">(loadColorPref);
   const [cursor, setCursor] = useState(() => new Date());
@@ -52,6 +64,15 @@ function CalendarPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [newInitial, setNewInitial] = useState<{ date?: string | null; projectId?: string | null }>({});
   const [resched, setResched] = useState<{ item: ScheduleItemWithRels; date: string } | null>(null);
+
+  useEffect(() => {
+    if (!routeSearch.create || !routeSearch.projectId) return;
+    const key = `${routeSearch.projectId}:create`;
+    if (consumedOperationEntry.current === key) return;
+    consumedOperationEntry.current = key;
+    setNewInitial({ projectId: routeSearch.projectId });
+    setNewOpen(true);
+  }, [routeSearch.create, routeSearch.projectId]);
 
   useEffect(() => { try { localStorage.setItem(VIEW_STORAGE_KEY, view); } catch {} }, [view]);
   useEffect(() => { try { localStorage.setItem(COLOR_STORAGE_KEY, colorBy); } catch {} }, [colorBy]);

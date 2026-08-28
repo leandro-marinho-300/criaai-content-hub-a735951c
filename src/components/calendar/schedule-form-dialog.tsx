@@ -80,6 +80,12 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
     !!v2Readiness?.isV2 &&
     requiresCanonicalV2Asset &&
     !v2Readiness.canBindApprovedAsset;
+  const bindApprovedV2Asset =
+    !!v2Readiness?.isV2 && !!v2Readiness.canBindApprovedAsset;
+  const effectiveApproval =
+    v2Readiness?.isV2
+      ? v2Readiness.calendarApprovalStatus ?? ""
+      : approval;
 
   useEffect(() => {
     if (units.length && !unitKey) {
@@ -115,9 +121,10 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
         confirmed_date: date || null,
         confirmed_time: time || null,
         schedule_status: status,
-        approval_status: approval || null,
+        approval_status: effectiveApproval || null,
         internal_notes: notes || null,
         outputs: unit?.outputIds ?? [],
+        bindApprovedV2Asset,
       });
     },
     onSuccess: () => {
@@ -228,8 +235,12 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Aprovação">
-              <Select value={approval} onValueChange={(v) => setApproval(v as ApprovalStatus)}>
+            <Field label={v2Readiness?.isV2 ? "Aprovação do cliente" : "Aprovação"}>
+              <Select
+                value={effectiveApproval}
+                onValueChange={(v) => setApproval(v as ApprovalStatus)}
+                disabled={!!v2Readiness?.isV2}
+              >
                 <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
                 <SelectContent>
                   {APPROVAL_STATUSES.map((s) => <SelectItem key={s} value={s}>{APPROVAL_LABELS[s]}</SelectItem>)}
@@ -248,9 +259,11 @@ export function ScheduleFormDialog({ open, onOpenChange, initialDate, initialPro
                 : "border-border/60 bg-muted/30 text-muted-foreground"
             }`}
           >
-            {requiresCanonicalV2Asset
-              ? v2Readiness.message
-              : "Planejamento V2 pode ser salvo sem congelar um asset. Ao mudar para Aprovado, Agendado ou Publicado, o calendário exigirá a versão canônica aprovada pelo cliente."}
+            {bindApprovedV2Asset
+              ? `${v2Readiness.message} Esta publicação ficará vinculada ao mesmo Production Asset aprovado, inclusive se for salva primeiro como planejamento.`
+              : requiresCanonicalV2Asset
+                ? v2Readiness.message
+                : "Planejamento V2 pode ser salvo antes da aprovação, mas não vira Aprovado, Agendado ou Publicado sem a versão canônica aprovada pelo cliente."}
           </div>
         )}
 

@@ -30,6 +30,10 @@ export const Route = createFileRoute("/_authenticated/app/library")({
   head: () => ({ meta: [{ title: "Biblioteca — Cria Aí" }] }),
   validateSearch: (s: Record<string, unknown>) => ({
     status: typeof s.status === "string" ? (s.status as string) : undefined,
+    projectId:
+      typeof s.projectId === "string" && s.projectId.trim()
+        ? s.projectId.trim()
+        : undefined,
   }),
   component: LibraryPage,
 });
@@ -72,6 +76,7 @@ function LibraryPage() {
   const [objective, setObjective] = useState<string>("all");
   const [format, setFormat] = useState<string>("all");
   const [renaming, setRenaming] = useState<LibProject | null>(null);
+  const focusedProjectId = search.projectId;
 
   const { data: brands } = useQuery({
     queryKey: ["brands-light"],
@@ -82,7 +87,7 @@ function LibraryPage() {
   });
 
   const { data: items, isLoading } = useQuery({
-    queryKey: ["library", { search: searchText, status, brandId, objective, format }],
+    queryKey: ["library", { search: searchText, status, brandId, objective, format, focusedProjectId }],
     queryFn: async () => {
       let awaitingIds: string[] | null = null;
       if (status === "awaiting_approval") {
@@ -98,8 +103,13 @@ function LibraryPage() {
         .from("content_projects")
         .select("id, internal_title, display_title, theme, main_message, status, objective, selected_formats, brand_id, is_favorite, updated_at, brands(name, logo_url)")
         .order("updated_at", { ascending: false });
-      if (awaitingIds) q = q.in("id", awaitingIds);
-      else if (status !== "all") q = q.eq("status", status);
+      if (focusedProjectId) {
+        q = q.eq("id", focusedProjectId);
+      } else if (awaitingIds) {
+        q = q.in("id", awaitingIds);
+      } else if (status !== "all") {
+        q = q.eq("status", status);
+      }
       if (brandId !== "all") q = q.eq("brand_id", brandId);
       if (objective !== "all") q = q.eq("objective", objective);
       if (format !== "all") q = q.contains("selected_formats", [format]);
@@ -185,6 +195,24 @@ function LibraryPage() {
         </CardContent>
       </Card>
 
+      {focusedProjectId && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <div>
+              <p className="text-sm font-medium">Creation V2 selecionada</p>
+              <p className="text-xs text-muted-foreground">
+                A Biblioteca usa o projeto como envelope operacional e mantém a versão canônica aprovada identificada no card.
+              </p>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/app/library" search={{ status: search.status }}>
+                Ver biblioteca completa
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Carregando...</p>
       ) : !items?.length ? (
@@ -199,25 +227,59 @@ function LibraryPage() {
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-xs text-muted-foreground">{p.brands?.name ?? "Sem marca"}</p>
-                      <Link
-                        to="/app/content/$projectId/result"
-                        params={{ projectId: p.id }}
-                        title={display}
-                        className="line-clamp-2 break-words font-semibold hover:underline"
-                      >
-                        {display}
-                      </Link>
+                      {p.v2?.isV2 ? (
+                        <Link
+                          to="/app/create/post-v2"
+                          search={{ projectId: p.id }}
+                          title={display}
+                          className="line-clamp-2 break-words font-semibold hover:underline"
+                        >
+                          {display}
+                        </Link>
+                      ) : (
+                        <Link
+                          to="/app/content/$projectId/result"
+                          params={{ projectId: p.id }}
+                          title={display}
+                          className="line-clamp-2 break-words font-semibold hover:underline"
+                        >
+                          {display}
+                        </Link>
+                      )}
                     </div>
-                    <ProjectMenu id={p.id} status={p.status} onStatus={(s) => updateStatus.mutate({ id: p.id, status: s })} onDelete={() => del.mutate(p.id)} onRename={() => setRenaming(p)} />
+                    <ProjectMenu
+                      id={p.id}
+                      status={p.status}
+                      isV2={Boolean(p.v2?.isV2)}
+                      onStatus={(s) => updateStatus.mutate({ id: p.id, status: s })}
+                      onDelete={() => del.mutate(p.id)}
+                      onRename={() => setRenaming(p)}
+                    />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                    <Badge variant="secondary">{statusLabel(p.status)}</Badge>
-                    {p.v2?.isV2 && <Badge variant="outline">V2</Badge>}
+                    <Badge variant="secondary">
+                      {p.v2?.isV2
+                        ? p.v2.operationalReady
+                          ? "Pronto para operação"
+                          : p.v2.approvedByClient
+                            ? "V2 requer revisão"
+                            : "Em pipeline V2"
+                        : statusLabel(p.status)}
+                    </Badge>
+                    {p.v2?.isV2 && (
+                      <Badge variant="outline">
+                        {p.v2.approvedByClient
+                          ? `V2 · Asset v${p.v2.productionAssetVersionNumber ?? "?"}`
+                          : "V2 · Em pipeline"}
+                      </Badge>
+                    )}
                     {p.v2?.approvedByClient && (
                       <Badge variant="outline">
-                        {p.v2.clientApprovalStatus === "aprovado_com_ajustes"
-                          ? "Cliente aprovou c/ ajustes"
-                          : "Cliente aprovou"}
+                        {p.v2.operationalReady
+                          ? p.v2.clientApprovalStatus === "aprovado_com_ajustes"
+                            ? "Cliente aprovou c/ ajustes"
+                            : "Cliente aprovou"
+                          : "Aprovação desatualizada"}
                       </Badge>
                     )}
                     {p.objective && <Badge variant="outline">{OBJECTIVE_LABELS[p.objective] ?? p.objective}</Badge>}
@@ -243,20 +305,63 @@ function LibraryPage() {
                 return (
                   <TableRow key={p.id}>
                     <TableCell className="max-w-[320px]">
-                      <Link to="/app/content/$projectId/result" params={{ projectId: p.id }} title={display} className="line-clamp-2 break-words font-medium hover:underline">
-                        {display}
-                      </Link>
+                      {p.v2?.isV2 ? (
+                        <Link
+                          to="/app/create/post-v2"
+                          search={{ projectId: p.id }}
+                          title={display}
+                          className="line-clamp-2 break-words font-medium hover:underline"
+                        >
+                          {display}
+                        </Link>
+                      ) : (
+                        <Link
+                          to="/app/content/$projectId/result"
+                          params={{ projectId: p.id }}
+                          title={display}
+                          className="line-clamp-2 break-words font-medium hover:underline"
+                        >
+                          {display}
+                        </Link>
+                      )}
                     </TableCell>
                     <TableCell>{p.brands?.name ?? "—"}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        <Badge variant="secondary">{statusLabel(p.status)}</Badge>
-                        {p.v2?.isV2 && <Badge variant="outline">V2</Badge>}
-                        {p.v2?.approvedByClient && <Badge variant="outline">Cliente aprovou</Badge>}
+                        <Badge variant="secondary">
+                          {p.v2?.isV2
+                            ? p.v2.operationalReady
+                              ? "Pronto para operação"
+                              : p.v2.approvedByClient
+                                ? "V2 requer revisão"
+                                : "Em pipeline V2"
+                            : statusLabel(p.status)}
+                        </Badge>
+                        {p.v2?.isV2 && (
+                          <Badge variant="outline">
+                            {p.v2.approvedByClient
+                              ? `V2 · Asset v${p.v2.productionAssetVersionNumber ?? "?"}`
+                              : "V2 · Em pipeline"}
+                          </Badge>
+                        )}
+                        {p.v2?.approvedByClient && (
+                          <Badge variant="outline">
+                            {p.v2.operationalReady ? "Cliente aprovou" : "Aprovação desatualizada"}
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>{OBJECTIVE_LABELS[p.objective ?? ""] ?? "—"}</TableCell>
-                    <TableCell><ProjectMenu id={p.id} status={p.status} onStatus={(s) => updateStatus.mutate({ id: p.id, status: s })} onDelete={() => del.mutate(p.id)} onRename={() => setRenaming(p)} /></TableCell>
+                    <TableCell>
+                      <ProjectMenu
+                        id={p.id}
+                        status={p.status}
+                        isV2={Boolean(p.v2?.isV2)}
+                        onStatus={(s) => updateStatus.mutate({ id: p.id, status: s })}
+                        onDelete={() => del.mutate(p.id)}
+                        onRename={() => setRenaming(p)}
+                      />
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -279,18 +384,67 @@ function statusLabel(s: string) {
   return ({ draft: "Rascunho", review: "Em revisão", approved: "Aprovado", published: "Publicado", archived: "Arquivado" } as Record<string, string>)[s] ?? s;
 }
 
-function ProjectMenu({ id, status, onStatus, onDelete, onRename }: { id: string; status: string; onStatus: (s: string) => void; onDelete: () => void; onRename: () => void }) {
+function ProjectMenu({
+  id,
+  status,
+  isV2,
+  onStatus,
+  onDelete,
+  onRename,
+}: {
+  id: string;
+  status: string;
+  isV2: boolean;
+  onStatus: (s: string) => void;
+  onDelete: () => void;
+  onRename: () => void;
+}) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-7 w-7">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild><Link to="/app/content/$projectId/result" params={{ projectId: id }}><Pencil className="mr-2 h-4 w-4" />Abrir</Link></DropdownMenuItem>
-        <DropdownMenuItem onClick={onRename}><Edit3 className="mr-2 h-4 w-4" />Renomear</DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          {isV2 ? (
+            <Link to="/app/create/post-v2" search={{ projectId: id }}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Abrir Post V2
+            </Link>
+          ) : (
+            <Link to="/app/content/$projectId/result" params={{ projectId: id }}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Abrir
+            </Link>
+          )}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onRename}>
+          <Edit3 className="mr-2 h-4 w-4" />
+          Renomear
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
-        {status !== "approved" && <DropdownMenuItem onClick={() => onStatus("approved")}>Marcar aprovado</DropdownMenuItem>}
-        {status !== "published" && <DropdownMenuItem onClick={() => onStatus("published")}>Marcar publicado</DropdownMenuItem>}
-        {status !== "archived" && <DropdownMenuItem onClick={() => onStatus("archived")}><Archive className="mr-2 h-4 w-4" />Arquivar</DropdownMenuItem>}
-        <DropdownMenuItem onClick={onDelete} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Excluir</DropdownMenuItem>
+        {!isV2 && status !== "approved" && (
+          <DropdownMenuItem onClick={() => onStatus("approved")}>
+            Marcar aprovado
+          </DropdownMenuItem>
+        )}
+        {!isV2 && status !== "published" && (
+          <DropdownMenuItem onClick={() => onStatus("published")}>
+            Marcar publicado
+          </DropdownMenuItem>
+        )}
+        {status !== "archived" && (
+          <DropdownMenuItem onClick={() => onStatus("archived")}>
+            <Archive className="mr-2 h-4 w-4" />
+            Arquivar
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={onDelete} className="text-destructive">
+          <Trash2 className="mr-2 h-4 w-4" />
+          Excluir
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

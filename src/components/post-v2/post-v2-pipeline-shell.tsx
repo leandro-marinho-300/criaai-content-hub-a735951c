@@ -250,9 +250,9 @@ export function PostV2PipelineShell({
                 "Post V2 Studio"}
             </h1>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              Studio paralelo conectado ao pipeline canônico. Nesta entrega, $Spec, Strategy,
-              Copy Core, Post Copy, Design Spec, Production Asset, QA e aprovação do cliente possuem ações operacionais;
-              Library e Calendar continuam em leitura.
+              Studio paralelo conectado ao pipeline canônico. $Spec, Strategy, Copy Core, Post Copy,
+              Design Spec, Production Asset, QA e aprovação do cliente permanecem canônicos; quando o cliente aprova,
+              a mesma versão é liberada para Biblioteca e Calendário sem criar uma cópia paralela.
             </p>
           </div>
 
@@ -353,12 +353,12 @@ export function PostV2PipelineShell({
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">
-                  A próxima ação vem do orquestrador. A interface opera até a decisão do cliente, preservando o vínculo exato entre Asset, QA e aprovação;
-                  Library e Calendar permanecem somente leitura nesta fase.
+                  A próxima ação vem do orquestrador. Até a aprovação do cliente, nenhuma operação acionável do V2 é liberada;
+                  depois disso, Biblioteca e Calendário usam o vínculo exato entre Asset, QA e aprovação.
                 </p>
                 {snapshot.readyForOperations ? (
                   <Button size="sm" disabled>
-                    Cliente aprovado · Operação é a próxima fase
+                    Operação liberada abaixo
                   </Button>
                 ) : (
                   <Button size="sm" disabled>
