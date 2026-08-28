@@ -350,6 +350,7 @@ async function loadProductionSection(
 ): Promise<{
   state: ProductionState | null;
   currentAsset: ProductionAssetVersion | null;
+  currentPieceAsset: Tables<"content_piece_assets"> | null;
   latestQaReview: ProductionQaReview | null;
 }> {
   const row = await maybeOne<Tables<"creation_production_state">>(
@@ -362,7 +363,12 @@ async function loadProductionSection(
   );
   const state = row ? toProductionState(row) : null;
   if (!state) {
-    return { state: null, currentAsset: null, latestQaReview: null };
+    return {
+      state: null,
+      currentAsset: null,
+      currentPieceAsset: null,
+      latestQaReview: null,
+    };
   }
 
   const [assetRow, qaRow] = await Promise.all([
@@ -390,9 +396,23 @@ async function loadProductionSection(
       : Promise.resolve(null),
   ]);
 
+  const currentAsset = assetRow ? toProductionAssetVersion(assetRow) : null;
+  const pieceAssetRow = currentAsset
+    ? await maybeOne<Tables<"content_piece_assets">>(
+        supabase
+          .from("content_piece_assets")
+          .select("*")
+          .eq("project_id", projectId)
+          .eq("id", currentAsset.pieceAssetId)
+          .maybeSingle(),
+        "Não foi possível carregar o arquivo do Production Asset",
+      )
+    : null;
+
   return {
     state,
-    currentAsset: assetRow ? toProductionAssetVersion(assetRow) : null,
+    currentAsset,
+    currentPieceAsset: pieceAssetRow,
     latestQaReview: qaRow ? toProductionQaReview(qaRow) : null,
   };
 }

@@ -234,8 +234,8 @@ export function PostV2PipelineShell({
             </h1>
             <p className="max-w-3xl text-sm text-muted-foreground">
               Studio paralelo conectado ao pipeline canônico. Nesta entrega, $Spec, Strategy,
-              Copy Core, Post Copy e Design Spec possuem ações operacionais; Render Prompt,
-              Asset, QA e aprovação do cliente continuam em leitura.
+              Copy Core, Post Copy, Design Spec e Production Asset possuem ações operacionais;
+              QA e aprovação do cliente continuam em leitura.
             </p>
           </div>
 
@@ -336,8 +336,8 @@ export function PostV2PipelineShell({
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">
-                  A próxima ação vem do orquestrador. A interface libera ações até Design Spec;
-                  Render, Asset, QA e aprovação do cliente permanecem somente leitura nesta fase.
+                  A próxima ação vem do orquestrador. A interface libera ações até o registro do Production Asset;
+                  QA, aprovação do cliente e operação permanecem somente leitura nesta fase.
                 </p>
                 {snapshot.readyForOperations ? (
                   <Button asChild size="sm">
@@ -470,7 +470,7 @@ export function PostV2PipelineShell({
 
               <div className="rounded-md border bg-background/70 p-2">
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Render Prompt · somente leitura
+                  Render Prompt canônico
                 </p>
                 <p className="mt-1 text-xs">
                   {STEP_STATE_LABEL[snapshot.steps.renderPrompt.state]}
@@ -487,13 +487,23 @@ export function PostV2PipelineShell({
                   : snapshot.steps.qa
               }
             >
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2 sm:grid-cols-3">
                 <div className="rounded-md border bg-background/70 p-2">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Asset
+                    Render Prompt
                   </p>
                   <p className="mt-1 text-xs">
-                    {STEP_STATE_LABEL[snapshot.steps.production.state]}
+                    {STEP_STATE_LABEL[snapshot.steps.renderPrompt.state]}
+                  </p>
+                </div>
+                <div className="rounded-md border bg-background/70 p-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Asset final
+                  </p>
+                  <p className="mt-1 text-xs">
+                    {loaded.production.currentAsset
+                      ? `v${loaded.production.currentAsset.versionNumber} · registrado`
+                      : "Não produzido"}
                   </p>
                 </div>
                 <div className="rounded-md border bg-background/70 p-2">
@@ -501,6 +511,35 @@ export function PostV2PipelineShell({
                   <p className="mt-1 text-xs">{STEP_STATE_LABEL[snapshot.steps.qa.state]}</p>
                 </div>
               </div>
+
+              {loaded.production.currentAsset && (
+                <div className="rounded-md border bg-background/70 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Production Asset atual
+                      </p>
+                      <p className="mt-1 text-xs font-medium">
+                        {loaded.production.currentPieceAsset?.file_name ??
+                          `Asset v${loaded.production.currentAsset.versionNumber}`}
+                      </p>
+                    </div>
+                    <Badge variant="outline">v{loaded.production.currentAsset.versionNumber}</Badge>
+                  </div>
+                  <div className="mt-2 grid gap-1 text-[11px] text-muted-foreground sm:grid-cols-2">
+                    <p>Origem: {loaded.production.currentAsset.provenance.source ?? "não informada"}</p>
+                    <p>Render: {loaded.production.currentAsset.provenance.renderPromptVersion ?? "não informado"}</p>
+                    {loaded.production.currentPieceAsset && (
+                      <>
+                        <p>Tipo: {loaded.production.currentPieceAsset.file_type}</p>
+                        <p>
+                          Tamanho: {(loaded.production.currentPieceAsset.file_size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </StageCard>
 
             <StageCard

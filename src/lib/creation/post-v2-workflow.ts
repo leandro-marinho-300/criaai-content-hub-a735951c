@@ -41,8 +41,20 @@ import {
 } from "@/lib/creation/visual-director";
 import { buildStrategyStateInsert, toBrandSnapshot, toStrategyVersion } from "@/lib/creation/strategy";
 import { buildCopyStateInsert, toCopyState, toCopyVersion } from "@/lib/creation/copy";
-import { buildDesignStateInsert } from "@/lib/creation/design";
-import { buildProductionStateInsert } from "@/lib/creation/production";
+import {
+  buildDesignStateInsert,
+  toDesignState,
+  toDesignVersion,
+} from "@/lib/creation/design";
+import {
+  buildProductionAssetRevisionInsert,
+  buildProductionAssetVersionInsert,
+  buildProductionProvenance,
+  buildProductionStateInsert,
+  toProductionAssetVersion,
+} from "@/lib/creation/production";
+import { buildRenderPromptPlan } from "@/lib/creation/render-prompt";
+import { deletePieceAsset, uploadPieceAsset } from "@/lib/pieceAssets";
 import { mergePostV2SpecIntoCampaignJson } from "@/lib/creation/post-v2-project";
 
 export type PostV2BrandOption = Pick<
@@ -418,5 +430,299 @@ export async function approveDesign(projectId: string, designVersionId: string) 
     buildDesignApprovalRpcArgs({ projectId, designVersionId }),
   );
   if (error) throw error;
+}
+
+async function nextProductionAssetVersionNumber(projectId: string) {
+  const { data, error } = await supabase
+    .from("creation_production_asset_versions")
+    .select("version_number")
+    .eq("project_id", projectId)
+    .order("version_number", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return (data?.[0]?.version_number ?? 0) + 1;
+}
+
+async function loadApprovedDesignContextForProduction(projectId: string) {
+  const { data: stateRow, error: stateError } = await supabase
+    .from("creation_design_state")
+    .select("*")
+    .eq("project_id", projectId)
+    .single();
+  if (stateError) throw stateError;
+
+  const state = toDesignState(stateRow);
+  if (!state.currentApprovedVersionId) {
+    throw new Error("Aprove o Design Spec antes de registrar o Asset final.");
+  }
+
+  const { data: designRow, error: designError } = await supabase
+    .from("creation_design_versions")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("id", state.currentApprovedVersionId)
+    .single();
+  if (designError) throw designError;
+
+  const design = toDesignVersion(designRow);
+  if (design.approvalStatus !== "approved") {
+    throw new Error("O Design atual precisa estar aprovado para Production.");
+  }
+
+  return { state, design };
+}
+
+function postV2PieceSnapshot(input: {
+  title: string;
+  context: ApprovedPostCopyContext;
+  renderPromptText: string;
+}) {
+  const { sourceCopy, approvedStrategy } = input.context;
+  const extension =
+    sourceCopy.formatExtension &&
+    typeof sourceCopy.formatExtension === "object" &&
+    !Array.isArray(sourceCopy.formatExtension)
+      ? (sourceCopy.formatExtension as Record<string, unknown>)
+      : {};
+
+  const headline =
+    typeof extension.headline === "string" && extension.headline.trim()
+      ? extension.headline.trim()
+      : sourceCopy.core.primaryMessage;
+  const supportText =
+    typeof extension.supportText === "string" ? extension.supportText.trim() : "";
+  const artCta =
+    typeof extension.artCta === "string" && extension.artCta.trim()
+      ? extension.artCta.trim()
+      : sourceCopy.core.cta?.wording ?? "";
+  const caption =
+    typeof extension.caption === "string" ? extension.caption.trim() : "";
+  const hashtags = Array.isArray(extension.hashtags)
+    ? extension.hashtags.filter((value): value is string => typeof value === "string")
+    : [];
+
+  const approach = approvedStrategy.approach ?? "";
+  const communicationAngle =
+    approach === "offer"
+      ? "comercial"
+      : approach === "community"
+        ? "acolhedor"
+        : approach === "storytelling"
+          ? "inspirador"
+          : approach === "educational"
+            ? "institucional"
+            : "direto";
+
+  return {
+    index: 1,
+    formatKey: "post",
+    role: "arte",
+    name: input.title,
+    formatLabel: "Post para Feed · V2",
+    objective: approvedStrategy.objective ?? "post",
+    communicationAngle,
+    mainPromise: sourceCopy.core.primaryMessage,
+    mainProblem: "",
+    mainBenefit: sourceCopy.core.supportingPoints[0] ?? sourceCopy.core.primaryMessage,
+    mainText: headline,
+    supportText,
+    bullets: sourceCopy.core.supportingPoints.slice(1),
+    cta: artCta,
+    caption,
+    hashtags,
+    productionNotes: [
+      "Production Asset registrado pelo pipeline canônico Post V2.",
+      "Render Prompt e Design Spec aprovados são a fonte de verdade visual.",
+    ],
+    readyPrompt: input.renderPromptText,
+    qualityStatus: "approved",
+    headlineOptions: [headline],
+    supportTextOptions: supportText ? [supportText] : [],
+    outputKind: "publishable_asset",
+    sourceScope: "publication",
+    contentStage: "publication_copy",
+    copySource: "external_chatgpt",
+  };
+}
+
+async function ensureProductionOutputForDesign(input: {
+  projectId: string;
+  userId: string;
+  designVersionId: string;
+  designVersionNumber: number;
+  context: ApprovedPostCopyContext;
+  renderPromptText: string;
+}): Promise<{ id: string; created: boolean }> {
+  const source = `post_v2_production:${input.designVersionId}`;
+  const { data: existing, error: existingError } = await supabase
+    .from("content_outputs")
+    .select("id")
+    .eq("project_id", input.projectId)
+    .eq("source", source)
+    .eq("output_type", "piece")
+    .limit(1)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing) return { id: existing.id, created: false };
+
+  const { data: project, error: projectError } = await supabase
+    .from("content_projects")
+    .select("display_title,internal_title,theme")
+    .eq("id", input.projectId)
+    .single();
+  if (projectError) throw projectError;
+
+  const baseTitle =
+    project.display_title?.trim() ||
+    project.internal_title?.trim() ||
+    project.theme?.trim() ||
+    "Post V2";
+  const title = `Post V2 · Design v${input.designVersionNumber} · ${baseTitle}`;
+  const piece = postV2PieceSnapshot({
+    title,
+    context: input.context,
+    renderPromptText: input.renderPromptText,
+  });
+
+  const { data, error } = await supabase
+    .from("content_outputs")
+    .insert({
+      project_id: input.projectId,
+      user_id: input.userId,
+      output_type: "piece",
+      title,
+      original_content: JSON.stringify(piece),
+      source,
+      version: 2,
+      copy_status: "approved",
+      display_order: 0,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return { id: data.id, created: true };
+}
+
+/**
+ * Registers the externally produced final image as the canonical Production
+ * Asset for the current approved Design. The image keeps using the existing
+ * piece-assets/content_piece_assets flow; this function only adds the V2
+ * immutable version/linkage after a successful upload.
+ */
+export async function registerPostV2ProductionAsset(input: {
+  projectId: string;
+  file: File;
+  source?: string | null;
+}) {
+  const projectId = input.projectId.trim();
+  if (!projectId) throw new Error("projectId must not be blank.");
+
+  const userId = await requireUserId();
+  const copyContext = await loadApprovedCopyContext(projectId);
+  const { state: designState, design } =
+    await loadApprovedDesignContextForProduction(projectId);
+
+  const renderPrompt = buildRenderPromptPlan({
+    design,
+    designState,
+    copy: copyContext.sourceCopy,
+    copyState: copyContext.copyState,
+    approvedStrategy: copyContext.approvedStrategy,
+  });
+
+  const output = await ensureProductionOutputForDesign({
+    projectId,
+    userId,
+    designVersionId: design.id,
+    designVersionNumber: design.versionNumber,
+    context: copyContext,
+    renderPromptText: renderPrompt.promptText,
+  });
+
+  const nextVersionNumber = await nextProductionAssetVersionNumber(projectId);
+  let pieceAsset: Awaited<ReturnType<typeof uploadPieceAsset>> | null = null;
+
+  try {
+    pieceAsset = await uploadPieceAsset({
+      userId,
+      projectId,
+      outputId: output.id,
+      file: input.file,
+      displayOrder: nextVersionNumber - 1,
+      includeInClientPdf: true,
+    });
+
+    const { data: productionState, error: stateError } = await supabase
+      .from("creation_production_state")
+      .select("current_asset_version_id")
+      .eq("project_id", projectId)
+      .single();
+    if (stateError) throw stateError;
+
+    let currentAsset: ReturnType<typeof toProductionAssetVersion> | null = null;
+    if (productionState.current_asset_version_id) {
+      const { data: currentAssetRow, error: currentAssetError } = await supabase
+        .from("creation_production_asset_versions")
+        .select("*")
+        .eq("project_id", projectId)
+        .eq("id", productionState.current_asset_version_id)
+        .single();
+      if (currentAssetError) throw currentAssetError;
+      currentAsset = toProductionAssetVersion(currentAssetRow);
+    }
+
+    const provenance = buildProductionProvenance({
+      origin: "external_manual",
+      source: input.source?.trim() || "post_v2_external_production",
+      renderPromptVersion: renderPrompt.promptVersion,
+    });
+
+    const insert =
+      currentAsset && currentAsset.designVersionId === design.id
+        ? buildProductionAssetRevisionInsert({
+            source: currentAsset,
+            design,
+            designState,
+            pieceAsset,
+            versionNumber: nextVersionNumber,
+            provenance,
+          })
+        : buildProductionAssetVersionInsert({
+            projectId,
+            design,
+            designState,
+            pieceAsset,
+            versionNumber: nextVersionNumber,
+            provenance,
+          });
+
+    const { data: version, error: versionError } = await supabase
+      .from("creation_production_asset_versions")
+      .insert(insert)
+      .select("id")
+      .single();
+    if (versionError) throw versionError;
+
+    return {
+      productionAssetVersionId: version.id,
+      pieceAssetId: pieceAsset.id,
+      outputId: output.id,
+    };
+  } catch (error) {
+    let uploadedAssetRemoved = !pieceAsset;
+    if (pieceAsset) {
+      try {
+        await deletePieceAsset(pieceAsset);
+        uploadedAssetRemoved = true;
+      } catch {
+        // If the canonical version was actually committed, the FK intentionally
+        // prevents deleting the binary metadata. Preserve that safer state.
+      }
+    }
+    if (output.created && uploadedAssetRemoved) {
+      await supabase.from("content_outputs").delete().eq("id", output.id);
+    }
+    throw error;
+  }
 }
 

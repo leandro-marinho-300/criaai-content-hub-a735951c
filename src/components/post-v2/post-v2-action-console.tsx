@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Clipboard, Loader2, Play, Save, Sparkles } from "lucide-react";
+import { Check, Clipboard, Loader2, Play, Save, Sparkles, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
   preparePostCopyManualTask,
   prepareStrategyManualTask,
   prepareVisualDirectorManualTask,
+  registerPostV2ProductionAsset,
   savePostV2SpecDecision,
   type PreparedManualTask,
 } from "@/lib/creation/post-v2-workflow";
@@ -207,12 +208,16 @@ export function PostV2ActionConsole({ loaded, onChanged, onBootstrapped }: Props
   }
 
   if (action === "produce_asset_from_render_prompt") {
+    return <ProductionAssetCard loaded={loaded} onChanged={onChanged} />;
+  }
+
+  if (action === "run_qa") {
     return (
       <Alert>
         <Sparkles className="h-4 w-4" />
-        <AlertTitle>Design aprovado · checkpoint desta entrega</AlertTitle>
+        <AlertTitle>Production Asset registrado · checkpoint desta entrega</AlertTitle>
         <AlertDescription>
-          O Design Spec está aprovado e o Render Prompt canônico já pode ser derivado pelo orquestrador. Produção do asset continua fora do escopo operacional desta fase.
+          O Asset final já está vinculado ao Design aprovado e o orquestrador liberou QA. A execução do QA permanece fora do escopo operacional desta entrega.
         </AlertDescription>
       </Alert>
     );
@@ -223,7 +228,7 @@ export function PostV2ActionConsole({ loaded, onChanged, onBootstrapped }: Props
       <Sparkles className="h-4 w-4" />
       <AlertTitle>Ação fora do escopo operacional atual</AlertTitle>
       <AlertDescription>
-        O Studio respeitou a próxima ação do orquestrador, mas esta entrega libera ações somente até a aprovação do Design Spec.
+        O Studio respeitou a próxima ação do orquestrador, mas esta entrega libera ações somente até o registro do Production Asset. QA, aprovação do cliente e operação continuam em leitura.
       </AlertDescription>
     </Alert>
   );
@@ -387,9 +392,12 @@ function DesignApprovalCard({
 
         {design.informationToConfirm.length > 0 && (
           <Alert>
-            <AlertTitle>Informações registradas para confirmação</AlertTitle>
+            <AlertTitle>Pendências para execução</AlertTitle>
             <AlertDescription>
               {design.informationToConfirm.join(" · ")}
+              <span className="mt-1 block">
+                Não bloqueiam a aprovação conceitual do Design; serão levadas explicitamente para Production.
+              </span>
             </AlertDescription>
           </Alert>
         )}
@@ -398,6 +406,192 @@ function DesignApprovalCard({
           <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
             {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
             Aprovar Design Spec
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProductionAssetCard({
+  loaded,
+  onChanged,
+}: {
+  loaded: LoadedPostV2Pipeline;
+  onChanged: () => Promise<unknown> | unknown;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [source, setSource] = useState("");
+  const renderPrompt = loaded.snapshot.renderPromptPlan;
+  const approvedDesign = loaded.design.approvedVersion;
+  const approvedCopy = loaded.copy.approvedVersion;
+
+  const copyExtension =
+    approvedCopy?.formatExtension &&
+    typeof approvedCopy.formatExtension === "object" &&
+    !Array.isArray(approvedCopy.formatExtension)
+      ? (approvedCopy.formatExtension as Record<string, unknown>)
+      : null;
+
+  const copyConfirmations = Array.isArray(copyExtension?.informationToConfirm)
+    ? copyExtension.informationToConfirm.filter(
+        (value): value is string => typeof value === "string" && Boolean(value.trim()),
+      )
+    : [];
+  const designConfirmations = approvedDesign?.design.informationToConfirm ?? [];
+  const mandatoryAssetRequirements =
+    approvedDesign?.design.assetRequirements
+      .filter((item) => item.mandatory)
+      .map(
+        (item) =>
+          `${item.role}: ${item.requirement}${
+            item.sourcePreference ? ` · fonte preferida: ${item.sourcePreference}` : ""
+          }`,
+      ) ?? [];
+  const productionDependencies = Array.from(
+    new Set([
+      ...designConfirmations,
+      ...copyConfirmations,
+      ...mandatoryAssetRequirements,
+    ]),
+  );
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      registerPostV2ProductionAsset({
+        projectId: loaded.project.id,
+        file: file!,
+        source,
+      }),
+    onSuccess: async () => {
+      toast.success("Production Asset registrado. QA é a próxima etapa.");
+      setFile(null);
+      setSource("");
+      await onChanged();
+    },
+    onError: (error) => toast.error(mutationError(error)),
+  });
+
+  if (!renderPrompt || !approvedDesign) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Render Prompt não disponível</AlertTitle>
+        <AlertDescription>
+          O orquestrador solicitou Production, mas o Design aprovado ou o Render Prompt canônico não foi carregado. Recarregue a Creation antes de continuar.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Production externa · registrar Asset final</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <p className="text-sm text-muted-foreground">
+          Produza a arte fora do Cria Aí usando exatamente o Render Prompt abaixo. Depois anexe somente o arquivo final. O registro cria uma Production Asset Version imutável vinculada ao Design aprovado; QA ainda não é executado aqui.
+        </p>
+
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Label>Render Prompt canônico · v{renderPrompt.promptVersion}</Label>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                await navigator.clipboard.writeText(renderPrompt.promptText);
+                toast.success("Render Prompt copiado.");
+              }}
+            >
+              <Clipboard className="mr-1.5 h-3.5 w-3.5" /> Copiar prompt
+            </Button>
+          </div>
+          <Textarea
+            readOnly
+            value={renderPrompt.promptText}
+            rows={14}
+            className="font-mono text-xs"
+          />
+          <p className="break-all font-mono text-[10px] text-muted-foreground">
+            Design {renderPrompt.versionRefs.designVersionId} · Copy {renderPrompt.versionRefs.copyVersionId}
+          </p>
+        </div>
+
+        {productionDependencies.length > 0 && (
+          <Alert>
+            <AlertTitle>Pendências / dependências para execução</AlertTitle>
+            <AlertDescription>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {productionDependencies.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              <p className="mt-2">
+                Elas não alteram o Design aprovado. Devem ser respeitadas ou supridas na ferramenta de produção; o QA será a etapa de verificação posterior.
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {loaded.production.currentAsset &&
+          loaded.snapshot.productionFreshness === "review_required" && (
+            <Alert>
+              <AlertTitle>Asset anterior preservado como histórico</AlertTitle>
+              <AlertDescription>
+                A Production Asset v{loaded.production.currentAsset.versionNumber} foi criada para outro Design aprovado. O novo upload inicia uma nova linhagem sem apagar a versão anterior.
+              </AlertDescription>
+            </Alert>
+          )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="post-v2-production-source">Origem / ferramenta de produção</Label>
+            <Input
+              id="post-v2-production-source"
+              value={source}
+              onChange={(event) => setSource(event.target.value)}
+              placeholder="Ex.: ChatGPT, Canva, Photoshop…"
+            />
+            <p className="text-xs text-muted-foreground">
+              Opcional. Se vazio, o registro usa a origem genérica de produção externa.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="post-v2-production-file">Asset final</Label>
+            <Input
+              id="post-v2-production-file"
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/webp"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+            <p className="text-xs text-muted-foreground">
+              PNG, JPG, JPEG ou WebP · máximo de 15 MB.
+            </p>
+          </div>
+        </div>
+
+        {file && (
+          <div className="rounded-lg border bg-background/70 p-3 text-sm">
+            <p className="font-medium">{file.name}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {(file.size / 1024 / 1024).toFixed(2)} MB · {file.type || "tipo não informado"}
+            </p>
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={!file || mutation.isPending}
+          >
+            {mutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="mr-2 h-4 w-4" />
+            )}
+            Registrar Asset final
           </Button>
         </div>
       </CardContent>
