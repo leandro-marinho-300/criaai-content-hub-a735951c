@@ -78,6 +78,7 @@ function CreateHub() {
         if (m === "ideias") navigate({ to: "/app/ideas" });
         else if (m === "reel") navigate({ to: "/app/create/reel" });
         else if (m === "post") navigate({ to: "/app/create/post" });
+        else if (m === "post_v2") navigate({ to: "/app/create/post-v2" });
         else if (m === "tema") navigate({ to: "/app/central" });
         else setMode(m);
       }}
@@ -88,10 +89,12 @@ function CreateHub() {
 function Hub({
   onPick,
 }: {
-  onPick: (m: "ideias" | "tema" | "adaptar" | "campanha" | "reel" | "post") => void;
+  onPick: (
+    m: "ideias" | "tema" | "adaptar" | "campanha" | "reel" | "post" | "post_v2",
+  ) => void;
 }) {
   const cards: Array<{
-    id: "ideias" | "tema" | "adaptar" | "campanha" | "reel" | "post";
+    id: "ideias" | "tema" | "adaptar" | "campanha" | "reel" | "post" | "post_v2";
     icon: typeof Lightbulb;
     title: string;
     desc: string;
@@ -116,6 +119,13 @@ function Hub({
       title: "Criar Post 2.0",
       desc: "Crie texto da arte, legenda, direção visual e o prompt completo para gerar o layout no GPT.",
       badge: "Novo",
+    },
+    {
+      id: "post_v2",
+      icon: Sparkles,
+      title: "Post V2 Pipeline",
+      desc: "Abra a nova interface paralela conectada ao pipeline canônico de Strategy, Copy, Design, QA e aprovação.",
+      badge: "Beta",
     },
     {
       id: "tema",
