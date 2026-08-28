@@ -853,6 +853,7 @@ export function derivePostV2PipelineSnapshot(
 
   if (
     approval.status === "enviado_para_aprovacao" ||
+    approval.status === "visualizado_pelo_cliente" ||
     approval.status === "visualizado"
   ) {
     steps.clientApproval = {

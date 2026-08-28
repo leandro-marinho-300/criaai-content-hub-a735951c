@@ -36,6 +36,7 @@ type ApprovalRow = {
 const STATUS_LABEL: Record<string, string> = {
   rascunho: "Rascunho",
   enviado_para_aprovacao: "Aguardando cliente",
+  visualizado_pelo_cliente: "Visualizado",
   visualizado: "Visualizado",
   aprovado: "Aprovado",
   aprovado_com_ajustes: "Aprovado com ajustes",
