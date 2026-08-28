@@ -842,7 +842,11 @@ export function derivePostV2PipelineSnapshot(
     return finish("ready_for_operations", null, true);
   }
 
-  if (approval.status === "ajustes_solicitados" || approval.status === "nao_aprovado") {
+  if (
+    approval.status === "ajustes_solicitados" ||
+    approval.status === "recusado" ||
+    approval.status === "nao_aprovado"
+  ) {
     steps.clientApproval = {
       state: "review_required",
       message: "Cliente solicitou revisão da peça antes de uma nova aprovação.",
