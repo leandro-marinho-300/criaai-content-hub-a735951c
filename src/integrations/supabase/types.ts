@@ -925,6 +925,135 @@ export type Database = {
           },
         ]
       }
+      creation_copy_state: {
+        Row: {
+          created_at: string
+          current_approved_version_id: string | null
+          current_version_id: string | null
+          project_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_approved_version_id?: string | null
+          current_version_id?: string | null
+          project_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_approved_version_id?: string | null
+          current_version_id?: string | null
+          project_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creation_copy_state_current_approved_version_id_fkey"
+            columns: ["current_approved_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_copy_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creation_copy_state_current_version_id_fkey"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_copy_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creation_copy_state_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "creation_core"
+            referencedColumns: ["project_id"]
+          },
+        ]
+      }
+      creation_copy_versions: {
+        Row: {
+          approval_status: string
+          approved_at: string | null
+          based_on_version_id: string | null
+          brand_snapshot_id: string
+          core_payload: Json
+          created_at: string
+          format_extension: Json
+          id: string
+          project_id: string
+          provenance: Json
+          schema_version: string
+          strategy_version_id: string
+          updated_at: string
+          version_number: number
+        }
+        Insert: {
+          approval_status?: string
+          approved_at?: string | null
+          based_on_version_id?: string | null
+          brand_snapshot_id: string
+          core_payload: Json
+          created_at?: string
+          format_extension?: Json
+          id?: string
+          project_id: string
+          provenance?: Json
+          schema_version?: string
+          strategy_version_id: string
+          updated_at?: string
+          version_number: number
+        }
+        Update: {
+          approval_status?: string
+          approved_at?: string | null
+          based_on_version_id?: string | null
+          brand_snapshot_id?: string
+          core_payload?: Json
+          created_at?: string
+          format_extension?: Json
+          id?: string
+          project_id?: string
+          provenance?: Json
+          schema_version?: string
+          strategy_version_id?: string
+          updated_at?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creation_copy_versions_lineage_project_fkey"
+            columns: ["project_id", "based_on_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_copy_versions"
+            referencedColumns: ["project_id", "id"]
+          },
+          {
+            foreignKeyName: "creation_copy_versions_brand_snapshot_id_fkey"
+            columns: ["brand_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "creation_brand_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creation_copy_versions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "creation_core"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "creation_copy_versions_strategy_project_fkey"
+            columns: ["project_id", "strategy_version_id"]
+            isOneToOne: false
+            referencedRelation: "creation_strategy_versions"
+            referencedColumns: ["project_id", "id"]
+          },
+        ]
+      }
       content_projects: {
         Row: {
           audience_problem: string | null
@@ -1377,6 +1506,13 @@ export type Database = {
       }
     }
     Functions: {
+      approve_creation_copy: {
+        Args: {
+          p_copy_version_id: string
+          p_project_id: string
+        }
+        Returns: Json
+      }
       approve_creation_strategy: {
         Args: {
           p_project_id: string
