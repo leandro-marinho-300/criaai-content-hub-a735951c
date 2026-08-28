@@ -1,8 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PostV2PipelineShell } from "@/components/post-v2/post-v2-pipeline-shell";
+import { PostV2ActionConsole } from "@/components/post-v2/post-v2-action-console";
 import { loadPostV2Pipeline } from "@/lib/creation/post-v2-pipeline-loader";
 
 export const Route = createFileRoute("/_authenticated/app/create/post-v2")({
@@ -18,6 +19,8 @@ export const Route = createFileRoute("/_authenticated/app/create/post-v2")({
 
 function PostV2StudioRoute() {
   const { projectId } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const queryClient = useQueryClient();
 
   const pipelineQuery = useQuery({
     queryKey: ["post-v2-pipeline", projectId],
@@ -25,6 +28,16 @@ function PostV2StudioRoute() {
     enabled: Boolean(projectId),
     retry: false,
   });
+
+  const refresh = async () => {
+    if (!projectId) return;
+    await queryClient.invalidateQueries({ queryKey: ["post-v2-pipeline", projectId] });
+    await pipelineQuery.refetch();
+  };
+
+  const openProject = (newProjectId: string) => {
+    void navigate({ search: { projectId: newProjectId }, replace: true });
+  };
 
   if (projectId && pipelineQuery.isLoading) {
     return (
@@ -49,10 +62,25 @@ function PostV2StudioRoute() {
               : "Falha inesperada ao carregar o pipeline."}
           </AlertDescription>
         </Alert>
-        <PostV2PipelineShell loaded={null} />
+        <PostV2PipelineShell
+          loaded={null}
+          actionConsole={<PostV2ActionConsole loaded={null} onChanged={() => undefined} onBootstrapped={openProject} />}
+        />
       </div>
     );
   }
 
-  return <PostV2PipelineShell loaded={pipelineQuery.data ?? null} />;
+  const loaded = pipelineQuery.data ?? null;
+  return (
+    <PostV2PipelineShell
+      loaded={loaded}
+      actionConsole={
+        <PostV2ActionConsole
+          loaded={loaded}
+          onChanged={refresh}
+          onBootstrapped={openProject}
+        />
+      }
+    />
+  );
 }
