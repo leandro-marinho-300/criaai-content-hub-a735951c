@@ -146,6 +146,18 @@ export type PostV2PipelineClientApproval = Pick<
   | "production_qa_review_id"
   | "qa_warn_acknowledged_at"
   | "revoked_at"
+  | "title"
+  | "decision"
+  | "general_comment"
+  | "client_name"
+  | "client_email"
+  | "client_company"
+  | "submitted_at"
+  | "created_at"
+  | "expires_at"
+  | "first_viewed_at"
+  | "last_viewed_at"
+  | "view_count"
 >;
 
 export type PostV2PipelineInput = {

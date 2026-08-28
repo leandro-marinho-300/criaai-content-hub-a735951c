@@ -234,8 +234,8 @@ export function PostV2PipelineShell({
             </h1>
             <p className="max-w-3xl text-sm text-muted-foreground">
               Studio paralelo conectado ao pipeline canônico. Nesta entrega, $Spec, Strategy,
-              Copy Core, Post Copy, Design Spec, Production Asset e QA possuem ações operacionais;
-              aprovação do cliente e operação continuam em leitura.
+              Copy Core, Post Copy, Design Spec, Production Asset, QA e aprovação do cliente possuem ações operacionais;
+              Library e Calendar continuam em leitura.
             </p>
           </div>
 
@@ -336,12 +336,12 @@ export function PostV2PipelineShell({
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">
-                  A próxima ação vem do orquestrador. A interface libera ações até QA, incluindo nova Production Version quando um QA BLOCK exigir correção;
-                  aprovação do cliente e operação permanecem somente leitura nesta fase.
+                  A próxima ação vem do orquestrador. A interface opera até a decisão do cliente, preservando o vínculo exato entre Asset, QA e aprovação;
+                  Library e Calendar permanecem somente leitura nesta fase.
                 </p>
                 {snapshot.readyForOperations ? (
-                  <Button asChild size="sm">
-                    <Link to="/app/library">Abrir Biblioteca</Link>
+                  <Button size="sm" disabled>
+                    Cliente aprovado · Operação é a próxima fase
                   </Button>
                 ) : (
                   <Button size="sm" disabled>
@@ -611,7 +611,9 @@ export function PostV2PipelineShell({
                     Cliente
                   </p>
                   <p className="mt-1 text-xs">
-                    {STEP_STATE_LABEL[snapshot.steps.clientApproval.state]}
+                    {loaded.clientApproval
+                      ? loaded.clientApproval.status
+                      : STEP_STATE_LABEL[snapshot.steps.clientApproval.state]}
                   </p>
                 </div>
                 <div className="rounded-md border bg-background/70 p-2">
@@ -623,6 +625,32 @@ export function PostV2PipelineShell({
                   </p>
                 </div>
               </div>
+
+              {loaded.clientApproval && (
+                <div className="space-y-2 rounded-md border bg-background/70 p-3 text-[11px]">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">Aprovação atual</span>
+                    <Badge variant="outline">
+                      {loaded.clientApproval.view_count} visualização(ões)
+                    </Badge>
+                  </div>
+                  <div className="grid gap-1 text-muted-foreground sm:grid-cols-2">
+                    <p>Enviada: {new Date(loaded.clientApproval.created_at).toLocaleString("pt-BR")}</p>
+                    <p>Última visualização: {loaded.clientApproval.last_viewed_at ? new Date(loaded.clientApproval.last_viewed_at).toLocaleString("pt-BR") : "—"}</p>
+                    {loaded.clientApproval.submitted_at && (
+                      <p>Respondida: {new Date(loaded.clientApproval.submitted_at).toLocaleString("pt-BR")}</p>
+                    )}
+                    {loaded.clientApproval.client_name && (
+                      <p>Cliente: {loaded.clientApproval.client_name}</p>
+                    )}
+                  </div>
+                  {loaded.clientApproval.general_comment && (
+                    <p className="line-clamp-3 text-muted-foreground">
+                      Feedback: {loaded.clientApproval.general_comment}
+                    </p>
+                  )}
+                </div>
+              )}
             </StageCard>
           </div>
         </>

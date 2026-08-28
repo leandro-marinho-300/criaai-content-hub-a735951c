@@ -71,6 +71,7 @@ export type LoadedPostV2Pipeline = {
   copy: Awaited<ReturnType<typeof loadCopySection>>;
   design: Awaited<ReturnType<typeof loadDesignSection>>;
   production: Awaited<ReturnType<typeof loadProductionSection>>;
+  clientApproval: PostV2PipelineClientApproval | null;
   aiTasks: {
     strategy: AiTaskRun | null;
     copyCore: AiTaskRun | null;
@@ -424,7 +425,7 @@ async function loadLatestClientApproval(
     supabase
       .from("client_approvals")
       .select(
-        "id, project_id, status, production_asset_version_id, production_qa_review_id, qa_warn_acknowledged_at, revoked_at",
+        "id, project_id, status, production_asset_version_id, production_qa_review_id, qa_warn_acknowledged_at, revoked_at, title, decision, general_comment, client_name, client_email, client_company, submitted_at, created_at, expires_at, first_viewed_at, last_viewed_at, view_count",
       )
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
@@ -433,7 +434,21 @@ async function loadLatestClientApproval(
     "Não foi possível carregar a aprovação do cliente",
   );
 
-  return row as PostV2PipelineClientApproval | null;
+  if (!row) return null;
+
+  const approval = row as PostV2PipelineClientApproval;
+  const isWaitingStatus =
+    approval.status === "enviado_para_aprovacao" ||
+    approval.status === "visualizado_pelo_cliente" ||
+    approval.status === "visualizado";
+  const isExpired =
+    isWaitingStatus &&
+    !!approval.expires_at &&
+    new Date(approval.expires_at).getTime() <= Date.now();
+
+  return isExpired
+    ? { ...approval, status: "expirado" }
+    : approval;
 }
 
 async function loadLatestAiTasks(projectId: string): Promise<LoadedPostV2Pipeline["aiTasks"]> {
@@ -574,6 +589,7 @@ export async function loadPostV2Pipeline(
     copy,
     design,
     production,
+    clientApproval,
     aiTasks: resumableAiTasks,
     snapshot,
   };

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Clipboard, Loader2, Play, Save, Sparkles, Upload } from "lucide-react";
+import { Check, Clipboard, Eye, Loader2, MessageSquare, Play, RefreshCw, Save, Send, ShieldCheck, Sparkles, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ import {
   type QaStatus,
 } from "@/lib/creation/qa";
 import { getSignedUrl } from "@/lib/pieceAssets";
+import { SendForApprovalDialog } from "@/components/send-for-approval-dialog";
 
 const OBJECTIVE_OPTIONS = [
   ["engage", "Engajar"],
@@ -61,6 +62,26 @@ const SPEC_LABEL: Record<SpecDecisionKey, string> = {
   format: "Formato",
   concept: "Conceito",
 };
+
+const CLIENT_APPROVAL_STATUS_LABEL: Record<string, string> = {
+  rascunho: "Rascunho",
+  enviado_para_aprovacao: "Enviado para aprovação",
+  visualizado_pelo_cliente: "Visualizado pelo cliente",
+  visualizado: "Visualizado pelo cliente",
+  aprovado: "Aprovado",
+  aprovado_com_ajustes: "Aprovado com ajustes",
+  ajustes_solicitados: "Ajustes solicitados",
+  recusado: "Recusado",
+  nao_aprovado: "Não aprovado",
+  link_revogado: "Link revogado",
+  expirado: "Link expirado",
+};
+
+function formatApprovalDate(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("pt-BR");
+}
 
 type Props = {
   loaded: LoadedPostV2Pipeline | null;
@@ -236,18 +257,31 @@ export function PostV2ActionConsole({ loaded, onChanged, onBootstrapped }: Props
   }
 
   if (action === "send_client_approval") {
-    const qa = loaded.production.latestQaReview;
     return (
-      <Alert>
-        <Sparkles className="h-4 w-4" />
-        <AlertTitle>QA concluído · checkpoint desta entrega</AlertTitle>
-        <AlertDescription>
-          {qa
-            ? `O QA ${qa.overallStatus} está registrado para o Asset atual. O orquestrador liberou a aprovação do cliente, que permanece fora do escopo operacional desta entrega.`
-            : "O QA foi concluído e o próximo estágio é aprovação do cliente, ainda somente em leitura."}
-        </AlertDescription>
-      </Alert>
+      <ClientApprovalActionCard
+        loaded={loaded}
+        onChanged={onChanged}
+        mode="send"
+      />
     );
+  }
+
+  if (action === "wait_client_approval") {
+    return (
+      <ClientApprovalActionCard
+        loaded={loaded}
+        onChanged={onChanged}
+        mode="wait"
+      />
+    );
+  }
+
+  if (action === "revise_after_client_feedback") {
+    return <ClientFeedbackCheckpointCard loaded={loaded} />;
+  }
+
+  if (action === "ready_for_operations") {
+    return <ClientApprovedCheckpointCard loaded={loaded} />;
   }
 
   return (
@@ -255,9 +289,264 @@ export function PostV2ActionConsole({ loaded, onChanged, onBootstrapped }: Props
       <Sparkles className="h-4 w-4" />
       <AlertTitle>Ação fora do escopo operacional atual</AlertTitle>
       <AlertDescription>
-        O Studio respeitou a próxima ação do orquestrador, mas esta entrega libera ações somente até QA e a correção de Production quando um QA BLOCK exigir nova versão. Aprovação do cliente e operação continuam em leitura.
+        O Studio respeitou a próxima ação do orquestrador. Esta entrega opera até a decisão do cliente; Library, Calendar e correções estruturais após feedback continuam em checkpoint para a próxima etapa controlada.
       </AlertDescription>
     </Alert>
+  );
+}
+
+function ClientApprovalActionCard({
+  loaded,
+  onChanged,
+  mode,
+}: {
+  loaded: LoadedPostV2Pipeline;
+  onChanged: () => Promise<unknown> | unknown;
+  mode: "send" | "wait";
+}) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const approval = loaded.clientApproval;
+  const qa = loaded.production.latestQaReview;
+  const readiness = loaded.snapshot.clientApprovalReadiness;
+  const warnFindings =
+    qa?.findings.filter((finding) => finding.status === "WARN") ?? [];
+
+  const handleDialogOpenChange = (next: boolean) => {
+    setDialogOpen(next);
+    if (!next) void onChanged();
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>
+                {mode === "send"
+                  ? "Enviar Post V2 para aprovação"
+                  : "Aguardando decisão do cliente"}
+              </CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {mode === "send"
+                  ? readiness.message
+                  : "O Asset e o QA enviados estão congelados neste link. Atualize o status quando o cliente responder."}
+              </p>
+            </div>
+            {qa && (
+              <Badge variant={qa.overallStatus === "WARN" ? "outline" : "secondary"}>
+                QA {qa.overallStatus}
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {readiness.requiresWarnAcknowledgement && (
+            <Alert>
+              <ShieldCheck className="h-4 w-4" />
+              <AlertTitle>QA WARN exige confirmação explícita</AlertTitle>
+              <AlertDescription>
+                O link só será criado depois que você confirmar os avisos no diálogo de envio.
+                {warnFindings.length > 0 && (
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {warnFindings.slice(0, 4).map((finding, index) => (
+                      <li key={`${finding.code}-${index}`}>{finding.message}</li>
+                    ))}
+                  </ul>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {approval && (
+            <div className="grid gap-3 rounded-lg border bg-background/70 p-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Status</p>
+                <p className="mt-1 text-xs font-medium">
+                  {CLIENT_APPROVAL_STATUS_LABEL[approval.status] ?? approval.status}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Visualizações</p>
+                <p className="mt-1 text-xs font-medium">{approval.view_count}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Última visualização</p>
+                <p className="mt-1 text-xs font-medium">{formatApprovalDate(approval.last_viewed_at)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Expiração</p>
+                <p className="mt-1 text-xs font-medium">
+                  {approval.expires_at ? formatApprovalDate(approval.expires_at) : "Sem expiração"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {mode === "wait" && approval?.first_viewed_at && (
+            <Alert>
+              <Eye className="h-4 w-4" />
+              <AlertTitle>Cliente já abriu a aprovação</AlertTitle>
+              <AlertDescription>
+                Primeira visualização em {formatApprovalDate(approval.first_viewed_at)}. A decisão ainda não foi registrada.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-2">
+            {mode === "wait" && (
+              <Button type="button" variant="outline" onClick={() => void onChanged()}>
+                <RefreshCw className="mr-1.5 h-4 w-4" />
+                Atualizar status
+              </Button>
+            )}
+            <Button type="button" onClick={() => setDialogOpen(true)}>
+              <Send className="mr-1.5 h-4 w-4" />
+              {mode === "send" ? "Gerar link de aprovação" : "Gerenciar link"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <SendForApprovalDialog
+        open={dialogOpen}
+        onOpenChange={handleDialogOpenChange}
+        projectId={loaded.project.id}
+        brandId={loaded.project.brand_id}
+        defaultTitle={
+          loaded.project.display_title ||
+          loaded.project.internal_title ||
+          "Post V2"
+        }
+      />
+    </>
+  );
+}
+
+function ClientFeedbackCheckpointCard({ loaded }: { loaded: LoadedPostV2Pipeline }) {
+  const approval = loaded.clientApproval;
+  if (!approval) {
+    return (
+      <Alert variant="destructive">
+        <MessageSquare className="h-4 w-4" />
+        <AlertTitle>Feedback do cliente não encontrado</AlertTitle>
+        <AlertDescription>
+          O orquestrador indicou revisão após feedback, mas a aprovação mais recente não foi carregada. Recarregue a Creation antes de continuar.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const client = [approval.client_name, approval.client_company, approval.client_email]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <Card className="border-amber-500/40">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>Feedback do cliente recebido</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              O pipeline interrompeu o avanço operacional e exige uma nova revisão antes de qualquer reenvio.
+            </p>
+          </div>
+          <Badge variant="outline">
+            {CLIENT_APPROVAL_STATUS_LABEL[approval.status] ?? approval.status}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border bg-background/70 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Cliente</p>
+            <p className="mt-1 text-sm">{client || "Não identificado"}</p>
+          </div>
+          <div className="rounded-lg border bg-background/70 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Resposta registrada</p>
+            <p className="mt-1 text-sm">{formatApprovalDate(approval.submitted_at)}</p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-background/70 p-3">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Comentário geral</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm">
+            {approval.general_comment?.trim() || "Nenhum comentário geral foi registrado."}
+          </p>
+        </div>
+
+        <Alert>
+          <MessageSquare className="h-4 w-4" />
+          <AlertTitle>Checkpoint de revisão</AlertTitle>
+          <AlertDescription>
+            Não vamos inferir automaticamente se este feedback altera Copy, Design ou somente Production. Essa triagem precisa preservar o versionamento canônico e será tratada como a próxima ação controlada antes de um novo envio.
+          </AlertDescription>
+        </Alert>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ClientApprovedCheckpointCard({ loaded }: { loaded: LoadedPostV2Pipeline }) {
+  const approval = loaded.clientApproval;
+  const asset = loaded.production.currentAsset;
+  const qa = loaded.production.latestQaReview;
+
+  return (
+    <Card className="border-emerald-500/30">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>Cliente aprovou a versão canônica</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A aprovação congela exatamente o Production Asset e o QA enviados. Library e Calendar permanecem fora da operação desta entrega.
+            </p>
+          </div>
+          <Badge variant="secondary">
+            {approval
+              ? CLIENT_APPROVAL_STATUS_LABEL[approval.status] ?? approval.status
+              : "Aprovado"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border bg-background/70 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Production Asset</p>
+            <p className="mt-1 text-sm font-medium">
+              {asset ? `v${asset.versionNumber}` : "—"}
+            </p>
+          </div>
+          <div className="rounded-lg border bg-background/70 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">QA congelado</p>
+            <p className="mt-1 text-sm font-medium">
+              {qa ? `${qa.overallStatus} · Review #${qa.reviewNumber}` : "—"}
+            </p>
+          </div>
+          <div className="rounded-lg border bg-background/70 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Resposta</p>
+            <p className="mt-1 text-sm font-medium">
+              {formatApprovalDate(approval?.submitted_at)}
+            </p>
+          </div>
+        </div>
+
+        {approval?.general_comment && (
+          <div className="rounded-lg border bg-background/70 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Comentário do cliente</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm">{approval.general_comment}</p>
+          </div>
+        )}
+
+        <Alert>
+          <ShieldCheck className="h-4 w-4" />
+          <AlertTitle>Aprovação concluída · checkpoint desta entrega</AlertTitle>
+          <AlertDescription>
+            O orquestrador liberou a operação. O vínculo com Library/Calendar será ativado somente na próxima camada, sem alterar esta aprovação.
+          </AlertDescription>
+        </Alert>
+      </CardContent>
+    </Card>
   );
 }
 

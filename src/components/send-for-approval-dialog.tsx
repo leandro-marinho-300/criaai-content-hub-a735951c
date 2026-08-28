@@ -169,6 +169,21 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
     enabled: open,
   });
 
+  const activeExistingApproval = (existing ?? []).find((approval) => {
+    if (approval.revoked_at || approval.status === "link_revogado") return false;
+    if (approval.expires_at && new Date(approval.expires_at).getTime() <= Date.now()) return false;
+    return (
+      approval.status === "enviado_para_aprovacao" ||
+      approval.status === "visualizado_pelo_cliente" ||
+      approval.status === "visualizado" ||
+      approval.status === "rascunho"
+    );
+  });
+  const hasActiveV2Approval =
+    v2Gate?.readiness.kind !== undefined &&
+    v2Gate.readiness.kind !== "legacy" &&
+    !!activeExistingApproval;
+
   const create = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Sessão expirada.");
@@ -177,6 +192,11 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
       }
       if (!v2Gate.readiness.canSend) {
         throw new Error(v2Gate.readiness.message);
+      }
+      if (hasActiveV2Approval) {
+        throw new Error(
+          "Já existe um link V2 ativo. Revogue o link atual antes de gerar outro para evitar decisões concorrentes.",
+        );
       }
       if (
         v2Gate.readiness.requiresWarnAcknowledgement &&
@@ -455,6 +475,13 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
               </div>
             </div>
 
+            {hasActiveV2Approval && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+                <ShieldAlert className="mr-1.5 inline h-4 w-4 text-amber-600" />
+                Já existe um link V2 ativo para esta Creation. Revogue-o abaixo antes de gerar um substituto.
+              </div>
+            )}
+
             {existing && existing.length > 0 && (
               <div className="rounded-md border p-3">
                 <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Links existentes</p>
@@ -490,6 +517,7 @@ export function SendForApprovalDialog({ open, onOpenChange, projectId, brandId, 
                   v2GateLoading ||
                   v2GateError ||
                   !v2Gate?.readiness.canSend ||
+                  hasActiveV2Approval ||
                   ((v2Gate?.readiness.requiresWarnAcknowledgement ?? false) &&
                     !warnAcknowledged)
                 }
