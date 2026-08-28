@@ -45,6 +45,8 @@ import {
   type PostV2PipelineSnapshot,
 } from "@/lib/creation/post-v2-pipeline";
 import { isKnownProvenanceOrigin } from "@/lib/creation/provenance";
+import { toAiTaskRun, type AiTaskRun } from "@/lib/creation/ai-task-gateway";
+import { getPostV2SpecFromCampaignJson } from "@/lib/creation/post-v2-project";
 
 export type PostV2PipelineProjectSummary = Pick<
   Tables<"content_projects">,
@@ -57,12 +59,22 @@ export type PostV2PipelineProjectSummary = Pick<
   | "brand_id"
   | "status"
   | "updated_at"
+  | "campaign_content_json"
 >;
 
 export type LoadedPostV2Pipeline = {
   project: PostV2PipelineProjectSummary;
   creation: CreationAggregate | null;
   spec: SpecState;
+  strategy: Awaited<ReturnType<typeof loadStrategySection>>;
+  copy: Awaited<ReturnType<typeof loadCopySection>>;
+  design: Awaited<ReturnType<typeof loadDesignSection>>;
+  production: Awaited<ReturnType<typeof loadProductionSection>>;
+  aiTasks: {
+    strategy: AiTaskRun | null;
+    copyCore: AiTaskRun | null;
+    postCopy: AiTaskRun | null;
+  };
   snapshot: PostV2PipelineSnapshot;
 };
 
@@ -117,6 +129,9 @@ function buildSpecForReadModel(input: {
         : undefined,
     });
   }
+
+  const persisted = getPostV2SpecFromCampaignJson(project.campaign_content_json);
+  if (persisted) return persisted;
 
   const seed: SpecSeedInput = {};
 
@@ -399,6 +414,43 @@ async function loadLatestClientApproval(
   return row as PostV2PipelineClientApproval | null;
 }
 
+async function loadLatestAiTasks(projectId: string): Promise<LoadedPostV2Pipeline["aiTasks"]> {
+  const { data, error } = await supabase
+    .from("creation_ai_task_runs")
+    .select("*")
+    .eq("project_id", projectId)
+    .in("task_type", ["strategy", "copy"])
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (error) {
+    throw new Error(`Não foi possível carregar AI Tasks: ${error.message}`);
+  }
+
+  let strategy: AiTaskRun | null = null;
+  let copyCore: AiTaskRun | null = null;
+  let postCopy: AiTaskRun | null = null;
+
+  for (const row of data ?? []) {
+    const run = toAiTaskRun(row);
+    if (!strategy && run.taskType === "strategy") {
+      strategy = run;
+      continue;
+    }
+    if (run.taskType !== "copy") continue;
+
+    if (!postCopy && run.inputVersions.post_copy_adapter_schema) {
+      postCopy = run;
+      continue;
+    }
+    if (!copyCore && run.inputVersions.copy_response_schema) {
+      copyCore = run;
+    }
+  }
+
+  return { strategy, copyCore, postCopy };
+}
+
 export async function loadPostV2Pipeline(
   projectIdInput: string,
 ): Promise<LoadedPostV2Pipeline> {
@@ -413,12 +465,13 @@ export async function loadPostV2Pipeline(
     design,
     production,
     clientApproval,
+    aiTasks,
   ] = await Promise.all([
     maybeOne<PostV2PipelineProjectSummary>(
       supabase
         .from("content_projects")
         .select(
-          "id, display_title, internal_title, theme, objective, selected_formats, brand_id, status, updated_at",
+          "id, display_title, internal_title, theme, objective, selected_formats, brand_id, status, updated_at, campaign_content_json",
         )
         .eq("id", projectId)
         .maybeSingle(),
@@ -437,6 +490,7 @@ export async function loadPostV2Pipeline(
     loadDesignSection(projectId),
     loadProductionSection(projectId),
     loadLatestClientApproval(projectId),
+    loadLatestAiTasks(projectId),
   ]);
 
   if (!projectRow) throw new Error("Projeto não encontrado ou sem acesso.");
@@ -459,5 +513,33 @@ export async function loadPostV2Pipeline(
     clientApproval,
   });
 
-  return { project, creation, spec, snapshot };
+  const isResumableTask = (run: AiTaskRun | null) =>
+    !!run && (run.validationStatus === "pending" || run.validationStatus === "invalid");
+
+  const resumableAiTasks: LoadedPostV2Pipeline["aiTasks"] = {
+    strategy: isResumableTask(aiTasks.strategy) ? aiTasks.strategy : null,
+    copyCore:
+      isResumableTask(aiTasks.copyCore) &&
+      aiTasks.copyCore?.inputVersions.strategy_version_id === strategy.approvedVersion?.id &&
+      aiTasks.copyCore?.inputVersions.brand_snapshot_id === strategy.brandSnapshot?.id
+        ? aiTasks.copyCore
+        : null,
+    postCopy:
+      isResumableTask(aiTasks.postCopy) &&
+      aiTasks.postCopy?.inputVersions.source_copy_version_id === copy.approvedVersion?.id
+        ? aiTasks.postCopy
+        : null,
+  };
+
+  return {
+    project,
+    creation,
+    spec,
+    strategy,
+    copy,
+    design,
+    production,
+    aiTasks: resumableAiTasks,
+    snapshot,
+  };
 }

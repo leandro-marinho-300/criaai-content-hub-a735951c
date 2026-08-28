@@ -32,13 +32,6 @@ import type {
 } from "@/lib/creation/post-v2-pipeline";
 import type { LoadedPostV2Pipeline } from "@/lib/creation/post-v2-pipeline-loader";
 import type { SpecDecisionKey } from "@/lib/creation/spec";
-import {
-  PostV2CopyActions,
-  PostV2CreationBootstrapAction,
-  PostV2SpecActions,
-  PostV2StartPanel,
-  PostV2StrategyActions,
-} from "@/components/post-v2/post-v2-creative-actions";
 
 const STEP_STATE_LABEL: Record<PostV2StepState, string> = {
   not_started: "Não iniciado",
@@ -202,12 +195,17 @@ function completedPercent(snapshot: PostV2PipelineSnapshot) {
   return Math.round((complete / TIMELINE.length) * 100);
 }
 
+function versionLabel(version: { versionNumber: number; approvalStatus: string } | null) {
+  if (!version) return "Nenhuma versão";
+  return `v${version.versionNumber} · ${version.approvalStatus}`;
+}
+
 export function PostV2PipelineShell({
   loaded,
-  onReload,
+  actionConsole,
 }: {
   loaded: LoadedPostV2Pipeline | null;
-  onReload?: () => Promise<unknown>;
+  actionConsole: ReactNode;
 }) {
   const snapshot = loaded?.snapshot ?? null;
 
@@ -235,8 +233,9 @@ export function PostV2PipelineShell({
                 "Post V2 Studio"}
             </h1>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              Interface paralela conectada ao pipeline canônico. $Spec, Strategy e Copy já podem
-              avançar pelo fluxo externo/manual sem alterar o Post atual.
+              Studio paralelo conectado ao pipeline canônico. Nesta entrega, somente $Spec,
+              Strategy, Copy Core e Post Copy possuem ações operacionais; as etapas seguintes
+              continuam em leitura.
             </p>
           </div>
 
@@ -253,14 +252,14 @@ export function PostV2PipelineShell({
 
       {!snapshot || !loaded ? (
         <>
-          <PostV2StartPanel />
+          {actionConsole}
+
           <Card className="border-dashed">
             <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <p className="font-semibold">Nenhuma Creation V2 selecionada</p>
                 <p className="text-sm text-muted-foreground">
-                  Você pode iniciar uma Creation V2 acima. O Post atual continua disponível em
-                  paralelo durante toda a validação do novo fluxo.
+                  Inicie um Post V2 acima. O Post atual e o Reel2 seguem preservados em paralelo.
                 </p>
               </div>
               <Button asChild variant="outline">
@@ -333,16 +332,12 @@ export function PostV2PipelineShell({
                 })}
               </div>
 
-              {!loaded.creation && onReload && (
-                <PostV2CreationBootstrapAction loaded={loaded} onChanged={onReload} />
-              )}
-
               <Separator />
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">
-                  O Studio respeita a próxima ação do orquestrador. Nesta etapa, somente $Spec,
-                  Strategy e Copy possuem ações operacionais.
+                  A próxima ação vem do orquestrador. A interface não libera Design, Render,
+                  Asset, QA ou aprovação do cliente nesta fase.
                 </p>
                 {snapshot.readyForOperations ? (
                   <Button asChild size="sm">
@@ -350,14 +345,16 @@ export function PostV2PipelineShell({
                   </Button>
                 ) : (
                   <Button size="sm" disabled>
-                    Seguir a próxima ação acima
+                    Siga a ação operacional abaixo
                   </Button>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          {actionConsole}
+
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <StageCard
               title="$Spec"
               icon={<Target className="h-4 w-4" />}
@@ -378,9 +375,6 @@ export function PostV2PipelineShell({
                   );
                 })}
               </div>
-              {onReload && loaded.creation && (
-                <PostV2SpecActions loaded={loaded} onChanged={onReload} />
-              )}
             </StageCard>
 
             <StageCard
@@ -388,9 +382,20 @@ export function PostV2PipelineShell({
               icon={<RouteIcon className="h-4 w-4" />}
               step={snapshot.steps.strategy}
             >
-              {onReload && loaded.creation && (
-                <PostV2StrategyActions loaded={loaded} onChanged={onReload} />
-              )}
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-md border bg-background/70 p-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Atual
+                  </p>
+                  <p className="mt-1 text-xs">{versionLabel(loaded.strategy.currentVersion)}</p>
+                </div>
+                <div className="rounded-md border bg-background/70 p-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Aprovada
+                  </p>
+                  <p className="mt-1 text-xs">{versionLabel(loaded.strategy.approvedVersion)}</p>
+                </div>
+              </div>
             </StageCard>
 
             <StageCard
@@ -405,6 +410,18 @@ export function PostV2PipelineShell({
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="rounded-md border bg-background/70 p-2">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Versão atual
+                  </p>
+                  <p className="mt-1 text-xs">{versionLabel(loaded.copy.currentVersion)}</p>
+                </div>
+                <div className="rounded-md border bg-background/70 p-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Versão aprovada
+                  </p>
+                  <p className="mt-1 text-xs">{versionLabel(loaded.copy.approvedVersion)}</p>
+                </div>
+                <div className="rounded-md border bg-background/70 p-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                     Copy Core
                   </p>
                   <p className="mt-1 text-xs">{STEP_STATE_LABEL[snapshot.steps.copyCore.state]}</p>
@@ -416,9 +433,6 @@ export function PostV2PipelineShell({
                   <p className="mt-1 text-xs">{STEP_STATE_LABEL[snapshot.steps.postCopy.state]}</p>
                 </div>
               </div>
-              {onReload && loaded.creation && (
-                <PostV2CopyActions loaded={loaded} onChanged={onReload} />
-              )}
             </StageCard>
 
             <StageCard
@@ -428,10 +442,10 @@ export function PostV2PipelineShell({
             >
               <div className="rounded-md border bg-background/70 p-2">
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Render Prompt
+                  Somente leitura nesta entrega
                 </p>
                 <p className="mt-1 text-xs">
-                  {STEP_STATE_LABEL[snapshot.steps.renderPrompt.state]}
+                  Render Prompt: {STEP_STATE_LABEL[snapshot.steps.renderPrompt.state]}
                 </p>
               </div>
             </StageCard>

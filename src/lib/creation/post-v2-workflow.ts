@@ -128,10 +128,14 @@ export async function bootstrapExistingPostV2(projectId: string): Promise<void> 
     .eq("project_id", projectId)
     .maybeSingle();
   if (readError) throw readError;
-  if (existing) return;
 
-  const { error: coreError } = await supabase.from("creation_core").insert(buildCreationCoreInsert(projectId));
-  if (coreError) throw coreError;
+  if (!existing) {
+    const { error: coreError } = await supabase
+      .from("creation_core")
+      .insert(buildCreationCoreInsert(projectId));
+    if (coreError) throw coreError;
+  }
+
   const inserts = await Promise.all([
     supabase.from("creation_strategy_state").upsert(buildStrategyStateInsert(projectId), { onConflict: "project_id", ignoreDuplicates: true }),
     supabase.from("creation_copy_state").upsert(buildCopyStateInsert(projectId), { onConflict: "project_id", ignoreDuplicates: true }),
